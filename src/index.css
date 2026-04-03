@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+@theme {
+  --color-vibrant-blue: #0062FF;
+  --color-dark-bg: #09090b;
+  --color-card-bg: #121214;
+  --color-card-border: #27272a;
+
+  --color-glass-bg: rgba(24, 24, 27, 0.6);
+  --color-glass-border: rgba(39, 39, 42, 0.4);
+}
+
+@layer base {
+  :root {
+    --background: #09090b;
+    --foreground: #f4f4f5;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    @apply antialiased min-h-screen selection:bg-vibrant-blue selection:text-white font-sans;
+  }
+
+  button,
+  a,
+  [role="button"] {
+    @apply transition-all active:scale-95;
+  }
+
+  /* Custom Glow for specific buttons */
+  .glow-blue {
+    box-shadow: 0 0 20px -5px var(--color-vibrant-blue);
+  }
+}
+
+/* Shimmer animation for store banner */
+@keyframes shimmer {
+  0% { transform: translateX(-100%) skewX(-15deg); }
+  100% { transform: translateX(200%) skewX(-15deg); }
+}
+
+.shimmer-overlay::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+  animation: shimmer 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Tooltip fade-in */
+@keyframes tooltipIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.animate-tooltipIn {
+  animation: tooltipIn 0.18s ease-out forwards;
+}
+
+/* Premium card glow */
+.premium-glow {
+  box-shadow: 0 0 0 1px rgba(29,112,245,0.4), 0 0 30px rgba(29,112,245,0.25), 0 0 60px rgba(29,112,245,0.1);
+}
+
+/* Hide scrollbar but keep scroll functionality */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Modal animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-16px); }
+  to { opacity: 1; transform: translateY(0); }
+}

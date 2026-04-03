@@ -1,0 +1,94 @@
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ToastContainer } from './components/Toast';
+import { MainLayout } from './components/layout/MainLayout';
+import { Dashboard } from './pages/Dashboard';
+import { Shop } from './pages/Shop';
+import { WorkoutPlan } from './pages/WorkoutPlan';
+import { NewWorkout } from './pages/NewWorkout';
+import { ActiveWorkout } from './pages/ActiveWorkout';
+import { Diet } from './pages/Diet';
+import { Premium } from './pages/Premium';
+import { AuthLogin } from './pages/AuthLogin';
+import { AuthSignUp } from './pages/AuthSignUp';
+import { Loader2 } from 'lucide-react';
+import type { ReactNode } from 'react';
+
+function ProtectedRoute({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#121212]">
+        <Loader2 size={32} className="animate-spin text-[#1D63FF]" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+function PublicRoute({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#121212]">
+        <Loader2 size={32} className="animate-spin text-[#1D63FF]" />
+      </div>
+    );
+  }
+
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+      {/* Public auth routes — full screen, no MainLayout */}
+      <Route path="/login" element={<PublicRoute><AuthLogin /></PublicRoute>} />
+      <Route path="/auth/cadastro" element={<PublicRoute><AuthSignUp /></PublicRoute>} />
+
+      {/* Protected full screen routes */}
+      <Route path="/treino/novo" element={<ProtectedRoute><NewWorkout /></ProtectedRoute>} />
+      <Route path="/treino/executar" element={<ProtectedRoute><ActiveWorkout /></ProtectedRoute>} />
+
+      {/* Protected routes with MainLayout */}
+      <Route path="*" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/loja" element={<Shop />} />
+              <Route path="/treino" element={<WorkoutPlan />} />
+              <Route path="/dieta" element={<Diet />} />
+              <Route path="/premium" element={<Premium />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+    </Routes>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <Router>
+        <ToastContainer />
+        <AppRoutes />
+      </Router>
+    </AuthProvider>
+  );
+}
+
+export default App;
