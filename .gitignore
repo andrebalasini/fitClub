@@ -54,3 +54,19 @@ supabase/.keys/
 
 # Turbo
 .turbo/
+
+# Cache de compilação e ferramentas
+.cache/
+.eslintcache
+.stylelintcache
+
+# Pasta de ambiente do Next.js (caso esteja usando)
+.next/
+
+# Relatórios de testes (caso venha a usar Vitest ou Jest)
+coverage/
+
+# Arquivos temporários do Antigravity/IDE
+.antigravity/
+*.tmp
+*.bak
