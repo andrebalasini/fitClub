@@ -49,8 +49,9 @@ export function useDragScroll<T extends HTMLElement = HTMLDivElement>(options?: 
         document.body.style.removeProperty('-webkit-user-select');
     }, []);
 
-    const handleMouseDown = useCallback((event: MouseEvent) => {
+    const handlePointerDown = useCallback((event: PointerEvent) => {
         if (disabledRef.current) return;
+        if (event.pointerType !== 'mouse') return; // Only apply JS drag on desktop
 
         const container = ref.current;
         if (!container) return;
@@ -77,8 +78,9 @@ export function useDragScroll<T extends HTMLElement = HTMLDivElement>(options?: 
         (document.body.style as CSSStyleDeclaration & { webkitUserSelect: string }).webkitUserSelect = 'none';
     }, []);
 
-    const handleMouseMove = useCallback((event: MouseEvent) => {
+    const handlePointerMove = useCallback((event: PointerEvent) => {
         if (!isMouseDown.current) return;
+        if (event.pointerType !== 'mouse') return;
 
         // If button was released outside the window, clean up
         if (event.buttons === 0) {
@@ -122,26 +124,25 @@ export function useDragScroll<T extends HTMLElement = HTMLDivElement>(options?: 
         container.style.cursor = 'grab';
 
         // Container-level listeners
-        container.addEventListener('mousedown', handleMouseDown);
+        container.addEventListener('pointerdown', handlePointerDown);
         container.addEventListener('click', handleClick, true);
         container.addEventListener('dragstart', preventDragStart);
 
-        // Document-level listeners — ensures drag works even when pointer
-        // leaves the container, and text selection is always suppressed.
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', stopDrag);
+        // Document-level listeners
+        document.addEventListener('pointermove', handlePointerMove);
+        document.addEventListener('pointerup', stopDrag);
         document.addEventListener('selectstart', blockSelection);
 
         return () => {
-            container.removeEventListener('mousedown', handleMouseDown);
+            container.removeEventListener('pointerdown', handlePointerDown);
             container.removeEventListener('click', handleClick, true);
             container.removeEventListener('dragstart', preventDragStart);
 
-            document.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseup', stopDrag);
+            document.removeEventListener('pointermove', handlePointerMove);
+            document.removeEventListener('pointerup', stopDrag);
             document.removeEventListener('selectstart', blockSelection);
         };
-    }, [handleMouseDown, handleMouseMove, handleClick, stopDrag, preventDragStart, blockSelection]);
+    }, [handlePointerDown, handlePointerMove, handleClick, stopDrag, preventDragStart, blockSelection]);
 
     return ref;
 }

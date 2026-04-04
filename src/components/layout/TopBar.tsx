@@ -8,7 +8,12 @@ interface TopBarProps {
     backIconType?: 'arrow' | 'stop';
 }
 
-export function TopBar({ onMenuClick, showBackButton, onBackClick, backIconType = 'arrow' }: TopBarProps) {
+export function TopBar({ 
+    onMenuClick, 
+    showBackButton, 
+    onBackClick, 
+    backIconType = 'arrow'
+}: TopBarProps) {
     return (
         <header className="sticky top-0 z-50 bg-gradient-to-b from-[#161d2d] to-[#0f141e] h-[72px] flex items-center justify-between px-5 pt-3 pb-1 shadow-sm">
             {/* Left: Menu Hamburger or Back Button */}

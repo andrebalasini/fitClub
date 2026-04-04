@@ -1,5 +1,5 @@
 import { X, Play } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+
 
 export interface FichaDayWorkout {
     dia: string;
@@ -18,16 +18,20 @@ const dayOrder: Record<string, number> = {
     'DOM': 0, 'SEG': 1, 'TER': 2, 'QUA': 3, 'QUI': 4, 'SEX': 5, 'SAB': 6
 };
 
+import { useNavigate } from 'react-router-dom';
+import { useActiveWorkout } from '../contexts/WorkoutContext';
+
 export function SelectWorkoutDayModal({ fichaId, fichaNome, diasTreino, onClose }: SelectWorkoutDayModalProps) {
+    const { startWorkout } = useActiveWorkout();
     const navigate = useNavigate();
     
     // Sort days correctly based on logical week order
     const sortedDias = [...diasTreino].sort((a, b) => dayOrder[a.dia] - dayOrder[b.dia]);
 
     const handleSelectDay = (dia: string, grupos: string[]) => {
-        // We'll prepare navigation to the active workout page here
-        // For now, it could be a placeholder route, or we can use it to build the next module
-        navigate('/treino/executar', { state: { fichaId, fichaNome, dia, grupos } });
+        startWorkout({ fichaId, dia, grupos });
+        onClose();
+        navigate('/treino/executar');
     };
 
     return (
