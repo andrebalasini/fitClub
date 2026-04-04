@@ -512,25 +512,25 @@ export function NewWorkout() {
                                     </div>
                                     
                                     {/* Details section */}
-                                    <div className="pt-4 pr-[72px] pb-4 flex-1 flex flex-col justify-center">
-                                        <h3 className="text-white font-bold text-base mb-2 max-w-full overflow-hidden text-ellipsis whitespace-nowrap">{exercise.nome}</h3>
+                                    <div className="pt-4 pr-[72px] pb-4 flex-1 min-w-0 flex flex-col justify-center overflow-hidden">
+                                        <h3 className="text-white font-bold text-base mb-2 truncate">{exercise.nome}</h3>
                                         
-                                        <div className="grid grid-cols-2 gap-y-2 gap-x-2">
+                                        <div className="grid grid-cols-2 gap-y-1.5 gap-x-3 max-w-[210px]">
                                             <div className="flex items-center text-blue-400 gap-1.5">
                                                 <Layers size={14} className="flex-shrink-0" />
-                                                <span className="text-xs font-bold text-white">{exercise.series} séries</span>
+                                                <span className="text-xs font-bold text-white whitespace-nowrap">{exercise.series} séries</span>
                                             </div>
                                             <div className="flex items-center text-blue-400 gap-1.5">
                                                 <RefreshCw size={14} className="flex-shrink-0" />
-                                                <span className="text-xs font-bold text-white">{exercise.repeticoes} reps</span>
+                                                <span className="text-xs font-bold text-white whitespace-nowrap">{exercise.repeticoes} reps</span>
                                             </div>
                                             <div className="flex items-center text-blue-400 gap-1.5">
                                                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 flex-shrink-0 text-blue-400"><path d="M20.57 14.86L22 13.43 20.57 12 17 15.57 8.43 7 12 3.43 10.57 2 9.14 3.43 7.71 2 5.57 4.14 4.14 2.71 2.71 4.14l1.43 1.43L2 7.71l1.43 1.43L2 10.57 3.43 12 7 8.43 15.57 17 12 20.57 13.43 22l1.43-1.43L16.29 22l2.14-2.14 1.43 1.43 1.43-1.43-1.43-1.43L22 16.29z" /></svg>
-                                                <span className="text-xs font-bold text-white">{exercise.carga} kg</span>
+                                                <span className="text-xs font-bold text-white whitespace-nowrap">{exercise.carga} kg</span>
                                             </div>
                                             <div className="flex items-center text-blue-400 gap-1.5">
                                                 <Clock size={14} className="flex-shrink-0" />
-                                                <span className="text-xs font-bold text-white">{exercise.descanso} seg</span>
+                                                <span className="text-xs font-bold text-white whitespace-nowrap">{exercise.descanso} seg</span>
                                             </div>
                                         </div>
                                     </div>

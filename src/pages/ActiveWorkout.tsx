@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { TopBar } from '../components/layout/TopBar';
 import { BottomNav } from '../components/layout/BottomNav';
 import { supabase } from '../lib/supabase';
-import { CheckCircle, Clock, Loader2, Layers, RefreshCw, Info, Zap, TrendingUp } from 'lucide-react';
+import { CheckCircle, Clock, Loader2, Layers, RefreshCw, Info, Zap, TrendingUp, AlertTriangle } from 'lucide-react';
 import { useDragScroll } from '../hooks/useDragScroll';
 import { LogSetModal } from '../components/LogSetModal';
 import { getCurrentUserId } from '../lib/auth';
@@ -220,6 +220,9 @@ export function ActiveWorkout() {
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
     const [workoutStarted, setWorkoutStarted] = useState(false);
     const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+    const [showExitModal, setShowExitModal] = useState(false);
+    const [sessionHistoryIds, setSessionHistoryIds] = useState<string[]>([]);
+    const [isSavingExit, setIsSavingExit] = useState(false);
     const [isResting, setIsResting] = useState(false);
     const [restTimeRemaining, setRestTimeRemaining] = useState(0);
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -331,7 +334,7 @@ export function ActiveWorkout() {
 
     const handleSaveSetLog = async (reps: number, weight: number, feedback: string) => {
         const currentExercise = exercises[currentIndex];
-        const { error } = await supabase.from('tbHistorico').insert({
+        const { data: insertedRow, error } = await supabase.from('tbHistorico').insert({
             ficha_id: fichaId,
             dia: dia,
             exercicio_id: currentExercise.exercicio_id,
@@ -340,7 +343,7 @@ export function ActiveWorkout() {
             carga_usada: weight,
             feedback: feedback,
             user_id: getCurrentUserId()
-        });
+        }).select('id').single();
 
         if (error) {
             console.error("Erro ao salvar histórico:", error);
@@ -348,9 +351,15 @@ export function ActiveWorkout() {
             return;
         }
 
+        // Track the session record ID so it can be deleted if user discards
+        if (insertedRow?.id) {
+            setSessionHistoryIds(prev => [...prev, insertedRow.id]);
+        }
+
+        const tempId = (Date.now() + Math.random()).toString();
         // Add to local state dynamically so chart updates immediately
         setExerciseHistory(prev => [...prev, {
-            id: (Date.now() + Math.random()).toString(), 
+            id: tempId,
             exercicio_id: currentExercise.exercicio_id,
             carga_usada: weight,
             repeticoes_feitas: reps,
@@ -370,6 +379,59 @@ export function ActiveWorkout() {
             setRestTimeRemaining(currentExercise.descanso);
             setIsResting(true);
         }
+    };
+
+    // Called when user tries to go back while workout is active
+    const handleEarlyExitRequest = () => {
+        if (!workoutStarted) {
+            navigate(-1);
+            return;
+        }
+        // If all exercises are done, just finish normally
+        const isCompleted = currentIndex === exercises.length - 1 && currentSetIndex === exercises[currentIndex]?.series - 1;
+        if (isCompleted) {
+            handleFinishWorkout();
+            return;
+        }
+        setShowExitModal(true);
+    };
+
+    // Save partial workout (register progress as-is) and navigate away
+    const handleSavePartialWorkout = async () => {
+        setIsSavingExit(true);
+        if (timerRef.current) clearInterval(timerRef.current);
+        try {
+            await supabase.from('tbTreinosCompletos').insert({
+                user_id: getCurrentUserId(),
+                ficha_id: fichaId,
+                dia: dia,
+                duracao_segundos: elapsedSeconds
+            });
+            await supabase.from('tbFitPoints').insert({
+                user_id: getCurrentUserId(),
+                pontos: 50,
+                motivo: 'treino_parcial'
+            });
+        } catch (err) {
+            console.error('Erro ao registrar treino parcial:', err);
+        }
+        setIsSavingExit(false);
+        navigate(-1);
+    };
+
+    // Discard workout — delete all history records created in this session
+    const handleDiscardWorkout = async () => {
+        setIsSavingExit(true);
+        if (timerRef.current) clearInterval(timerRef.current);
+        if (sessionHistoryIds.length > 0) {
+            try {
+                await supabase.from('tbHistorico').delete().in('id', sessionHistoryIds);
+            } catch (err) {
+                console.error('Erro ao descartar histórico da sessão:', err);
+            }
+        }
+        setIsSavingExit(false);
+        navigate(-1);
     };
 
     const handleFinishWorkout = async () => {
@@ -578,7 +640,7 @@ export function ActiveWorkout() {
     return (
         <div className="min-h-screen bg-[#0f141e]">
             <div className="w-full flex-col flex min-h-screen bg-[#0f141e] font-sans pb-32 max-w-[1024px] mx-auto relative shadow-2xl shadow-black/50">
-                <TopBar showBackButton onBackClick={() => navigate(-1)} />
+                <TopBar showBackButton onBackClick={handleEarlyExitRequest} backIconType={workoutStarted ? 'stop' : 'arrow'} />
                 
                 <div className="px-4 w-full pt-2 flex flex-col flex-1 pb-10">
                     {/* Cabeçalho */}
@@ -624,7 +686,7 @@ export function ActiveWorkout() {
                                 {exercises.map((exercise, idx) => (
                                     <div
                                         key={exercise.id}
-                                        className={`min-w-[85%] sm:min-w-[380px] max-w-[420px] snap-center flex-shrink-0 bg-gradient-to-br from-[#1c2436] to-[#121825] rounded-[24px] overflow-hidden shadow-xl shadow-black/40 transition-all duration-300 relative ${
+                                        className={`w-[85%] sm:w-[380px] snap-center flex-shrink-0 bg-gradient-to-br from-[#1c2436] to-[#121825] rounded-[24px] overflow-hidden shadow-xl shadow-black/40 transition-all duration-300 relative ${
                                             idx === currentIndex
                                                 ? ''
                                                 : 'opacity-60'
@@ -845,6 +907,55 @@ export function ActiveWorkout() {
                         onClose={() => setIsLogModalOpen(false)}
                         onSave={handleSaveSetLog}
                     />
+                )}
+
+                {/* ── Exit Workout Modal ── */}
+                {showExitModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
+                        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-[fadeIn_200ms_ease-out]" onClick={() => setShowExitModal(false)} />
+                        
+                        <div className="relative w-full max-w-sm bg-[#1a1f2e] rounded-3xl p-6 animate-[slideUp_300ms_ease-out] shadow-2xl shadow-black/50 z-10 flex flex-col items-center text-center">
+                            
+                            <div className="w-14 h-14 rounded-full bg-yellow-500/10 flex items-center justify-center text-yellow-500 mb-4">
+                                <AlertTriangle size={28} />
+                            </div>
+
+                            <h2 className="text-white font-bold text-xl leading-tight mb-2">
+                                Encerrar treino incompleto?
+                            </h2>
+                            
+                            <p className="text-[#8e95a3] text-[15px] font-medium leading-relaxed mb-6">
+                                Você concluiu {currentIndex}/{exercises.length} exercícios. O que deseja fazer com o progresso atual?
+                            </p>
+
+                            <div className="flex flex-col gap-3 w-full">
+                                <button
+                                    onClick={handleSavePartialWorkout}
+                                    disabled={isSavingExit}
+                                    className="w-full py-3.5 rounded-xl bg-blue-500 text-white font-bold text-base flex items-center justify-center gap-2 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] shadow-lg shadow-blue-500/25"
+                                >
+                                    {isSavingExit && <Loader2 size={18} className="animate-spin" />}
+                                    Registrar progresso
+                                </button>
+                                <div className="flex gap-3 w-full">
+                                    <button
+                                        onClick={() => setShowExitModal(false)}
+                                        disabled={isSavingExit}
+                                        className="flex-1 py-3.5 rounded-xl bg-slate-700/50 text-white font-bold text-base hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={handleDiscardWorkout}
+                                        disabled={isSavingExit}
+                                        className="flex-1 py-3.5 rounded-xl bg-red-500/10 text-red-500 font-bold text-base hover:bg-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
+                                    >
+                                        Descartar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 )}
             </div>
         </div>
