@@ -1,12 +1,13 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { WorkoutProvider } from './contexts/WorkoutContext';
 import { ToastContainer } from './components/Toast';
 import { MainLayout } from './components/layout/MainLayout';
 import { Dashboard } from './pages/Dashboard';
 import { Shop } from './pages/Shop';
 import { WorkoutPlan } from './pages/WorkoutPlan';
 import { NewWorkout } from './pages/NewWorkout';
-import { ActiveWorkout } from './pages/ActiveWorkout';
+import { ActiveWorkoutWrapper } from './components/ActiveWorkoutWrapper';
 import { Diet } from './pages/Diet';
 import { Premium } from './pages/Premium';
 import { AuthLogin } from './pages/AuthLogin';
@@ -59,7 +60,7 @@ function AppRoutes() {
 
       {/* Protected full screen routes */}
       <Route path="/treino/novo" element={<ProtectedRoute><NewWorkout /></ProtectedRoute>} />
-      <Route path="/treino/executar" element={<ProtectedRoute><ActiveWorkout /></ProtectedRoute>} />
+      <Route path="/treino/executar" element={<ProtectedRoute><></></ProtectedRoute>} />
 
       {/* Protected routes with MainLayout */}
       <Route path="*" element={
@@ -83,10 +84,13 @@ function AppRoutes() {
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <ToastContainer />
-        <AppRoutes />
-      </Router>
+      <WorkoutProvider>
+        <Router>
+          <ToastContainer />
+          <AppRoutes />
+          <ActiveWorkoutWrapper />
+        </Router>
+      </WorkoutProvider>
     </AuthProvider>
   );
 }

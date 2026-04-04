@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { TopBar } from '../components/layout/TopBar';
 import { BottomNav } from '../components/layout/BottomNav';
 import { supabase } from '../lib/supabase';
@@ -7,6 +7,7 @@ import { CheckCircle, Clock, Loader2, Layers, RefreshCw, Info, Zap, TrendingUp, 
 import { useDragScroll } from '../hooks/useDragScroll';
 import { LogSetModal } from '../components/LogSetModal';
 import { getCurrentUserId } from '../lib/auth';
+import { useActiveWorkout } from '../contexts/WorkoutContext';
 
 const DEFAULT_EXERCISE_IMAGE = 'https://fafisurbnecapdpguudb.supabase.co/storage/v1/object/public/assets/geral/exercise_default_min.png';
 
@@ -206,10 +207,10 @@ const PerformanceChart = ({
 
 export function ActiveWorkout() {
     const navigate = useNavigate();
-    const location = useLocation();
+    const { workoutConfig, endWorkout } = useActiveWorkout();
     
-    // Get state passed from the SelectWorkoutDayModal
-    const { fichaId, dia, grupos } = location.state || {};
+    // Get state passed from context
+    const { fichaId, dia, grupos } = workoutConfig || {};
     const gruposList: string[] = grupos || [];
 
     const [exerciseHistory, setExerciseHistory] = useState<HistoryRecord[]>([]);
@@ -237,7 +238,7 @@ export function ActiveWorkout() {
 
     useEffect(() => {
         if (!fichaId || !dia) {
-            navigate(-1);
+            endWorkout();
             return;
         }
 
@@ -302,7 +303,7 @@ export function ActiveWorkout() {
         return () => {
             if (timerRef.current) clearInterval(timerRef.current);
         };
-    }, [fichaId, dia, navigate]);
+    }, [fichaId, dia, endWorkout]);
 
     const handleStartWorkout = () => {
         setWorkoutStarted(true);
@@ -381,22 +382,16 @@ export function ActiveWorkout() {
         }
     };
 
-    // Called when user tries to go back while workout is active
+    // Called when user clicks STOP or BACK
     const handleEarlyExitRequest = () => {
         if (!workoutStarted) {
+            endWorkout();
             navigate(-1);
-            return;
-        }
-        // If all exercises are done, just finish normally
-        const isCompleted = currentIndex === exercises.length - 1 && currentSetIndex === exercises[currentIndex]?.series - 1;
-        if (isCompleted) {
-            handleFinishWorkout();
             return;
         }
         setShowExitModal(true);
     };
 
-    // Save partial workout (register progress as-is) and navigate away
     const handleSavePartialWorkout = async () => {
         setIsSavingExit(true);
         if (timerRef.current) clearInterval(timerRef.current);
@@ -416,7 +411,8 @@ export function ActiveWorkout() {
             console.error('Erro ao registrar treino parcial:', err);
         }
         setIsSavingExit(false);
-        navigate(-1);
+        endWorkout();
+        navigate('/treino', { replace: true });
     };
 
     // Discard workout — delete all history records created in this session
@@ -431,7 +427,8 @@ export function ActiveWorkout() {
             }
         }
         setIsSavingExit(false);
-        navigate(-1);
+        endWorkout();
+        navigate('/treino', { replace: true });
     };
 
     const handleFinishWorkout = async () => {
@@ -449,9 +446,10 @@ export function ActiveWorkout() {
                 motivo: 'treino_concluido'
             });
         } catch (err) {
-            console.error('Erro ao registrar treino concluído:', err);
+            console.error('Erro ao registrar conclusão:', err);
         }
-        navigate(-1);
+        endWorkout();
+        navigate('/treino', { replace: true });
     };
 
     const handleNextExercise = () => {
@@ -640,7 +638,11 @@ export function ActiveWorkout() {
     return (
         <div className="min-h-screen bg-[#0f141e]">
             <div className="w-full flex-col flex min-h-screen bg-[#0f141e] font-sans pb-32 max-w-[1024px] mx-auto relative shadow-2xl shadow-black/50">
-                <TopBar showBackButton onBackClick={handleEarlyExitRequest} backIconType={workoutStarted ? 'stop' : 'arrow'} />
+                <TopBar 
+                  showBackButton 
+                  onBackClick={handleEarlyExitRequest} 
+                  backIconType={workoutStarted ? 'stop' : 'arrow'} 
+                />
                 
                 <div className="px-4 w-full pt-2 flex flex-col flex-1 pb-10">
                     {/* Cabeçalho */}
