@@ -1,13 +1,14 @@
-import { Menu, ArrowLeft } from 'lucide-react';
+import { Menu, ArrowLeft, Square } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface TopBarProps {
     onMenuClick?: () => void;
     showBackButton?: boolean;
     onBackClick?: () => void;
+    backIconType?: 'arrow' | 'stop';
 }
 
-export function TopBar({ onMenuClick, showBackButton, onBackClick }: TopBarProps) {
+export function TopBar({ onMenuClick, showBackButton, onBackClick, backIconType = 'arrow' }: TopBarProps) {
     return (
         <header className="sticky top-0 z-50 bg-gradient-to-b from-[#161d2d] to-[#0f141e] h-[72px] flex items-center justify-between px-5 pt-3 pb-1 shadow-sm">
             {/* Left: Menu Hamburger or Back Button */}
@@ -15,10 +16,15 @@ export function TopBar({ onMenuClick, showBackButton, onBackClick }: TopBarProps
                 {showBackButton ? (
                     <button 
                         onClick={onBackClick}
-                        className="p-1.5 -ml-1.5 rounded-full bg-transparent active:scale-95 transition-all outline-none"
-                        aria-label="Voltar"
+                        className={`rounded-full active:scale-95 transition-all outline-none relative w-10 h-10 flex items-center justify-center ${backIconType === 'stop' ? 'bg-[#1a2235] shadow-lg shadow-black/40' : 'bg-transparent'}`}
+                        aria-label={backIconType === 'stop' ? "Parar" : "Voltar"}
                     >
-                        <ArrowLeft className="w-[30px] h-[30px] text-white" strokeWidth={2.5} />
+                        <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${backIconType === 'stop' ? 'opacity-0 scale-50 -rotate-90' : 'opacity-100 scale-100 rotate-0'}`}>
+                            <ArrowLeft className="w-[30px] h-[30px] text-white" strokeWidth={2.5} />
+                        </div>
+                        <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${backIconType === 'stop' ? 'opacity-100 scale-100 rotate-0' : 'opacity-0 scale-50 rotate-90'}`}>
+                            <Square size={18} fill="#ef4444" strokeWidth={0} className="text-red-500 rounded-sm" />
+                        </div>
                     </button>
                 ) : (
                     <button 
