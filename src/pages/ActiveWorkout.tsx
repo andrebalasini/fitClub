@@ -8,6 +8,7 @@ import { useDragScroll } from '../hooks/useDragScroll';
 import { LogSetModal } from '../components/LogSetModal';
 import { getCurrentUserId } from '../lib/auth';
 import { useActiveWorkout } from '../contexts/WorkoutContext';
+import { showToast } from '../components/Toast';
 
 const DEFAULT_EXERCISE_IMAGE = 'https://fafisurbnecapdpguudb.supabase.co/storage/v1/object/public/assets/geral/exercise_default_min.png';
 
@@ -218,16 +219,18 @@ export function ActiveWorkout() {
     const [isLoading, setIsLoading] = useState(true);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [currentSetIndex, setCurrentSetIndex] = useState(0);
+    const [focusedIndex, setFocusedIndex] = useState(0);
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
     const [workoutStarted, setWorkoutStarted] = useState(false);
+    const [workoutStartTime, setWorkoutStartTime] = useState<number | null>(null);
     const [isLogModalOpen, setIsLogModalOpen] = useState(false);
     const [showExitModal, setShowExitModal] = useState(false);
     const [sessionHistoryIds, setSessionHistoryIds] = useState<string[]>([]);
     const [isSavingExit, setIsSavingExit] = useState(false);
     const [isResting, setIsResting] = useState(false);
     const [restTimeRemaining, setRestTimeRemaining] = useState(0);
-    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const carouselRef = useDragScroll<HTMLDivElement>({ disabled: isResting });
+    const [restEndTime, setRestEndTime] = useState<number | null>(null);
+    const carouselRef = useDragScroll<HTMLDivElement>({ disabled: false });
     const isScrollingProgrammatically = useRef(false);
     const handleNextExerciseRef = useRef<(() => void) | null>(null);
 
@@ -299,17 +302,11 @@ export function ActiveWorkout() {
         }
 
         fetchExercisesAndHistory();
-
-        return () => {
-            if (timerRef.current) clearInterval(timerRef.current);
-        };
     }, [fichaId, dia, endWorkout]);
 
     const handleStartWorkout = () => {
         setWorkoutStarted(true);
-        timerRef.current = setInterval(() => {
-            setElapsedSeconds(prev => prev + 1);
-        }, 1000);
+        setWorkoutStartTime(Date.now());
     };
 
     const formatTime = (totalSeconds: number) => {
@@ -329,6 +326,7 @@ export function ActiveWorkout() {
         const cardRect = card.getBoundingClientRect();
         const scrollOffset = cardRect.left - containerRect.left + container.scrollLeft - (containerRect.width - cardRect.width) / 2;
         isScrollingProgrammatically.current = true;
+        setFocusedIndex(index);
         container.scrollTo({ left: scrollOffset, behavior: 'smooth' });
         setTimeout(() => { isScrollingProgrammatically.current = false; }, 500);
     }, []);
@@ -378,6 +376,7 @@ export function ActiveWorkout() {
             handleNextExercise();
         } else {
             setRestTimeRemaining(currentExercise.descanso);
+            setRestEndTime(Date.now() + currentExercise.descanso * 1000);
             setIsResting(true);
         }
     };
@@ -394,7 +393,6 @@ export function ActiveWorkout() {
 
     const handleSavePartialWorkout = async () => {
         setIsSavingExit(true);
-        if (timerRef.current) clearInterval(timerRef.current);
         try {
             await supabase.from('tbTreinosCompletos').insert({
                 user_id: getCurrentUserId(),
@@ -412,13 +410,13 @@ export function ActiveWorkout() {
         }
         setIsSavingExit(false);
         endWorkout();
+        showToast('Treino encerrado. Suas informações foram salvas!', 'success');
         navigate('/treino', { replace: true });
     };
 
     // Discard workout — delete all history records created in this session
     const handleDiscardWorkout = async () => {
         setIsSavingExit(true);
-        if (timerRef.current) clearInterval(timerRef.current);
         if (sessionHistoryIds.length > 0) {
             try {
                 await supabase.from('tbHistorico').delete().in('id', sessionHistoryIds);
@@ -432,7 +430,6 @@ export function ActiveWorkout() {
     };
 
     const handleFinishWorkout = async () => {
-        if (timerRef.current) clearInterval(timerRef.current);
         try {
             await supabase.from('tbTreinosCompletos').insert({
                 user_id: getCurrentUserId(),
@@ -449,6 +446,7 @@ export function ActiveWorkout() {
             console.error('Erro ao registrar conclusão:', err);
         }
         endWorkout();
+        showToast('Treino concluído! Suas informações foram salvas.', 'success');
         navigate('/treino', { replace: true });
     };
 
@@ -517,22 +515,49 @@ export function ActiveWorkout() {
     }, []);
 
     useEffect(() => {
-        let interval: ReturnType<typeof setInterval>;
-        if (isResting) {
-            if (restTimeRemaining > 0) {
-                interval = setInterval(() => {
-                    setRestTimeRemaining(prev => prev - 1);
-                }, 1000);
-            } else {
-                playAlarmSound();
-                setIsResting(false);
-                if (handleNextExerciseRef.current) handleNextExerciseRef.current();
+        const intervalId = setInterval(() => {
+            if (workoutStarted && workoutStartTime) {
+                setElapsedSeconds(Math.floor((Date.now() - workoutStartTime) / 1000));
             }
-        }
-        return () => {
-            if (interval) clearInterval(interval);
+            if (isResting && restEndTime) {
+                const remaining = Math.ceil((restEndTime - Date.now()) / 1000);
+                if (remaining > 0) {
+                    setRestTimeRemaining(remaining);
+                } else {
+                    playAlarmSound();
+                    setIsResting(false);
+                    setRestEndTime(null);
+                    if (handleNextExerciseRef.current) handleNextExerciseRef.current();
+                }
+            }
+        }, 250);
+
+        const handleVisibilityChange = () => {
+            if (!document.hidden) {
+                if (workoutStarted && workoutStartTime) {
+                    setElapsedSeconds(Math.floor((Date.now() - workoutStartTime) / 1000));
+                }
+                if (isResting && restEndTime) {
+                    const remaining = Math.ceil((restEndTime - Date.now()) / 1000);
+                    if (remaining > 0) {
+                        setRestTimeRemaining(remaining);
+                    } else {
+                        playAlarmSound();
+                        setIsResting(false);
+                        setRestEndTime(null);
+                        if (handleNextExerciseRef.current) handleNextExerciseRef.current();
+                    }
+                }
+            }
         };
-    }, [isResting, restTimeRemaining]);
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            clearInterval(intervalId);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [workoutStarted, workoutStartTime, isResting, restEndTime, playAlarmSound]);
 
     // Detect which card is centered when user manually scrolls the carousel
     const handleCarouselScroll = useCallback(() => {
@@ -551,7 +576,7 @@ export function ActiveWorkout() {
                 closestIndex = idx;
             }
         });
-        setCurrentIndex(closestIndex);
+        setFocusedIndex(closestIndex);
     }, []);
 
 
@@ -560,7 +585,7 @@ export function ActiveWorkout() {
     const kcalBurned = Math.floor((elapsedSeconds / 60) * 6);
 
     // Chart Data Computation for Current Exercise
-    const currentHist = exerciseHistory.filter(h => h.exercicio_id === exercises[currentIndex]?.exercicio_id);
+    const currentHist = exerciseHistory.filter(h => h.exercicio_id === exercises[focusedIndex]?.exercicio_id);
     
     const isWeightBased = currentHist.some(h => h.carga_usada > 0);
     const chartMetricLabel = isWeightBased ? 'Carga (kg)' : 'Repetições (max)';
@@ -689,7 +714,7 @@ export function ActiveWorkout() {
                                     <div
                                         key={exercise.id}
                                         className={`w-[85%] sm:w-[380px] snap-center flex-shrink-0 bg-gradient-to-br from-[#1c2436] to-[#121825] rounded-[24px] overflow-hidden shadow-xl shadow-black/40 transition-all duration-300 relative ${
-                                            idx === currentIndex
+                                            idx === focusedIndex
                                                 ? ''
                                                 : 'opacity-60'
                                         }`}
@@ -706,6 +731,7 @@ export function ActiveWorkout() {
                                             <button
                                                 onClick={() => {
                                                     setIsResting(false);
+                                                    setRestEndTime(null);
                                                     if (handleNextExerciseRef.current) handleNextExerciseRef.current();
                                                 }}
                                                 className="w-full mt-auto py-4 rounded-xl bg-blue-500 text-white font-bold text-base flex items-center justify-center gap-2 hover:bg-blue-600 transition-all active:scale-[0.98] shadow-lg shadow-blue-500/25"
@@ -767,20 +793,22 @@ export function ActiveWorkout() {
                                                 </div>
                                             </div>
 
-                                            {/* Botão Concluir - só no card ativo */}
-                                            {idx === currentIndex && (
+                                            {/* Botão Concluir - só no card focado */}
+                                            {idx === focusedIndex && (
                                                 <button
                                                     onClick={() => setIsLogModalOpen(true)}
-                                                    disabled={!workoutStarted}
+                                                    disabled={!workoutStarted || (isResting && focusedIndex === currentIndex) || focusedIndex !== currentIndex}
                                                     className={`w-full mt-1 font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all ${
-                                                        workoutStarted 
+                                                        workoutStarted && !isResting && focusedIndex === currentIndex
                                                             ? 'bg-blue-500 hover:bg-blue-600 text-white active:scale-[0.98] shadow-lg shadow-blue-500/25' 
                                                             : 'bg-slate-700/50 text-slate-400 cursor-not-allowed'
                                                     }`}
                                                 >
                                                     <CheckCircle size={18} />
                                                     <span className="text-[15px]">
-                                                        {currentIndex === exercises.length - 1 && currentSetIndex === exercise.series - 1
+                                                        {focusedIndex !== currentIndex 
+                                                            ? 'Aguarde sua vez'
+                                                            : currentIndex === exercises.length - 1 && currentSetIndex === exercise.series - 1
                                                             ? 'Finalizar Treino' 
                                                             : currentSetIndex === exercise.series - 1 
                                                             ? 'Concluir exercício'
@@ -795,7 +823,7 @@ export function ActiveWorkout() {
                             </div>
 
                             {/* Nova seção de histórico abaixo do card */}
-                            {exercises.length > 0 && exercises[currentIndex] && (
+                            {exercises.length > 0 && exercises[focusedIndex] && (
                                 <div className="-mt-8 flex flex-col w-full gap-4 pb-8">
                                     <h2 className="text-[#f8fafc] font-bold text-[24px] px-1 tracking-[-0.5px]">Sua performance neste exercício</h2>
                                     

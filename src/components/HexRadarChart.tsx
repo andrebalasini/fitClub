@@ -32,8 +32,8 @@ export function HexRadarChart({ attributes, communityAttributes, size = 240 }: H
   const n = attributes.length; // should be 6
   const cx = size / 2;
   const cy = size / 2;
-  const maxR = size * 0.38;
-  const labelR = size * 0.49;
+  const maxR = size * 0.34;
+  const labelR = size * 0.42;
 
   // Background rings (3 levels)
   const rings = [0.33, 0.66, 1];
@@ -151,7 +151,7 @@ export function HexRadarChart({ attributes, communityAttributes, size = 240 }: H
               textAnchor={anchor}
               dominantBaseline="central"
               fill="#94a3b8"
-              fontSize={10.5}
+              fontSize={9.5}
               fontWeight="700"
               fontFamily="sans-serif"
               letterSpacing="0.5"

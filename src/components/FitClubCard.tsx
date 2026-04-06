@@ -226,11 +226,11 @@ export function FitClubCard({
       <div className="w-full flex items-center justify-between z-10 relative py-2 mb-1">
         
         {/* 1. Radar Chart */}
-        <div className="flex-shrink-0 flex items-center justify-center pl-4 sm:pl-5 mt-1">
+        <div className="flex-shrink-0 flex items-center justify-center pl-2 mt-1">
           <HexRadarChart
             attributes={attributes.map(attr => ({ key: attr.key, value: attr.value }))}
             communityAttributes={communityAttributes.map(attr => ({ key: attr.key, value: attr.value }))}
-            size={135}
+            size={130}
           />
         </div>
 
