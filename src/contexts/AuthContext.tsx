@@ -91,6 +91,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    const keys = [
+        '@fitClub:activeWorkout', '@fitClub:workoutMinimized',
+        '@fw:currentIndex', '@fw:currentSetIndex', '@fw:focusedIndex',
+        '@fw:workoutStarted', '@fw:workoutStartTime',
+        '@fw:sessionHistoryIds', '@fw:isResting',
+        '@fw:restEndTime'
+    ];
+    keys.forEach(k => localStorage.removeItem(k));
   };
 
   return (

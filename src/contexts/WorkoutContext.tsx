@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 
 export interface WorkoutConfig {
@@ -17,11 +17,52 @@ interface WorkoutContextType {
 
 const WorkoutContext = createContext<WorkoutContextType | undefined>(undefined);
 
+const LOCAL_STORAGE_KEY = '@fitClub:activeWorkout';
+const MINIMIZED_STORAGE_KEY = '@fitClub:workoutMinimized';
+
 export function WorkoutProvider({ children }: { children: ReactNode }) {
-  const [workoutConfig, setWorkoutConfig] = useState<WorkoutConfig | null>(null);
-  const [isMinimized, setIsMinimized] = useState(false);
+  const [workoutConfig, setWorkoutConfig] = useState<WorkoutConfig | null>(() => {
+    try {
+      const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [isMinimized, setIsMinimized] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem(MINIMIZED_STORAGE_KEY);
+      return stored === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    if (workoutConfig) {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(workoutConfig));
+    } else {
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+    }
+  }, [workoutConfig]);
+
+  useEffect(() => {
+    localStorage.setItem(MINIMIZED_STORAGE_KEY, String(isMinimized));
+  }, [isMinimized]);
+
+  const clearActiveWorkoutState = () => {
+    const keys = [
+        '@fw:currentIndex', '@fw:currentSetIndex', '@fw:focusedIndex',
+        '@fw:workoutStarted', '@fw:workoutStartTime',
+        '@fw:sessionHistoryIds', '@fw:isResting',
+        '@fw:restEndTime'
+    ];
+    keys.forEach(k => localStorage.removeItem(k));
+  };
 
   const startWorkout = (config: WorkoutConfig) => {
+    clearActiveWorkoutState();
     setWorkoutConfig(config);
     setIsMinimized(false);
   };
@@ -29,6 +70,9 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
   const endWorkout = () => {
     setWorkoutConfig(null);
     setIsMinimized(false);
+    localStorage.removeItem(LOCAL_STORAGE_KEY);
+    localStorage.removeItem(MINIMIZED_STORAGE_KEY);
+    clearActiveWorkoutState();
   };
 
   return (
