@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { TopBar } from '../components/layout/TopBar';
 import { BottomNav } from '../components/layout/BottomNav';
 import { supabase } from '../lib/supabase';
-import { CheckCircle, Clock, Loader2, Layers, RefreshCw, Info, Zap, TrendingUp, AlertTriangle } from 'lucide-react';
+import { CheckCircle, Clock, Loader2, Layers, RefreshCw, Info, Zap, TrendingUp, AlertTriangle, SkipForward, MessageCircle } from 'lucide-react';
 import { useDragScroll } from '../hooks/useDragScroll';
 import { LogSetModal } from '../components/LogSetModal';
 import { getCurrentUserId } from '../lib/auth';
@@ -206,6 +206,113 @@ const PerformanceChart = ({
     );
 };
 
+/**
+ * Analyzes exercise history to produce a smart feedback tip.
+ * Rules:
+ * - Mostly 'facil' in last session → suggest increasing weight
+ * - Mostly 'dificil' + hit reps in most sets → encourage keeping weight, focus on quality
+ * - Mostly 'dificil' + missed reps in most sets → suggest reducing weight or maintaining
+ * - 'ideal' for 2 consecutive sessions + hit reps → suggest increasing weight
+ * - 'ideal' only 1 session → no feedback
+ * - All other cases → no feedback
+ */
+function getExerciseFeedbackTip(
+    exerciseId: string,
+    targetReps: number,
+    history: HistoryRecord[]
+): { message: string; color: string; icon: 'up' | 'keep' | 'down' } | null {
+    // Filter history for this exercise, sorted ascending by date
+    const exHist = history
+        .filter(h => h.exercicio_id === exerciseId)
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+    if (exHist.length === 0) return null;
+
+    // Group by workout session (date only)
+    const sessions: Record<string, HistoryRecord[]> = {};
+    exHist.forEach(h => {
+        const date = h.created_at.split('T')[0];
+        if (!sessions[date]) sessions[date] = [];
+        sessions[date].push(h);
+    });
+
+    const sessionDates = Object.keys(sessions).sort();
+    if (sessionDates.length === 0) return null;
+
+    const lastSession = sessions[sessionDates[sessionDates.length - 1]];
+    const prevSession = sessionDates.length >= 2 ? sessions[sessionDates[sessionDates.length - 2]] : null;
+
+    // Helper: get majority feedback for a session
+    const getMajorityFeedback = (s: HistoryRecord[]): string | null => {
+        const counts: Record<string, number> = {};
+        s.forEach(r => {
+            const fb = r.feedback || 'ideal';
+            counts[fb] = (counts[fb] || 0) + 1;
+        });
+        let maxFb = '';
+        let maxCount = 0;
+        for (const [fb, count] of Object.entries(counts)) {
+            if (count > maxCount) { maxCount = count; maxFb = fb; }
+        }
+        // Must be strict majority (more than half)
+        return maxCount > s.length / 2 ? maxFb : null;
+    };
+
+    // Helper: did user hit target reps in most sets?
+    const hitRepsMajority = (s: HistoryRecord[]): boolean => {
+        const hitCount = s.filter(r => r.repeticoes_feitas >= targetReps).length;
+        return hitCount > s.length / 2;
+    };
+
+    const lastFeedback = getMajorityFeedback(lastSession);
+
+    // Rule 1: Mostly 'facil' → suggest increasing weight
+    if (lastFeedback === 'facil') {
+        return {
+            message: 'Último treino pareceu fácil! Que tal aumentar a carga?',
+            color: 'green',
+            icon: 'up'
+        };
+    }
+
+    // Rule 2 & 3: Mostly 'dificil'
+    if (lastFeedback === 'dificil') {
+        if (hitRepsMajority(lastSession)) {
+            return {
+                message: 'Foi difícil, mas você completou! Mantenha o peso e foque na qualidade.',
+                color: 'blue',
+                icon: 'keep'
+            };
+        } else {
+            return {
+                message: 'Considere reduzir a carga ou manter e buscar bater as repetições.',
+                color: 'amber',
+                icon: 'down'
+            };
+        }
+    }
+
+    // Rule 4 & 5: 'ideal'
+    if (lastFeedback === 'ideal') {
+        // Check if previous session was also majority 'ideal'
+        if (prevSession) {
+            const prevFeedback = getMajorityFeedback(prevSession);
+            if (prevFeedback === 'ideal' && hitRepsMajority(lastSession) && hitRepsMajority(prevSession)) {
+                return {
+                    message: 'Dois treinos ideais seguidos! Hora de subir o peso! 💪',
+                    color: 'green',
+                    icon: 'up'
+                };
+            }
+        }
+        // First time ideal or not 2 consecutive → no feedback
+        return null;
+    }
+
+    // All other situations → no feedback
+    return null;
+}
+
 export function ActiveWorkout() {
     const navigate = useNavigate();
     const { workoutConfig, endWorkout } = useActiveWorkout();
@@ -217,24 +324,50 @@ export function ActiveWorkout() {
     const [exerciseHistory, setExerciseHistory] = useState<HistoryRecord[]>([]);
     const [exercises, setExercises] = useState<DayExercise[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [currentIndex, setCurrentIndex] = useState(0);
-    const [currentSetIndex, setCurrentSetIndex] = useState(0);
-    const [focusedIndex, setFocusedIndex] = useState(0);
+    const [currentIndex, setCurrentIndex] = useState(() => parseInt(localStorage.getItem('@fw:currentIndex') || '0', 10));
+    const [currentSetIndex, setCurrentSetIndex] = useState(() => parseInt(localStorage.getItem('@fw:currentSetIndex') || '0', 10));
+    const [focusedIndex, setFocusedIndex] = useState(() => parseInt(localStorage.getItem('@fw:focusedIndex') || '0', 10));
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
-    const [workoutStarted, setWorkoutStarted] = useState(false);
-    const [workoutStartTime, setWorkoutStartTime] = useState<number | null>(null);
+    const [workoutStarted, setWorkoutStarted] = useState(() => localStorage.getItem('@fw:workoutStarted') === 'true');
+    const [workoutStartTime, setWorkoutStartTime] = useState<number | null>(() => {
+        const val = localStorage.getItem('@fw:workoutStartTime');
+        return val ? parseInt(val, 10) : null;
+    });
     const [isLogModalOpen, setIsLogModalOpen] = useState(false);
     const [showExitModal, setShowExitModal] = useState(false);
-    const [sessionHistoryIds, setSessionHistoryIds] = useState<string[]>([]);
+    const [sessionHistoryIds, setSessionHistoryIds] = useState<string[]>(() => {
+        try { return JSON.parse(localStorage.getItem('@fw:sessionHistoryIds') || '[]'); } catch { return []; }
+    });
     const [isSavingExit, setIsSavingExit] = useState(false);
-    const [isResting, setIsResting] = useState(false);
+    const [isResting, setIsResting] = useState(() => localStorage.getItem('@fw:isResting') === 'true');
     const [restTimeRemaining, setRestTimeRemaining] = useState(0);
-    const [restEndTime, setRestEndTime] = useState<number | null>(null);
+    const [restEndTime, setRestEndTime] = useState<number | null>(() => {
+        const val = localStorage.getItem('@fw:restEndTime');
+        return val ? parseInt(val, 10) : null;
+    });
     const carouselRef = useDragScroll<HTMLDivElement>({ disabled: false });
     const isScrollingProgrammatically = useRef(false);
     const handleNextExerciseRef = useRef<(() => void) | null>(null);
 
     useEffect(() => {
+        localStorage.setItem('@fw:currentIndex', currentIndex.toString());
+        localStorage.setItem('@fw:currentSetIndex', currentSetIndex.toString());
+        localStorage.setItem('@fw:focusedIndex', focusedIndex.toString());
+        localStorage.setItem('@fw:workoutStarted', workoutStarted.toString());
+        if (workoutStartTime) localStorage.setItem('@fw:workoutStartTime', workoutStartTime.toString());
+        else localStorage.removeItem('@fw:workoutStartTime');
+        localStorage.setItem('@fw:sessionHistoryIds', JSON.stringify(sessionHistoryIds));
+        localStorage.setItem('@fw:isResting', isResting.toString());
+        if (restEndTime) localStorage.setItem('@fw:restEndTime', restEndTime.toString());
+        else localStorage.removeItem('@fw:restEndTime');
+    }, [currentIndex, currentSetIndex, focusedIndex, workoutStarted, workoutStartTime, sessionHistoryIds, isResting, restEndTime]);
+
+    const isInitialMount = useRef(true);
+    useEffect(() => {
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            return;
+        }
         // Reiniciar a série sempre que mudar de exercício
         setCurrentSetIndex(0);
     }, [currentIndex]);
@@ -331,6 +464,16 @@ export function ActiveWorkout() {
         setTimeout(() => { isScrollingProgrammatically.current = false; }, 500);
     }, []);
 
+    const initialScrollDone = useRef(false);
+    useEffect(() => {
+        if (!isLoading && exercises.length > 0 && !initialScrollDone.current) {
+            setTimeout(() => {
+                scrollToCard(focusedIndex);
+                initialScrollDone.current = true;
+            }, 100);
+        }
+    }, [isLoading, exercises.length, scrollToCard, focusedIndex]);
+
     const handleSaveSetLog = async (reps: number, weight: number, feedback: string) => {
         const currentExercise = exercises[currentIndex];
         const { data: insertedRow, error } = await supabase.from('tbHistorico').insert({
@@ -385,7 +528,7 @@ export function ActiveWorkout() {
     const handleEarlyExitRequest = () => {
         if (!workoutStarted) {
             endWorkout();
-            navigate(-1);
+            navigate('/treino', { replace: true });
             return;
         }
         setShowExitModal(true);
@@ -469,6 +612,16 @@ export function ActiveWorkout() {
         }
     };
 
+    const handleSkipExercise = () => {
+        if (currentIndex < exercises.length - 1) {
+            const nextIndex = currentIndex + 1;
+            setCurrentIndex(nextIndex);
+            setTimeout(() => scrollToCard(nextIndex), 50);
+        } else {
+            handleFinishWorkout();
+        }
+    };
+
     useEffect(() => {
         handleNextExerciseRef.current = handleNextExercise;
     }, [handleNextExercise]);
@@ -515,7 +668,7 @@ export function ActiveWorkout() {
     }, []);
 
     useEffect(() => {
-        const intervalId = setInterval(() => {
+        const calculateElapsed = () => {
             if (workoutStarted && workoutStartTime) {
                 setElapsedSeconds(Math.floor((Date.now() - workoutStartTime) / 1000));
             }
@@ -530,32 +683,25 @@ export function ActiveWorkout() {
                     if (handleNextExerciseRef.current) handleNextExerciseRef.current();
                 }
             }
-        }, 250);
+        };
+
+        const intervalId = setInterval(calculateElapsed, 500);
 
         const handleVisibilityChange = () => {
-            if (!document.hidden) {
-                if (workoutStarted && workoutStartTime) {
-                    setElapsedSeconds(Math.floor((Date.now() - workoutStartTime) / 1000));
-                }
-                if (isResting && restEndTime) {
-                    const remaining = Math.ceil((restEndTime - Date.now()) / 1000);
-                    if (remaining > 0) {
-                        setRestTimeRemaining(remaining);
-                    } else {
-                        playAlarmSound();
-                        setIsResting(false);
-                        setRestEndTime(null);
-                        if (handleNextExerciseRef.current) handleNextExerciseRef.current();
-                    }
-                }
+            if (!document.hidden || document.visibilityState === 'visible') {
+                calculateElapsed();
             }
         };
 
         document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('focus', calculateElapsed);
+        window.addEventListener('pageshow', calculateElapsed);
 
         return () => {
             clearInterval(intervalId);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('focus', calculateElapsed);
+            window.removeEventListener('pageshow', calculateElapsed);
         };
     }, [workoutStarted, workoutStartTime, isResting, restEndTime, playAlarmSound]);
 
@@ -705,7 +851,7 @@ export function ActiveWorkout() {
                         {/* Carrossel de Exercícios */}
                         <div
                             ref={carouselRef}
-                            className={`flex gap-4 -mx-4 px-4 pb-8 h-full scrollbar-none transition-all ${
+                            className={`flex gap-4 -mx-4 px-[7.5vw] sm:px-[calc(50%-190px)] pb-8 h-full scrollbar-none transition-all ${
                                 isResting ? 'overflow-hidden touch-none snap-none' : 'overflow-x-auto snap-x'
                             }`}
                             onScroll={handleCarouselScroll}
@@ -793,20 +939,40 @@ export function ActiveWorkout() {
                                                 </div>
                                             </div>
 
-                                            {/* Botão Concluir - só no card focado */}
-                                            {idx === focusedIndex && (
+                                            {/* Feedback Tip */}
+                                            {(() => {
+                                                const tip = getExerciseFeedbackTip(exercise.exercicio_id, exercise.repeticoes, exerciseHistory);
+                                                if (!tip) return null;
+                                                const colorMap = {
+                                                    green: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', text: 'text-emerald-400', icon: 'text-emerald-400' },
+                                                    blue:  { bg: 'bg-blue-500/10',    border: 'border-blue-500/20',    text: 'text-blue-300',    icon: 'text-blue-400' },
+                                                    amber: { bg: 'bg-amber-500/10',   border: 'border-amber-500/20',   text: 'text-amber-300',   icon: 'text-amber-400' },
+                                                };
+                                                const c = colorMap[tip.color as keyof typeof colorMap] || colorMap.blue;
+                                                return (
+                                                    <div className={`${c.bg} border ${c.border} rounded-xl px-3 py-2.5 flex items-start gap-2.5`}>
+                                                        <MessageCircle size={16} className={`${c.icon} flex-shrink-0 mt-0.5`} />
+                                                        <span className={`${c.text} text-[13px] font-medium leading-snug`}>{tip.message}</span>
+                                                    </div>
+                                                );
+                                            })()}
+
+                                            {/* Botões - sempre exibidos para consistência visual */}
+                                            <div className="flex flex-col mt-1 gap-1">
                                                 <button
                                                     onClick={() => setIsLogModalOpen(true)}
-                                                    disabled={!workoutStarted || (isResting && focusedIndex === currentIndex) || focusedIndex !== currentIndex}
-                                                    className={`w-full mt-1 font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all ${
-                                                        workoutStarted && !isResting && focusedIndex === currentIndex
+                                                    disabled={!workoutStarted || (isResting && idx === currentIndex) || idx !== currentIndex}
+                                                    className={`w-full font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all ${
+                                                        workoutStarted && !isResting && idx === currentIndex
                                                             ? 'bg-blue-500 hover:bg-blue-600 text-white active:scale-[0.98] shadow-lg shadow-blue-500/25' 
                                                             : 'bg-slate-700/50 text-slate-400 cursor-not-allowed'
                                                     }`}
                                                 >
                                                     <CheckCircle size={18} />
                                                     <span className="text-[15px]">
-                                                        {focusedIndex !== currentIndex 
+                                                        {idx < currentIndex 
+                                                            ? 'Treino concluído'
+                                                            : idx > currentIndex
                                                             ? 'Aguarde sua vez'
                                                             : currentIndex === exercises.length - 1 && currentSetIndex === exercise.series - 1
                                                             ? 'Finalizar Treino' 
@@ -815,7 +981,19 @@ export function ActiveWorkout() {
                                                             : `Concluir série (${currentSetIndex + 1}/${exercise.series})`}
                                                     </span>
                                                 </button>
-                                            )}
+                                                
+                                                {workoutStarted && !isResting && idx === currentIndex ? (
+                                                    <button
+                                                        onClick={handleSkipExercise}
+                                                        className="w-full font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all text-slate-400 bg-transparent hover:text-slate-200 hover:bg-white/5 active:scale-[0.95]"
+                                                    >
+                                                        <SkipForward size={16} />
+                                                        <span className="text-[14px]">Não fiz o exercício</span>
+                                                    </button>
+                                                ) : (
+                                                    <div className="h-[40px] w-full" />
+                                                )}
+                                            </div>
                                         </div>
                                         </div>
                                     </div>
@@ -881,7 +1059,7 @@ export function ActiveWorkout() {
                 </div>
 
                 {/* Footer flutuante: botão ou timer dependendo do estado */}
-                <div className="fixed bottom-[90px] left-1/2 -translate-x-1/2 w-full max-w-[1024px] px-4 z-50 pointer-events-none">
+                <div className="fixed bottom-[90px] inset-x-0 mx-auto w-full max-w-[1024px] px-4 z-50 pointer-events-none">
                     {!workoutStarted ? (
                         /* Botão Iniciar Treino */
                         <button
