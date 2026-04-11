@@ -175,7 +175,7 @@ export function LogSetModal({
                             {exerciseName}
                         </h2>
                         <span className="text-slate-500 text-sm mt-0.5 truncate max-w-[280px]">
-                            {exerciseGroup || 'Exercício'} • Série {setNumber} de {totalSets}
+                            {exerciseGroup || 'Exercício'} {exerciseGroup !== 'Cardio' && `• Série ${setNumber} de ${totalSets}`}
                         </span>
                     </div>
                 </div>
@@ -183,28 +183,31 @@ export function LogSetModal({
                 <div className="flex flex-col gap-3">
                     {/* Steppers */}
                     <Stepper
-                        label="Repetições"
+                        label={exerciseGroup === 'Cardio' ? 'Tempo' : 'Repetições'}
                         value={repsDone}
                         onChange={setRepsDone}
                         min={0}
-                        max={100}
-                        icon={<RefreshCw size={18} />}
+                        max={300}
+                        unit={exerciseGroup === 'Cardio' ? 'min' : undefined}
+                        icon={exerciseGroup === 'Cardio' ? <Clock size={18} /> : <RefreshCw size={18} />}
                     />
-                    <Stepper
-                        label="Carga"
-                        value={weightUsed}
-                        onChange={setWeightUsed}
-                        min={0}
-                        max={500}
-                        step={1}
-                        fastStep={5}
-                        unit="kg"
-                        icon={
-                            <svg viewBox="0 0 24 24" fill="currentColor" className="w-[18px] h-[18px]">
-                                <path d="M20.57 14.86L22 13.43 20.57 12 17 15.57 8.43 7 12 3.43 10.57 2 9.14 3.43 7.71 2 5.57 4.14 4.14 2.71 2.71 4.14l1.43 1.43L2 7.71l1.43 1.43L2 10.57 3.43 12 7 8.43 15.57 17 12 20.57 13.43 22l1.43-1.43L16.29 22l2.14-2.14 1.43 1.43 1.43-1.43-1.43-1.43L22 16.29z" />
-                            </svg>
-                        }
-                    />
+                    {exerciseGroup !== 'Cardio' && (
+                        <Stepper
+                            label="Carga"
+                            value={weightUsed}
+                            onChange={setWeightUsed}
+                            min={0}
+                            max={500}
+                            step={1}
+                            fastStep={5}
+                            unit="kg"
+                            icon={
+                                <svg viewBox="0 0 24 24" fill="currentColor" className="w-[18px] h-[18px]">
+                                    <path d="M20.57 14.86L22 13.43 20.57 12 17 15.57 8.43 7 12 3.43 10.57 2 9.14 3.43 7.71 2 5.57 4.14 4.14 2.71 2.71 4.14l1.43 1.43L2 7.71l1.43 1.43L2 10.57 3.43 12 7 8.43 15.57 17 12 20.57 13.43 22l1.43-1.43L16.29 22l2.14-2.14 1.43 1.43 1.43-1.43-1.43-1.43L22 16.29z" />
+                                </svg>
+                            }
+                        />
+                    )}
 
                     {/* Feedback */}
                     <div className="flex flex-col gap-2 mt-2">

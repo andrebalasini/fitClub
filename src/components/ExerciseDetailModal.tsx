@@ -234,10 +234,10 @@ export function ExerciseDetailModal({ exercise, combinedExercises = [], selected
             id: `temp_${Date.now()}_${Math.random()}`,
             exercicio_id: exercise.id,
             dia: selectedDay,
-            series,
+            series: exercise.grupo === 'Cardio' ? 1 : series,
             repeticoes: isPyramidMode ? pyramidSeries[0].reps : repeticoes,
             carga: isPyramidMode ? pyramidSeries[0].kg : carga,
-            descanso,
+            descanso: exercise.grupo === 'Cardio' ? 0 : descanso,
             ordem: currentLength,
             nome,
             imagem_url: exercise.imagem_url,
@@ -334,6 +334,7 @@ export function ExerciseDetailModal({ exercise, combinedExercises = [], selected
                     )}
 
                     {/* Pyramid Toggle */}
+                    {exercise.grupo !== 'Cardio' && (
                     <div className="flex items-center justify-between bg-slate-800/50 rounded-xl px-4 py-3 mb-2.5">
                         <div className="flex flex-col">
                             <span className="text-slate-200 font-bold text-[15px]">Personalizar Séries</span>
@@ -352,9 +353,11 @@ export function ExerciseDetailModal({ exercise, combinedExercises = [], selected
                             />
                         </button>
                     </div>
+                    )}
 
                     {/* Steppers */}
                     <div className="flex flex-col gap-2.5">
+                        {exercise.grupo !== 'Cardio' && (
                         <Stepper
                             label="Séries"
                             value={series}
@@ -363,18 +366,21 @@ export function ExerciseDetailModal({ exercise, combinedExercises = [], selected
                             max={20}
                             icon={<Layers size={18} />}
                         />
+                        )}
 
                         {/* Global Reps/Carga */}
                         {!isPyramidMode && (
                             <>
                                 <Stepper
-                                    label="Repetições"
+                                    label={exercise.grupo === 'Cardio' ? "Tempo" : "Repetições"}
                                     value={repeticoes}
                                     onChange={setRepeticoes}
                                     min={1}
-                                    max={100}
-                                    icon={<RefreshCw size={18} />}
+                                    max={300}
+                                    unit={exercise.grupo === 'Cardio' ? "min" : undefined}
+                                    icon={exercise.grupo === 'Cardio' ? <Clock size={18} /> : <RefreshCw size={18} />}
                                 />
+                                {exercise.grupo !== 'Cardio' && (
                                 <Stepper
                                     label="Carga"
                                     value={carga}
@@ -390,6 +396,7 @@ export function ExerciseDetailModal({ exercise, combinedExercises = [], selected
                                         </svg>
                                     }
                                 />
+                                )}
                             </>
                         )}
 
@@ -446,6 +453,7 @@ export function ExerciseDetailModal({ exercise, combinedExercises = [], selected
                             </div>
                         )}
 
+                        {exercise.grupo !== 'Cardio' && (
                         <Stepper
                             label="Descanso"
                             value={descanso}
@@ -457,6 +465,7 @@ export function ExerciseDetailModal({ exercise, combinedExercises = [], selected
                             unit="seg"
                             icon={<Clock size={18} />}
                         />
+                        )}
                     </div>
                 </div>
 

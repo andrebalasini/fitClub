@@ -32,8 +32,8 @@ export function HexRadarChart({ attributes, communityAttributes, size = 240 }: H
   const n = attributes.length; // should be 6
   const cx = size / 2;
   const cy = size / 2;
-  const maxR = size * 0.34;
-  const labelR = size * 0.42;
+  const maxR = size * 0.33;
+  const labelR = size * 0.40;
 
   // Background rings (3 levels)
   const rings = [0.33, 0.66, 1];
