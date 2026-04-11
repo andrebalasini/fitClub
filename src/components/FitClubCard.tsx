@@ -230,7 +230,7 @@ export function FitClubCard({
           <HexRadarChart
             attributes={attributes.map(attr => ({ key: attr.key, value: attr.value }))}
             communityAttributes={communityAttributes.map(attr => ({ key: attr.key, value: attr.value }))}
-            size={130}
+            size={110}
           />
         </div>
 

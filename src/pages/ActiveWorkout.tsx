@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { TopBar } from '../components/layout/TopBar';
 import { BottomNav } from '../components/layout/BottomNav';
@@ -9,6 +10,7 @@ import { LogSetModal } from '../components/LogSetModal';
 import { getCurrentUserId } from '../lib/auth';
 import { useActiveWorkout } from '../contexts/WorkoutContext';
 import { showToast } from '../components/Toast';
+import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 
 const DEFAULT_EXERCISE_IMAGE = 'https://fafisurbnecapdpguudb.supabase.co/storage/v1/object/public/assets/geral/exercise_default_min.png';
 
@@ -187,7 +189,7 @@ const PerformanceChart = ({
                                                </>
                                            )}
                                            <span className="w-px h-3.5 bg-white/10" />
-                                           <span className="text-slate-300">{d.bestSetReps} reps</span>
+                                           <span className="text-slate-300">{d.bestSetReps} {label === 'Tempo (min)' ? 'min' : 'reps'}</span>
                                        </div>
                                    </div>
                                )
@@ -335,6 +337,7 @@ export function ActiveWorkout() {
     });
     const [isLogModalOpen, setIsLogModalOpen] = useState(false);
     const [showExitModal, setShowExitModal] = useState(false);
+    const [showSkipConfirm, setShowSkipConfirm] = useState(false);
     const [sessionHistoryIds, setSessionHistoryIds] = useState<string[]>(() => {
         try { return JSON.parse(localStorage.getItem('@fw:sessionHistoryIds') || '[]'); } catch { return []; }
     });
@@ -515,9 +518,16 @@ export function ActiveWorkout() {
         const isLastSet = currentSetIndex === currentExercise.series - 1;
         const isLastExercise = currentIndex === exercises.length - 1;
 
-        if (isLastSet && isLastExercise) {
+        // Cardio: sem descanso, vai direto pro próximo
+        if (currentExercise.grupo === 'Cardio' || isLastSet && isLastExercise) {
             handleNextExercise();
+        } else if (isLastSet) {
+            // Última série de exercício normal → descanso e avança
+            setRestTimeRemaining(currentExercise.descanso);
+            setRestEndTime(Date.now() + currentExercise.descanso * 1000);
+            setIsResting(true);
         } else {
+            // Série intermediária → descanso e incrementa série
             setRestTimeRemaining(currentExercise.descanso);
             setRestEndTime(Date.now() + currentExercise.descanso * 1000);
             setIsResting(true);
@@ -734,7 +744,7 @@ export function ActiveWorkout() {
     const currentHist = exerciseHistory.filter(h => h.exercicio_id === exercises[focusedIndex]?.exercicio_id);
     
     const isWeightBased = currentHist.some(h => h.carga_usada > 0);
-    const chartMetricLabel = isWeightBased ? 'Carga (kg)' : 'Repetições (max)';
+    const chartMetricLabel = isWeightBased ? 'Carga (kg)' : (exercises[focusedIndex]?.grupo === 'Cardio' ? 'Tempo (min)' : 'Repetições (max)');
 
     // Group records by day
     const groupedHistoryMap = currentHist.reduce((acc, h) => {
@@ -786,7 +796,7 @@ export function ActiveWorkout() {
 
     if (groupedHistory.length > 0) {
         const last = groupedHistory[groupedHistory.length - 1]; // "hoje" ou mais recente
-        lastWorkoutSub = `${last.totalSeries} séries • ${last.totalReps} rep totais`;
+        lastWorkoutSub = `${last.totalSeries} séries • ${last.totalReps} ${exercises[focusedIndex]?.grupo === 'Cardio' ? 'min' : 'rep'} totais`;
         lastWorkoutVal = isWeightBased ? `${last.bestSetCarga}kg` : `${last.bestSetReps}`;
         lastWorkoutReps = isWeightBased ? last.bestSetReps : null;
         
@@ -820,6 +830,9 @@ export function ActiveWorkout() {
                     <div className="w-full mb-4">
                         <div className="flex items-center justify-between">
                             <h1 className="text-white text-[22px] font-bold uppercase tracking-wide truncate">
+                                {dia && (
+                                    <span className="text-blue-500 mr-2">{dia}.</span>
+                                )}
                                 {gruposList.length > 0 ? gruposList.map((group, index) => (
                                     <span key={group}>
                                         {group}
@@ -851,9 +864,7 @@ export function ActiveWorkout() {
                         {/* Carrossel de Exercícios */}
                         <div
                             ref={carouselRef}
-                            className={`flex gap-4 -mx-4 px-[7.5vw] sm:px-[calc(50%-190px)] pb-8 h-full scrollbar-none transition-all ${
-                                isResting ? 'overflow-hidden touch-none snap-none' : 'overflow-x-auto snap-x'
-                            }`}
+                            className="flex gap-4 -mx-4 px-[7.5vw] sm:px-[calc(50%-190px)] pb-8 h-full scrollbar-none overflow-x-auto snap-x"
                             onScroll={handleCarouselScroll}
                         >
                                 {exercises.map((exercise, idx) => (
@@ -866,7 +877,7 @@ export function ActiveWorkout() {
                                         }`}
                                     >
                                         {/* Timer View */}
-                                        <div className={`absolute inset-0 z-20 flex flex-col items-center justify-center p-6 transition-all duration-500 ${
+                                        <div className={`absolute inset-0 z-20 flex flex-col items-center justify-center p-6 bg-gradient-to-br from-[#1c2436] to-[#121825] transition-all duration-500 ${
                                             idx === currentIndex && isResting ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
                                         }`}>
                                             <Clock size={48} className="text-blue-500 mb-6 animate-pulse" />
@@ -916,31 +927,37 @@ export function ActiveWorkout() {
                                         {/* Infos do Exercicio */}
                                         <div className="px-4 pb-4 pt-3 flex flex-col gap-3">
                                             {/* Grid de Metricas */}
-                                            <div className="grid grid-cols-4 gap-2">
+                                            <div className={`grid gap-2 ${exercise.grupo === 'Cardio' ? 'grid-cols-1' : 'grid-cols-4'}`}>
+                                                {exercise.grupo !== 'Cardio' && (
                                                 <div className="bg-[#0f141e]/80 rounded-xl p-2.5 flex flex-col items-center justify-center shadow-inner">
                                                     <Layers size={14} className="text-blue-500 mb-1" />
                                                     <span className="text-white font-black text-base leading-none">{exercise.series}</span>
                                                     <span className="text-slate-400 text-[9px] uppercase font-bold mt-1 tracking-wider">Séries</span>
                                                 </div>
-                                                <div className="bg-[#0f141e]/80 rounded-xl p-2.5 flex flex-col items-center justify-center shadow-inner">
-                                                    <RefreshCw size={14} className="text-blue-500 mb-1" />
-                                                    <span className="text-white font-black text-base leading-none">{exercise.repeticoes}</span>
-                                                    <span className="text-slate-400 text-[9px] uppercase font-bold mt-1 tracking-wider">Reps</span>
+                                                )}
+                                                <div className={`bg-[#0f141e]/80 rounded-xl flex flex-col items-center justify-center shadow-inner ${exercise.grupo === 'Cardio' ? 'py-4' : 'p-2.5'}`}>
+                                                    {exercise.grupo === 'Cardio' ? <Clock size={18} className="text-blue-500 mb-1.5" /> : <RefreshCw size={14} className="text-blue-500 mb-1" />}
+                                                    <span className={`text-white font-black leading-none ${exercise.grupo === 'Cardio' ? 'text-2xl' : 'text-base'}`}>{exercise.repeticoes}{exercise.grupo === 'Cardio' && "'"}</span>
+                                                    <span className="text-slate-400 text-[9px] uppercase font-bold mt-1 tracking-wider">{exercise.grupo === 'Cardio' ? 'Duração' : 'Reps'}</span>
                                                 </div>
+                                                {exercise.grupo !== 'Cardio' && (
                                                 <div className="bg-[#0f141e]/80 rounded-xl p-2.5 flex flex-col items-center justify-center shadow-inner">
                                                     <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 text-blue-500 mb-1"><path d="M20.57 14.86L22 13.43 20.57 12 17 15.57 8.43 7 12 3.43 10.57 2 9.14 3.43 7.71 2 5.57 4.14 4.14 2.71 2.71 4.14l1.43 1.43L2 7.71l1.43 1.43L2 10.57 3.43 12 7 8.43 15.57 17 12 20.57 13.43 22l1.43-1.43L16.29 22l2.14-2.14 1.43 1.43 1.43-1.43-1.43-1.43L22 16.29z" /></svg>
                                                     <span className="text-white font-black text-base leading-none">{exercise.carga}</span>
                                                     <span className="text-slate-400 text-[9px] uppercase font-bold mt-1 tracking-wider">Kg</span>
                                                 </div>
+                                                )}
+                                                {exercise.grupo !== 'Cardio' && (
                                                 <div className="bg-[#0f141e]/80 rounded-xl p-2.5 flex flex-col items-center justify-center shadow-inner">
                                                     <Clock size={14} className="text-blue-500 mb-1" />
                                                     <span className="text-white font-black text-base leading-none">{exercise.descanso}</span>
                                                     <span className="text-slate-400 text-[9px] uppercase font-bold mt-1 tracking-wider">Seg</span>
                                                 </div>
+                                                )}
                                             </div>
 
                                             {/* Feedback Tip */}
-                                            {(() => {
+                                            {exercise.grupo !== 'Cardio' && (() => {
                                                 const tip = getExerciseFeedbackTip(exercise.exercicio_id, exercise.repeticoes, exerciseHistory);
                                                 if (!tip) return null;
                                                 const colorMap = {
@@ -974,6 +991,8 @@ export function ActiveWorkout() {
                                                             ? 'Treino concluído'
                                                             : idx > currentIndex
                                                             ? 'Aguarde sua vez'
+                                                            : exercise.grupo === 'Cardio'
+                                                            ? (currentIndex === exercises.length - 1 ? 'Finalizar Treino' : 'Concluir exercício')
                                                             : currentIndex === exercises.length - 1 && currentSetIndex === exercise.series - 1
                                                             ? 'Finalizar Treino' 
                                                             : currentSetIndex === exercise.series - 1 
@@ -984,7 +1003,7 @@ export function ActiveWorkout() {
                                                 
                                                 {workoutStarted && !isResting && idx === currentIndex ? (
                                                     <button
-                                                        onClick={handleSkipExercise}
+                                                        onClick={(e) => { e.stopPropagation(); setShowSkipConfirm(true); }}
                                                         className="w-full font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all text-slate-400 bg-transparent hover:text-slate-200 hover:bg-white/5 active:scale-[0.95]"
                                                     >
                                                         <SkipForward size={16} />
@@ -1018,7 +1037,7 @@ export function ActiveWorkout() {
                                                         {lastWorkoutReps !== null ? (
                                                             <span className="text-base font-bold text-slate-400 tracking-normal ml-0.5">× {lastWorkoutReps}</span>
                                                         ) : (
-                                                            <span className="text-base font-bold text-slate-400 tracking-normal ml-0.5">reps</span>
+                                                            <span className="text-base font-bold text-slate-400 tracking-normal ml-0.5">{exercises[focusedIndex]?.grupo === 'Cardio' ? 'min' : 'reps'}</span>
                                                         )}
                                                     </span>
                                                 )}
@@ -1037,7 +1056,7 @@ export function ActiveWorkout() {
                                                         {bestMarkReps !== null ? (
                                                             <span className="text-base font-bold text-white/40 tracking-normal ml-0.5">× {bestMarkReps}</span>
                                                         ) : (
-                                                            <span className="text-base font-bold text-white/40 tracking-normal ml-0.5">reps</span>
+                                                            <span className="text-base font-bold text-white/40 tracking-normal ml-0.5">{exercises[focusedIndex]?.grupo === 'Cardio' ? 'min' : 'reps'}</span>
                                                         )}
                                                     </span>
                                                 )}
@@ -1164,6 +1183,22 @@ export function ActiveWorkout() {
                             </div>
                         </div>
                     </div>
+                )}
+
+                {showSkipConfirm && createPortal(
+                    <ConfirmDeleteModal
+                        title="Pular exercício?"
+                        description="Tem certeza que deseja marcar este exercício como não concluído?"
+                        onConfirm={() => {
+                            setShowSkipConfirm(false);
+                            handleSkipExercise();
+                        }}
+                        onCancel={() => setShowSkipConfirm(false)}
+                        confirmText="Sim, pular"
+                        icon={SkipForward}
+                        variant="warning"
+                    />,
+                    document.body
                 )}
             </div>
         </div>
