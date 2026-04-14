@@ -159,20 +159,13 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
         <div className="p-5 flex flex-col items-start gap-4 bg-[#1E1E1E] shadow-sm">
           <div className="flex justify-between items-start w-full">
             <div>
-              {avatarUrl || window.URL.createObjectURL ? (
-                // Use a standard wrapper to prevent crash if file is null inline
-                <div className="w-16 h-16 rounded-full overflow-hidden border-[3px] border-blue-500/20 bg-zinc-800 flex items-center justify-center">
-                  {(avatarFile || avatarUrl) ? (
-                    <img src={avatarFile ? URL.createObjectURL(avatarFile) : avatarUrl} className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-2xl font-black text-blue-400">{displayUserName.charAt(0).toUpperCase()}</span>
-                  )}
-                </div>
-              ) : (
-                <div className="w-16 h-16 rounded-full overflow-hidden border-[3px] border-blue-500/20 bg-zinc-800 flex items-center justify-center">
+              <div className="w-16 h-16 rounded-full overflow-hidden border-[3px] border-blue-500/20 bg-zinc-800 flex items-center justify-center">
+                {(avatarFile || avatarUrl) ? (
+                  <img src={avatarFile ? URL.createObjectURL(avatarFile) : avatarUrl} className="w-full h-full object-cover" />
+                ) : (
                   <span className="text-2xl font-black text-blue-400">{displayUserName.charAt(0).toUpperCase()}</span>
-                </div>
-              )}
+                )}
+              </div>
             </div>
             
             <button
