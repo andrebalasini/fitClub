@@ -2,7 +2,11 @@ import { NavLink } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import { useActiveWorkout } from '../../contexts/WorkoutContext';
 
-export function BottomNav() {
+interface BottomNavProps {
+    onNavClick?: (path: string, e: React.MouseEvent<HTMLAnchorElement>) => void;
+}
+
+export function BottomNav({ onNavClick }: BottomNavProps = {}) {
     const { workoutConfig } = useActiveWorkout();
 
     const navItems = [
@@ -64,6 +68,11 @@ export function BottomNav() {
                             key={item.path}
                             to={item.path}
                             viewTransition
+                            onClick={(e) => {
+                                if (onNavClick) {
+                                    onNavClick(item.path, e);
+                                }
+                            }}
                             className="flex flex-col items-center justify-center w-full h-full gap-0.5 transition-all active:scale-95 relative"
                         >
                             {({ isActive }) => (

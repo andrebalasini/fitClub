@@ -238,7 +238,10 @@ function getExerciseFeedbackTip(
         sessions[date].push(h);
     });
 
-    const sessionDates = Object.keys(sessions).sort();
+    // Ignorar treino de "hoje" para que o feedback baseie-se em dias passados
+    const todayStr = new Date().toISOString().split('T')[0];
+    const sessionDates = Object.keys(sessions).filter(date => date !== todayStr).sort();
+    
     if (sessionDates.length === 0) return null;
 
     const lastSession = sessions[sessionDates[sessionDates.length - 1]];
@@ -256,7 +259,6 @@ function getExerciseFeedbackTip(
         for (const [fb, count] of Object.entries(counts)) {
             if (count > maxCount) { maxCount = count; maxFb = fb; }
         }
-        // Must be strict majority (more than half)
         return maxCount > s.length / 2 ? maxFb : null;
     };
 
@@ -264,6 +266,21 @@ function getExerciseFeedbackTip(
     const hitRepsMajority = (s: HistoryRecord[]): boolean => {
         const hitCount = s.filter(r => r.repeticoes_feitas >= targetReps).length;
         return hitCount > s.length / 2;
+    };
+
+    // Helper: get predominant load for a session
+    const getPredominantCarga = (s: HistoryRecord[]): number => {
+        const counts: Record<number, number> = {};
+        s.forEach(r => {
+            const carga = r.carga_usada;
+            counts[carga] = (counts[carga] || 0) + 1;
+        });
+        let maxCarga = 0;
+        let maxCount = 0;
+        for (const [c, count] of Object.entries(counts)) {
+            if (count > maxCount) { maxCount = count; maxCarga = Number(c); }
+        }
+        return maxCarga;
     };
 
     const lastFeedback = getMajorityFeedback(lastSession);
@@ -296,22 +313,27 @@ function getExerciseFeedbackTip(
 
     // Rule 4 & 5: 'ideal'
     if (lastFeedback === 'ideal') {
-        // Check if previous session was also majority 'ideal'
         if (prevSession) {
             const prevFeedback = getMajorityFeedback(prevSession);
-            if (prevFeedback === 'ideal' && hitRepsMajority(lastSession) && hitRepsMajority(prevSession)) {
+            const lastCarga = getPredominantCarga(lastSession);
+            const prevCarga = getPredominantCarga(prevSession);
+            
+            if (
+                prevFeedback === 'ideal' && 
+                hitRepsMajority(lastSession) && 
+                hitRepsMajority(prevSession) &&
+                lastCarga === prevCarga
+            ) {
                 return {
-                    message: 'Dois treinos ideais seguidos! Hora de subir o peso! 💪',
+                    message: `Dois treinos ideais seguidos com ${lastCarga}kg! Hora de subir o peso! 💪`,
                     color: 'green',
                     icon: 'up'
                 };
             }
         }
-        // First time ideal or not 2 consecutive → no feedback
         return null;
     }
 
-    // All other situations → no feedback
     return null;
 }
 
@@ -678,15 +700,18 @@ export function ActiveWorkout() {
     }, []);
 
     useEffect(() => {
+        let isHandlingRest = false;
+        
         const calculateElapsed = () => {
             if (workoutStarted && workoutStartTime) {
                 setElapsedSeconds(Math.floor((Date.now() - workoutStartTime) / 1000));
             }
-            if (isResting && restEndTime) {
+            if (isResting && restEndTime && !isHandlingRest) {
                 const remaining = Math.ceil((restEndTime - Date.now()) / 1000);
                 if (remaining > 0) {
                     setRestTimeRemaining(remaining);
                 } else {
+                    isHandlingRest = true;
                     playAlarmSound();
                     setIsResting(false);
                     setRestEndTime(null);
@@ -990,7 +1015,7 @@ export function ActiveWorkout() {
                                                         {idx < currentIndex 
                                                             ? 'Treino concluído'
                                                             : idx > currentIndex
-                                                            ? 'Aguarde sua vez'
+                                                            ? 'Aguarde'
                                                             : exercise.grupo === 'Cardio'
                                                             ? (currentIndex === exercises.length - 1 ? 'Finalizar Treino' : 'Concluir exercício')
                                                             : currentIndex === exercises.length - 1 && currentSetIndex === exercise.series - 1
