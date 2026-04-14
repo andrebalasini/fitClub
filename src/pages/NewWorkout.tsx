@@ -58,6 +58,7 @@ export function NewWorkout() {
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const [isSavingPage, setIsSavingPage] = useState(false);
     const [showDiscardModal, setShowDiscardModal] = useState(false);
+    const [pendingNavPath, setPendingNavPath] = useState<string | null>(null);
 
     const [isLoadingDay, setIsLoadingDay] = useState(false);
     const [selectedExercise, setSelectedExercise] = useState<CatalogExercise | null>(null);
@@ -283,9 +284,18 @@ export function NewWorkout() {
 
     const handleBackClick = () => {
         if (hasUnsavedChanges) {
+            setPendingNavPath(null);
             setShowDiscardModal(true);
         } else {
             navigate(-1);
+        }
+    };
+
+    const handleNavClick = (path: string, e: React.MouseEvent<HTMLAnchorElement>) => {
+        if (hasUnsavedChanges) {
+            e.preventDefault();
+            setPendingNavPath(path);
+            setShowDiscardModal(true);
         }
     };
 
@@ -586,7 +596,7 @@ export function NewWorkout() {
                 )}
             </AnimatePresence>
 
-            <BottomNav />
+            <BottomNav onNavClick={handleNavClick} />
 
             {/* Exercise Detail Modal */}
             {selectedExercise && (
@@ -611,9 +621,19 @@ export function NewWorkout() {
             {showDiscardModal && (
                 <ConfirmDeleteModal
                     title="Descartar edições?"
-                    description="Tem certeza que deseja voltar? Todas as adições e edições feitas não salvas nesta ficha serão permanentemente perdidas."
-                    onConfirm={() => navigate(-1)}
-                    onCancel={() => setShowDiscardModal(false)}
+                    description="Tem certeza que deseja sair? Todas as adições e edições feitas não salvas nesta ficha serão permanentemente perdidas."
+                    onConfirm={() => {
+                        setShowDiscardModal(false);
+                        if (pendingNavPath) {
+                            navigate(pendingNavPath);
+                        } else {
+                            navigate(-1);
+                        }
+                    }}
+                    onCancel={() => {
+                        setShowDiscardModal(false);
+                        setPendingNavPath(null);
+                    }}
                     confirmText="Descartar"
                 />
             )}

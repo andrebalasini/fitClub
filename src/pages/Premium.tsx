@@ -3,7 +3,8 @@ import { supabase } from '../lib/supabase';
 import { getCurrentUserId } from '../lib/auth';
 import {
     Trophy, TrendingUp, Loader2, Search, Users, Dumbbell,
-    ChevronDown, Award, BarChart2, Star, Target, Zap, MapPin, Building
+    ChevronDown, Award, BarChart2, Star, Target, Zap, MapPin, Building,
+    Medal, Layers
 } from 'lucide-react';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -15,6 +16,7 @@ interface LeaderboardEntry {
     peso: number | null;
     total_pontos: number;
     total_treinos: number;
+    avatar_url: string;
 }
 
 interface ExerciseOption {
@@ -30,10 +32,18 @@ interface HistoryPoint {
     bestSetReps: number;
 }
 
+interface TopEntry {
+    user_id: string;
+    nome: string;
+    score: number;
+}
+
 interface CommunityStats {
     avg_carga: number;
     avg_reps: number;
     total_users: number;
+    top_carga: TopEntry[];
+    top_volume: TopEntry[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -158,7 +168,7 @@ function TemporadaSection() {
                 } else {
                     console.error("RPC Error:", error);
                     // Fallback: manual query if RPC not available
-                    const { data: profiles, error: pErr } = await supabase.from('profiles').select('id, nome, cidade, academia, peso');
+                    const { data: profiles, error: pErr } = await supabase.from('profiles').select('id, nome, cidade, academia, peso, avatar_url');
                     const { data: points, error: ptErr } = await supabase.from('tbFitPoints').select('user_id, pontos');
                     const { data: treinos, error: trErr } = await supabase.from('tbTreinosCompletos').select('user_id');
 
@@ -176,6 +186,7 @@ function TemporadaSection() {
                             peso: p.peso || null,
                             total_pontos: pointsMap[p.id] || 0,
                             total_treinos: trainMap[p.id] || 0,
+                            avatar_url: p.avatar_url || '',
                         })).sort((a, b) => b.total_pontos - a.total_pontos);
 
                         setLeaderboard(entries);
@@ -221,8 +232,12 @@ function TemporadaSection() {
             {myEntry && (
                 <div className="relative rounded-2xl overflow-hidden p-4 flex items-center gap-4"
                     style={{ background: 'linear-gradient(135deg, #1a2744 0%, #0f1a30 100%)', border: '1px solid rgba(77,159,255,0.2)' }}>
-                    <div className="w-12 h-12 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center flex-shrink-0 z-10">
-                        <span className="text-blue-400 font-black text-xl">{myEntry.nome.charAt(0).toUpperCase()}</span>
+                    <div className="w-12 h-12 rounded-xl bg-blue-500/20 border border-blue-500/30 overflow-hidden flex items-center justify-center flex-shrink-0 z-10">
+                        {myEntry.avatar_url ? (
+                            <img src={myEntry.avatar_url} alt={myEntry.nome} className="w-full h-full object-cover" />
+                        ) : (
+                            <span className="text-blue-400 font-black text-xl">{myEntry.nome.charAt(0).toUpperCase()}</span>
+                        )}
                     </div>
                     <div className="flex-1 min-w-0 z-10">
                         <p className="text-white font-bold text-base leading-tight truncate">{myEntry.nome}</p>
@@ -322,14 +337,18 @@ function TemporadaSection() {
 
                                 {/* Avatar */}
                                 <div
-                                    className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 font-black text-base"
+                                    className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 font-black text-base"
                                     style={{
                                         background: isMe ? 'rgba(29,99,255,0.2)' : 'rgba(255,255,255,0.05)',
                                         color: isMe ? '#60a5fa' : '#94a3b8',
                                         border: isMe ? '1.5px solid rgba(29,99,255,0.4)' : '1px solid rgba(255,255,255,0.08)',
                                     }}
                                 >
-                                    {entry.nome.charAt(0).toUpperCase()}
+                                    {entry.avatar_url ? (
+                                        <img src={entry.avatar_url} alt={entry.nome} className="w-full h-full object-cover" />
+                                    ) : (
+                                        entry.nome.charAt(0).toUpperCase()
+                                    )}
                                 </div>
 
                                 {/* Info */}
@@ -437,25 +456,19 @@ function ProgressoSection() {
             setHistory(points);
         }
 
-        // Community stats (all users except me)
-        const { data: commData } = await supabase
-            .from('tbHistorico')
-            .select('user_id, repeticoes_feitas, carga_usada')
-            .eq('exercicio_id', ex.exercicio_id)
-            .neq('user_id', myUserId);
+        // Community stats via RPC (bypasses RLS to get aggregated data safely)
+        const { data: commData } = await supabase.rpc('community_exercise_stats' as any, {
+            p_exercicio_id: ex.exercicio_id,
+            p_user_id: myUserId,
+        });
 
-        if (commData && commData.length > 0) {
-            const userBests: Record<string, { carga: number; reps: number }> = {};
-            commData.forEach((r: any) => {
-                if (!userBests[r.user_id]) userBests[r.user_id] = { carga: 0, reps: 0 };
-                if (parseFloat(r.carga_usada) > userBests[r.user_id].carga) userBests[r.user_id].carga = parseFloat(r.carga_usada);
-                if (r.repeticoes_feitas > userBests[r.user_id].reps) userBests[r.user_id].reps = r.repeticoes_feitas;
-            });
-            const bestsArr = Object.values(userBests);
+        if (commData && commData.total_users > 0) {
             setCommunityStats({
-                avg_carga: bestsArr.reduce((s, u) => s + u.carga, 0) / bestsArr.length,
-                avg_reps: bestsArr.reduce((s, u) => s + u.reps, 0) / bestsArr.length,
-                total_users: bestsArr.length,
+                avg_carga: commData.avg_carga,
+                avg_reps: commData.avg_reps,
+                total_users: commData.total_users,
+                top_carga: commData.top_carga || [],
+                top_volume: commData.top_volume || [],
             });
         }
 
@@ -630,6 +643,45 @@ function ProgressoSection() {
                                             <><Star size={12} /> Você está {((myBest / commVal - 1) * 100).toFixed(0)}% acima da média!</>
                                         ) : (
                                             <><TrendingUp size={12} /> {((commVal / myBest - 1) * 100).toFixed(0)}% abaixo da média — continue evoluindo!</>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Top 3 Leaders */}
+                                {communityStats.top_carga && communityStats.top_carga.length > 0 && (
+                                    <div className="mt-4 pt-4 border-t border-slate-700/50 flex flex-col gap-4">
+                                        {/* Top Carga */}
+                                        <div className="flex flex-col gap-2">
+                                            <span className="text-slate-400 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"><Medal size={14} className="text-yellow-500" /> Top Carga Máxima</span>
+                                            <div className="flex flex-col gap-1.5">
+                                                {communityStats.top_carga.map((user, idx) => (
+                                                    <div key={user.user_id} className={`flex items-center justify-between p-2 rounded-lg ${user.user_id === myUserId ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-slate-800/30'}`}>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className={`text-xs font-black min-w-[20px] text-center ${idx === 0 ? 'text-yellow-500' : idx === 1 ? 'text-slate-300' : 'text-amber-600'}`}>{idx + 1}º</span>
+                                                            <span className={`text-sm font-medium ${user.user_id === myUserId ? 'text-blue-400 font-bold' : 'text-slate-300'}`}>{user.user_id === myUserId ? 'Você' : user.nome}</span>
+                                                        </div>
+                                                        <span className="text-white text-sm font-black">{isWeightBased ? `${user.score}kg` : `${user.score} reps`}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Top Volume */}
+                                        {isWeightBased && communityStats.top_volume && communityStats.top_volume.length > 0 && (
+                                            <div className="flex flex-col gap-2">
+                                                <span className="text-slate-400 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"><Layers size={14} className="text-purple-400" /> Top Volume Total</span>
+                                                <div className="flex flex-col gap-1.5">
+                                                    {communityStats.top_volume.map((user, idx) => (
+                                                        <div key={user.user_id} className={`flex items-center justify-between p-2 rounded-lg ${user.user_id === myUserId ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-slate-800/30'}`}>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={`text-xs font-black min-w-[20px] text-center ${idx === 0 ? 'text-yellow-500' : idx === 1 ? 'text-slate-300' : 'text-amber-600'}`}>{idx + 1}º</span>
+                                                                <span className={`text-sm font-medium ${user.user_id === myUserId ? 'text-blue-400 font-bold' : 'text-slate-300'}`}>{user.user_id === myUserId ? 'Você' : user.nome}</span>
+                                                            </div>
+                                                            <span className="text-white text-sm font-black">{Intl.NumberFormat('pt-BR').format(user.score)}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
                                         )}
                                     </div>
                                 )}
