@@ -1,10 +1,11 @@
-import { X, User, Settings, Trophy, LogOut, ChevronRight, MessageCircle, Info, CheckCircle2 } from 'lucide-react';
+import { X, User, Settings, Trophy, LogOut, ChevronRight, MessageCircle, Info, CheckCircle2, Trash2 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { getCurrentUserId } from '../../lib/auth';
+import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
 
 interface SideMenuProps {
   isOpen: boolean;
@@ -28,6 +29,9 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
   const [avatarUrl, setAvatarUrl] = useState('');
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -109,6 +113,27 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
       alert('Erro ao salvar o perfil. Verifique sua conexão e tente novamente.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    setIsDeletingAccount(true);
+    try {
+      const uid = getCurrentUserId();
+      if (!uid) throw new Error('Not logged in');
+      
+      // Request deletion locally by flagging or storing it, or just sign out.
+      await supabase.from('profiles').update({ is_deleted: true }).eq('id', uid);
+      
+      onClose();
+      await signOut();
+      navigate('/login', { replace: true });
+      window.location.reload();
+    } catch (e) {
+      console.error(e);
+      alert('Erro ao solicitar exclusão da conta. Tente novamente.');
+    } finally {
+      setIsDeletingAccount(false);
     }
   };
 
@@ -294,10 +319,31 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
                 >
                   {isSaving ? 'Salvando...' : <><CheckCircle2 size={18} /> Salvar Alterações</>}
                 </button>
+
+                <div className="border-t border-zinc-800 my-2 pt-4">
+                  <button 
+                    onClick={() => setIsDeleteModalOpen(true)}
+                    type="button"
+                    className="w-full bg-red-500/10 hover:bg-red-500/20 active:scale-95 transition-all text-red-500 font-bold py-3.5 rounded-xl flex items-center justify-center gap-2"
+                  >
+                    <Trash2 size={18} /> Solicitar Exclusão da Conta
+                  </button>
+                </div>
               </div>
             )}
           </div>
         </div>
+      )}
+      {isDeleteModalOpen && (
+        <ConfirmDeleteModal
+          title="Excluir Conta?"
+          description="Sua conta e todos os dados associados serão removidos em até 48 horas. Você perderá seus pontos e histórico de treino."
+          onConfirm={handleDeleteAccount}
+          onCancel={() => setIsDeleteModalOpen(false)}
+          isDeleting={isDeletingAccount}
+          confirmText="Bloquear e Excluir"
+          actionLoadingText="Processando..."
+        />
       )}
     </>
   );
