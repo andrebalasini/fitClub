@@ -1,5 +1,5 @@
 import { Zap, Flame, Gift, ArrowRight } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 export function Login() {
     const navigate = useNavigate();
@@ -73,7 +73,7 @@ export function Login() {
 
                     <div className="text-center pt-6">
                         <p className="text-[10px] text-zinc-600 leading-relaxed px-4">
-                            Ao continuar, você concorda com nossos Termos de Serviço<br />fitClub - O clube de vantagens da sua vida fitness
+                            Ao continuar, você concorda com nossa <Link to="/privacidade" className="text-[#1D63FF] font-semibold hover:underline transition-all">Política de Privacidade</Link><br />fitClub - O clube de vantagens da sua vida fitness
                         </p>
                     </div>
                 </div>

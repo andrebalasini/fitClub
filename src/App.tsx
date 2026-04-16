@@ -12,6 +12,7 @@ import { Diet } from './pages/Diet';
 import { Premium } from './pages/Premium';
 import { AuthLogin } from './pages/AuthLogin';
 import { AuthSignUp } from './pages/AuthSignUp';
+import { PrivacyPolicy } from './pages/PrivacyPolicy';
 import { Loader2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 
@@ -57,6 +58,7 @@ function AppRoutes() {
       {/* Public auth routes — full screen, no MainLayout */}
       <Route path="/login" element={<PublicRoute><AuthLogin /></PublicRoute>} />
       <Route path="/auth/cadastro" element={<PublicRoute><AuthSignUp /></PublicRoute>} />
+      <Route path="/privacidade" element={<PrivacyPolicy />} />
 
       {/* Protected full screen routes */}
       <Route path="/treino/novo" element={<ProtectedRoute><NewWorkout /></ProtectedRoute>} />

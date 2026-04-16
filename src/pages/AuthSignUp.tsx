@@ -141,7 +141,7 @@ export function AuthSignUp() {
 
       {/* Footer */}
       <p className="text-zinc-700 text-[11px] mt-6 text-center leading-relaxed">
-        Ao criar sua conta, você concorda com nossos Termos de Serviço<br />fitClub - O clube de vantagens da sua vida fitness
+        Ao continuar, você concorda com nossa <Link to="/privacidade" className="text-[#1D63FF] font-semibold hover:underline transition-all">Política de Privacidade</Link><br />fitClub - O clube de vantagens da sua vida fitness
       </p>
     </div>
   );
