@@ -14,6 +14,7 @@ interface FitClubCardProps {
   avatarUrl?: string;
   isPremium?: boolean;
   ovr?: number;
+  fitPoints?: number;
   attributes?: FitAttribute[];
   communityAttributes?: FitAttribute[];
 }
@@ -123,11 +124,13 @@ export function FitClubCard({
   userName = 'André Balasini',
   avatarUrl = 'https://i.pravatar.cc/150?img=11',
   isPremium = true,
+  fitPoints,
   attributes = DEFAULT_ATTRIBUTES,
   communityAttributes = DEFAULT_COMMUNITY_ATTRIBUTES,
 }: FitClubCardProps) {
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
   const ovr = computeOVR(attributes);
+  const displayPoints = fitPoints !== undefined ? fitPoints : ovr * 10;
 
   // Split attributes into 2 columns
   const leftCol = attributes.slice(0, 3);
@@ -201,7 +204,7 @@ export function FitClubCard({
 
         <div className="flex flex-col items-center justify-center flex-shrink-0 px-2 group cursor-pointer active:scale-95 transition-all">
           <span className="text-white font-black leading-none" style={{ fontSize: '36px', letterSpacing: '-0.02em' }}>
-            {ovr * 10}
+            {displayPoints.toLocaleString('pt-BR')}
           </span>
           <div className="text-[13.5px] font-bold tracking-[-0.03em] mt-0.5" style={{ fontFamily: 'ui-sans-serif, system-ui, -apple-system, sans-serif' }}>
             <span className="text-white">fit</span>

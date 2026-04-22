@@ -27,10 +27,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+
+      // Grab user details from social logins and implicitly create the profile
+      // We wrap this in setTimeout to avoid deadlocking the supabase-js internal auth queue 
+      // (as DB queries inside onAuthStateChange can trigger getSession(), causing a deadlock)
+      if (event === 'SIGNED_IN' && session?.user) {
+        const { id, user_metadata } = session.user;
+        const nome = user_metadata?.full_name || user_metadata?.name || 'Membro fitClub';
+        const avatar_url = user_metadata?.avatar_url || user_metadata?.picture || null;
+        
+        setTimeout(async () => {
+          await supabase
+            .from('profiles')
+            .upsert({
+              id,
+              nome,
+              avatar_url
+            }, { onConflict: 'id', ignoreDuplicates: true });
+        }, 0);
+      }
     });
 
     return () => subscription.unsubscribe();

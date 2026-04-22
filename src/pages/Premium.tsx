@@ -3,8 +3,8 @@ import { supabase } from '../lib/supabase';
 import { getCurrentUserId } from '../lib/auth';
 import {
     Trophy, TrendingUp, Loader2, Search, Users, Dumbbell,
-    ChevronDown, Award, BarChart2, Star, Target, Zap, MapPin, Building,
-    Medal, Layers
+    ChevronDown, BarChart2, Star, Target, Zap, MapPin,
+    Medal, Layers, Crown, Flame, ShoppingBag, Shield
 } from 'lucide-react';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -59,6 +59,13 @@ const WEIGHT_FILTERS = [
     { label: '70 – 90kg', value: [70, 90] as [number, number] },
     { label: '90kg+', value: [90, 999] as [number, number] },
 ];
+
+function getLeagueInfo(points: number) {
+    if (points >= 6000) return { name: 'Elite', color: 'from-purple-500 to-fuchsia-600', min: 6000, max: 6000, next: null };
+    if (points >= 3000) return { name: 'Ouro', color: 'from-yellow-400 to-amber-600', min: 3000, max: 6000, next: 6000 };
+    if (points >= 1000) return { name: 'Prata', color: 'from-slate-300 to-slate-500', min: 1000, max: 3000, next: 3000 };
+    return { name: 'Bronze', color: 'from-orange-600 to-orange-800', min: 0, max: 1000, next: 1000 };
+}
 
 // ─── Mini Chart ───────────────────────────────────────────────────────────────
 
@@ -140,11 +147,9 @@ function MiniLineChart({ data, isWeightBased }: { data: HistoryPoint[]; isWeight
 function TemporadaSection() {
     const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
     const [loading, setLoading] = useState(true);
-    const [filterCity, setFilterCity] = useState('');
-    const [filterAcademia, setFilterAcademia] = useState('');
-    const [filterWeightIdx, setFilterWeightIdx] = useState(0);
-    const [cities, setCities] = useState<string[]>([]);
-    const [academias, setAcademias] = useState<string[]>([]);
+    const [filterCity] = useState('');
+    const [filterAcademia] = useState('');
+    const [filterWeightIdx] = useState(0);
     const [myUserId, setMyUserId] = useState<string | null>(null);
 
     useEffect(() => {
@@ -161,10 +166,6 @@ function TemporadaSection() {
 
                 if (data && !error) {
                     setLeaderboard(data);
-                    const uniqueCities = [...new Set(data.map((e: any) => e.cidade).filter(Boolean))];
-                    const uniqueAcademias = [...new Set(data.map((e: any) => e.academia).filter(Boolean) as string[])];
-                    setCities(uniqueCities as string[]);
-                    setAcademias(uniqueAcademias as string[]);
                 } else {
                     console.error("RPC Error:", error);
                     // Fallback: manual query if RPC not available
@@ -190,11 +191,6 @@ function TemporadaSection() {
                         })).sort((a, b) => b.total_pontos - a.total_pontos);
 
                         setLeaderboard(entries);
-
-                        const uniqueCities = [...new Set(entries.map(e => e.cidade).filter(Boolean))];
-                        const uniqueAcademias = [...new Set(entries.map(e => e.academia).filter(Boolean) as string[])];
-                        setCities(uniqueCities as string[]);
-                        setAcademias(uniqueAcademias as string[]);
                     } else {
                         console.error("Fallback errors:", pErr, ptErr, trErr);
                     }
@@ -222,155 +218,215 @@ function TemporadaSection() {
     }, [leaderboard, filterCity, filterAcademia, filterWeightIdx]);
 
     const myEntry = leaderboard.find(e => e.user_id === myUserId);
-    const myRank = leaderboard.findIndex(e => e.user_id === myUserId) + 1;
 
-    const medalLabels = ['🥇', '🥈', '🥉'];
+    const myLeague = myEntry ? getLeagueInfo(myEntry.total_pontos) : null;
+    let rival = null;
+    if (myEntry) {
+        const myIndex = leaderboard.findIndex(e => e.user_id === myUserId);
+        if (myIndex > 0) rival = leaderboard[myIndex - 1];
+        else if (leaderboard.length > 1) rival = leaderboard[1];
+    }
+
+    const podiumTop3 = filtered.slice(0, 3);
+    const listTop = filtered.slice(3, 20); // show limited leaders after podium
 
     return (
-        <div className="flex flex-col gap-4">
-            {/* My Rank Card */}
-            {myEntry && (
-                <div className="relative rounded-2xl overflow-hidden p-4 flex items-center gap-4"
-                    style={{ background: 'linear-gradient(135deg, #1a2744 0%, #0f1a30 100%)', border: '1px solid rgba(77,159,255,0.2)' }}>
-                    <div className="w-12 h-12 rounded-xl bg-blue-500/20 border border-blue-500/30 overflow-hidden flex items-center justify-center flex-shrink-0 z-10">
-                        {myEntry.avatar_url ? (
-                            <img src={myEntry.avatar_url} alt={myEntry.nome} className="w-full h-full object-cover" />
-                        ) : (
-                            <span className="text-blue-400 font-black text-xl">{myEntry.nome.charAt(0).toUpperCase()}</span>
+        <div className="flex flex-col gap-6">
+            {/* Division & Progress */}
+            {myEntry && myLeague && (
+                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[24px] p-5 shadow-2xl relative overflow-hidden group">
+                    <div className="absolute right-0 top-0 w-32 h-32 bg-blue-500/10 rounded-full blur-[40px] opacity-70" />
+                    <div className="absolute -left-10 bottom-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-[40px] opacity-50" />
+                    
+                    <div className="flex items-center justify-between mb-4 relative z-10">
+                        <div className="flex items-center gap-3">
+                            <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${myLeague.color} flex items-center justify-center shadow-lg`}>
+                                <Shield className="text-white/90" size={24} />
+                            </div>
+                            <div>
+                                <h3 className="text-white font-black text-lg tracking-tight leading-none drop-shadow-sm">Liga {myLeague.name}</h3>
+                                <p className="text-slate-400 text-[11px] font-bold uppercase tracking-wider mt-1">Divisão Atual</p>
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            <span className="text-white font-black text-2xl drop-shadow-md">{myEntry.total_pontos}</span>
+                            <span className="text-blue-400 text-xs ml-1 font-bold">FP</span>
+                        </div>
+                    </div>
+
+                    <div className="relative z-10">
+                        <div className="flex justify-between text-[11px] font-bold mb-2">
+                            <span className="text-slate-400">{myLeague.min} FP</span>
+                            <span className={`text-[#00ff88] drop-shadow-[0_0_5px_rgba(0,255,136,0.5)] ${myLeague.next ? '' : 'hidden'}`}>Subir Divisão: {myLeague.max} FP</span>
+                        </div>
+                        <div className="h-[14px] bg-black/40 rounded-full overflow-hidden border border-white/5 shadow-inner p-0.5">
+                            <div 
+                                className="h-full bg-gradient-to-r from-[#00ff88] to-[#00b8ff] rounded-full relative"
+                                style={{ width: `${myLeague.next ? Math.max(5, ((myEntry.total_pontos - myLeague.min) / (myLeague.max - myLeague.min)) * 100) : 100}%` }}
+                            >
+                                <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.2)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.2)_50%,rgba(255,255,255,0.2)_75%,transparent_75%,transparent)] bg-[length:12px_12px] opacity-50" />
+                            </div>
+                        </div>
+                        {myLeague.next && (
+                            <p className="text-center text-slate-400 text-[10px] font-bold mt-2.5">
+                                Hora de amassar! Faltam apenas <span className="text-blue-400">{myLeague.max - myEntry.total_pontos} pontos</span> para o próximo nível.
+                            </p>
                         )}
-                    </div>
-                    <div className="flex-1 min-w-0 z-10">
-                        <p className="text-white font-bold text-base leading-tight truncate">{myEntry.nome}</p>
-                        <p className="text-slate-400 text-xs font-medium mt-0.5">Sua posição na temporada</p>
-                    </div>
-                    <div className="flex flex-col items-end gap-0.5 z-10 flex-shrink-0">
-                        <span className="text-white font-black text-2xl leading-none tracking-tight">#{myRank}</span>
-                        <span className="text-blue-400 text-xs font-bold">{myEntry.total_pontos.toLocaleString()} pts</span>
                     </div>
                 </div>
             )}
 
-            {/* Filters */}
-            <div className="flex flex-col gap-2">
-                {/* City filter */}
-                {cities.length > 0 && (
-                    <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
-                        <button
-                            onClick={() => setFilterCity('')}
-                            className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all active:scale-95 ${!filterCity ? 'bg-blue-500 text-white' : 'bg-[#1a2235] text-slate-400 border border-slate-700/50'}`}
-                        >
-                            <MapPin size={12} /> Todas cidades
-                        </button>
-                        {cities.map(c => (
-                            <button key={c}
-                                onClick={() => setFilterCity(filterCity === c ? '' : c)}
-                                className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-all active:scale-95 ${filterCity === c ? 'bg-blue-500 text-white' : 'bg-[#1a2235] text-slate-400 border border-slate-700/50'}`}
-                            >{c}</button>
-                        ))}
+            {/* Direct Rival Card */}
+            {rival && myEntry && rival.total_pontos > myEntry.total_pontos && (
+                <div className="bg-gradient-to-r from-red-500/10 to-transparent border border-red-500/20 backdrop-blur-md rounded-2xl p-4 flex items-center justify-between shadow-lg relative overflow-hidden">
+                    <div className="absolute -left-6 opacity-5"><Target size={80} /></div>
+                    <div className="flex items-center gap-3 relative z-10">
+                        <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-red-500/50 shadow-lg">
+                            {rival.avatar_url ? <img src={rival.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-red-900 flex items-center justify-center text-red-200 font-bold">{rival.nome[0].toUpperCase()}</div>}
+                        </div>
+                        <div>
+                            <span className="text-red-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><Target size={10} /> Seu Rival Direto</span>
+                            <span className="text-white font-bold text-sm truncate max-w-[120px] block mt-0.5">{rival.nome}</span>
+                        </div>
                     </div>
-                )}
-
-                {/* Academia filter */}
-                {academias.length > 0 && (
-                    <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
-                        <button
-                            onClick={() => setFilterAcademia('')}
-                            className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all active:scale-95 ${!filterAcademia ? 'bg-purple-500 text-white' : 'bg-[#1a2235] text-slate-400 border border-slate-700/50'}`}
-                        >
-                            <Building size={12} /> Todas academias
-                        </button>
-                        {academias.map(a => (
-                            <button key={a}
-                                onClick={() => setFilterAcademia(filterAcademia === a ? '' : a)}
-                                className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-all active:scale-95 ${filterAcademia === a ? 'bg-purple-500 text-white' : 'bg-[#1a2235] text-slate-400 border border-slate-700/50'}`}
-                            >{a}</button>
-                        ))}
+                    <div className="text-right relative z-10">
+                        <span className="text-red-400 font-black text-xl leading-none block drop-shadow-md">-{rival.total_pontos - myEntry.total_pontos}</span>
+                        <span className="block text-slate-400 text-[10px] font-bold uppercase tracking-wider mt-1">Para ultrapassar</span>
                     </div>
-                )}
+                </div>
+            )}
 
-                {/* Weight filter */}
-                <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
-                    {WEIGHT_FILTERS.map((f, i) => (
-                        <button key={i}
-                            onClick={() => setFilterWeightIdx(i)}
-                            className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-all active:scale-95 ${filterWeightIdx === i ? 'bg-emerald-500 text-white' : 'bg-[#1a2235] text-slate-400 border border-slate-700/50'}`}
-                        >{f.label}</button>
-                    ))}
+            {/* Podium */}
+            {!loading && podiumTop3.length >= 3 && (
+                <div className="flex items-end justify-center gap-2 sm:gap-4 h-56 mt-4">
+                    {/* 2nd Place */}
+                    <div className="flex flex-col items-center gap-0 w-24">
+                        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-4 border-slate-300 p-0.5 relative z-20 shadow-[0_5px_15px_rgba(0,0,0,0.5)] mb-2 translate-y-3">
+                            {podiumTop3[1].avatar_url ? <img src={podiumTop3[1].avatar_url} className="w-full h-full rounded-full object-cover" /> : <div className="w-full h-full rounded-full bg-slate-800 flex items-center justify-center text-slate-300 font-bold text-xl">{podiumTop3[1].nome[0].toUpperCase()}</div>}
+                            <div className="absolute -bottom-2 -translate-x-1/2 left-1/2 bg-gradient-to-b from-slate-200 to-slate-400 text-slate-900 font-black text-[12px] w-6 h-6 flex items-center justify-center rounded-full border-2 border-[#0a0f18] shadow-lg">2</div>
+                        </div>
+                        <div className="w-full h-[100px] bg-gradient-to-t from-slate-400/20 to-slate-400/5 rounded-t-xl border-t border-slate-400/50 flex flex-col items-center justify-start pt-6 shadow-[inset_0_5px_20px_rgba(148,163,184,0.1)] relative z-10 backdrop-blur-sm">
+                            <span className="text-white text-[11px] font-bold truncate max-w-[80px] drop-shadow-md">{podiumTop3[1].nome.split(' ')[0]}</span>
+                            <span className="text-slate-300 text-[10px] font-black tracking-wider">{podiumTop3[1].total_pontos}</span>
+                        </div>
+                    </div>
+                    {/* 1st Place */}
+                    <div className="flex flex-col items-center gap-0 w-28 relative z-30">
+                        <Crown className="text-yellow-400 absolute -top-8 animate-bounce drop-shadow-[0_0_10px_rgba(250,204,21,0.8)]" size={32} />
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 border-yellow-400 p-0.5 relative z-20 shadow-[0_0_30px_rgba(250,204,21,0.5)] mb-2 translate-y-3">
+                            {podiumTop3[0].avatar_url ? <img src={podiumTop3[0].avatar_url} className="w-full h-full rounded-full object-cover" /> : <div className="w-full h-full rounded-full bg-slate-800 flex items-center justify-center text-yellow-400 font-bold text-xl">{podiumTop3[0].nome[0].toUpperCase()}</div>}
+                            <div className="absolute -bottom-2 -translate-x-1/2 left-1/2 bg-gradient-to-b from-yellow-300 to-yellow-600 text-yellow-900 font-black text-[14px] w-7 h-7 flex items-center justify-center rounded-full border-2 border-[#0a0f18] shadow-lg">1</div>
+                        </div>
+                        <div className="w-full h-[140px] bg-gradient-to-t from-yellow-500/20 to-yellow-500/5 rounded-t-xl border-t-2 border-yellow-400/60 flex flex-col items-center justify-start pt-6 shadow-[inset_0_5px_30px_rgba(250,204,21,0.15)] backdrop-blur-md">
+                            <span className="text-white text-[13px] font-black truncate max-w-[90px] drop-shadow-md">{podiumTop3[0].nome.split(' ')[0]}</span>
+                            <span className="text-yellow-400 text-[11px] font-black tracking-wider">{podiumTop3[0].total_pontos}</span>
+                        </div>
+                    </div>
+                    {/* 3rd Place */}
+                    <div className="flex flex-col items-center gap-0 w-24">
+                        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-4 border-orange-700/80 p-0.5 relative z-20 shadow-[0_5px_15px_rgba(0,0,0,0.5)] mb-2 translate-y-3">
+                            {podiumTop3[2].avatar_url ? <img src={podiumTop3[2].avatar_url} className="w-full h-full rounded-full object-cover" /> : <div className="w-full h-full rounded-full bg-slate-800 flex items-center justify-center text-orange-500 font-bold text-xl">{podiumTop3[2].nome[0].toUpperCase()}</div>}
+                            <div className="absolute -bottom-2 -translate-x-1/2 left-1/2 bg-gradient-to-b from-orange-500 to-orange-700 text-orange-100 font-black text-[12px] w-6 h-6 flex items-center justify-center rounded-full border-2 border-[#0a0f18] shadow-lg">3</div>
+                        </div>
+                        <div className="w-full h-[80px] bg-gradient-to-t from-orange-800/30 to-orange-800/5 rounded-t-xl border-t border-orange-700/50 flex flex-col items-center justify-start pt-6 shadow-[inset_0_5px_20px_rgba(194,65,12,0.1)] relative z-10 backdrop-blur-sm">
+                            <span className="text-white text-[11px] font-bold truncate max-w-[80px] drop-shadow-md">{podiumTop3[2].nome.split(' ')[0]}</span>
+                            <span className="text-orange-400 text-[10px] font-black tracking-wider">{podiumTop3[2].total_pontos}</span>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            )}
 
-            {/* Leaderboard List */}
-            {loading ? (
-                <div className="flex items-center justify-center py-16">
-                    <Loader2 size={28} className="text-blue-500 animate-spin" />
+            {/* Marketplace Reward Integration */}
+            {myEntry && (
+                <div className="bg-gradient-to-br from-emerald-900/40 via-teal-900/20 to-black/60 border border-emerald-500/30 backdrop-blur-md rounded-2xl p-4 relative overflow-hidden mt-2">
+                    <div className="absolute -right-4 -bottom-4 opacity-[0.06] text-emerald-400">
+                        <ShoppingBag size={120} />
+                    </div>
+                    <div className="relative z-10 flex items-start justify-between mb-3">
+                        <div>
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                                <ShoppingBag size={14} className="text-emerald-400" />
+                                <span className="text-emerald-400 font-bold text-[10px] uppercase tracking-widest drop-shadow">Recompensa da Loja</span>
+                            </div>
+                            <h4 className="text-white font-black text-sm drop-shadow-sm">Libere 15% OFF na Marca Patrocinadora</h4>
+                        </div>
+                        <div className="bg-emerald-500/20 px-2 py-1 rounded-md border border-emerald-500/40 shadow-lg">
+                            <span className="text-emerald-400 font-black text[12px]">-15%</span>
+                        </div>
+                    </div>
+                    <div className="relative z-10 bg-black/40 p-3 rounded-xl border border-white/5">
+                        <div className="flex justify-between text-[10px] font-bold text-slate-400 mb-2">
+                            <span className="uppercase tracking-wider">Progresso da Meta</span>
+                            <span className="text-emerald-400">{myEntry.total_pontos} / {(Math.floor(myEntry.total_pontos / 500) + 1) * 500} FP</span>
+                        </div>
+                        <div className="h-2.5 bg-[#0a0f18] rounded-full overflow-hidden border border-white/5 shadow-inner">
+                            <div className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.8)] relative" style={{ width: `${(myEntry.total_pontos % 500) / 500 * 100}%` }}>
+                                <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.2)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.2)_50%,rgba(255,255,255,0.2)_75%,transparent_75%,transparent)] bg-[length:10px_10px] opacity-40" />
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            ) : filtered.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-14 text-center">
-                    <Users size={32} className="text-slate-600 mb-3" />
-                    <p className="text-slate-400 text-sm font-medium">Nenhum atleta encontrado</p>
-                    <p className="text-slate-600 text-xs mt-1">Tente mudar os filtros</p>
-                </div>
-            ) : (
-                <div className="flex flex-col gap-2">
-                    {filtered.slice(0, 10).map((entry, idx) => {
+            )}
+
+            {/* Leaderboard List Selection */}
+            {listTop.length > 0 && (
+                <div className="flex flex-col gap-3 mt-4 relative z-10">
+                    <div className="flex items-center justify-between pl-1 pr-2">
+                        <h3 className="text-white font-black text-base tracking-tight pt-2">Ranking Global</h3>
+                    </div>
+                    {listTop.map((entry, idx) => {
                         const isMe = entry.user_id === myUserId;
-                        const isMedal = idx < 3;
+                        // Determine random favorite product badge for top 10 (simulate marketplace connection)
+                        const hasProduct = idx % 3 === 0; 
                         return (
                             <div
                                 key={entry.user_id}
-                                className={`relative flex items-center gap-3 p-3.5 rounded-2xl transition-all ${isMe ? 'ring-1 ring-blue-500/50' : ''}`}
-                                style={{
-                                    background: isMedal
-                                        ? `linear-gradient(135deg, rgba(${idx === 0 ? '245,197,24' : idx === 1 ? '148,163,184' : '205,127,50'},0.08) 0%, rgba(15,20,30,0.95) 100%)`
-                                        : isMe ? 'rgba(29,99,255,0.08)' : 'rgba(26,34,53,0.6)',
-                                    border: `1px solid ${isMedal ? `rgba(${idx === 0 ? '245,197,24' : idx === 1 ? '148,163,184' : '205,127,50'},0.2)` : isMe ? 'rgba(29,99,255,0.3)' : 'rgba(255,255,255,0.04)'}`,
-                                }}
+                                className={`relative flex items-center gap-3 p-3.5 rounded-2xl transition-all shadow-md backdrop-blur-sm ${isMe ? 'bg-blue-500/10 border-blue-500/40 ring-1 ring-blue-500/50' : 'bg-white/5 border-white/5'} border`}
                             >
                                 {/* Rank */}
-                                <div className="w-8 flex items-center justify-center flex-shrink-0">
-                                    {isMedal ? (
-                                        <span className="text-xl">{medalLabels[idx]}</span>
-                                    ) : (
-                                        <span className="text-slate-500 font-black text-sm">#{idx + 1}</span>
-                                    )}
+                                <div className="w-6 flex items-center justify-center flex-shrink-0">
+                                    <span className="text-slate-400 font-black text-sm">#{idx + 4}</span>
                                 </div>
 
                                 {/* Avatar */}
-                                <div
-                                    className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 font-black text-base"
-                                    style={{
-                                        background: isMe ? 'rgba(29,99,255,0.2)' : 'rgba(255,255,255,0.05)',
-                                        color: isMe ? '#60a5fa' : '#94a3b8',
-                                        border: isMe ? '1.5px solid rgba(29,99,255,0.4)' : '1px solid rgba(255,255,255,0.08)',
-                                    }}
-                                >
+                                <div className="w-12 h-12 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 font-black text-base border border-white/10 bg-black/40">
                                     {entry.avatar_url ? (
                                         <img src={entry.avatar_url} alt={entry.nome} className="w-full h-full object-cover" />
                                     ) : (
-                                        entry.nome.charAt(0).toUpperCase()
+                                        <span className={isMe ? 'text-blue-400' : 'text-slate-400'}>{entry.nome.charAt(0).toUpperCase()}</span>
                                     )}
                                 </div>
 
                                 {/* Info */}
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-1.5">
-                                        <span className={`font-bold text-[14px] truncate ${isMe ? 'text-blue-300' : 'text-white'}`}>
+                                <div className="flex-1 min-w-0 pr-2">
+                                    <div className="flex items-center gap-2">
+                                        <span className={`font-bold text-[15px] truncate ${isMe ? 'text-blue-300' : 'text-white'}`}>
                                             {entry.nome}
                                         </span>
-                                        {isMe && <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest bg-blue-500/10 px-1.5 py-0.5 rounded-full">Você</span>}
+                                        {isMe && <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest bg-blue-500/20 px-1.5 py-0.5 rounded-md border border-blue-500/30">Você</span>}
                                     </div>
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                        {entry.cidade && <span className="text-slate-500 text-[11px] font-medium">{entry.cidade}</span>}
-                                        {entry.academia && <><span className="text-slate-700 text-[11px]">•</span><span className="text-slate-500 text-[11px] font-medium truncate">{entry.academia}</span></>}
+                                    
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <div className="flex items-center gap-1.5">
+                                            {entry.cidade && <span className="text-slate-400 text-[11px] font-medium"><MapPin size={10} className="inline mr-0.5 text-slate-500"/>{entry.cidade}</span>}
+                                        </div>
                                     </div>
+
+                                    {/* Marketplace favorite product mini badge */}
+                                    {hasProduct && !isMe && (
+                                        <div className="flex items-center gap-1 mt-1.5 opacity-80">
+                                            <ShoppingBag size={10} className="text-emerald-400" />
+                                            <span className="text-[9px] text-emerald-400 font-bold uppercase">Usa Whey MaxCore</span>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Points */}
-                                <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
-                                    <span className={`font-black text-[17px] leading-none ${isMedal && idx === 0 ? 'text-yellow-400' : isMedal && idx === 1 ? 'text-slate-300' : isMedal ? 'text-orange-400' : isMe ? 'text-blue-400' : 'text-white'}`}>
+                                <div className="flex flex-col items-end gap-0.5 flex-shrink-0 bg-black/30 px-3 py-2 rounded-xl border border-white/5">
+                                    <span className={`font-black text-[16px] leading-none ${isMe ? 'text-blue-400' : 'text-white'}`}>
                                         {entry.total_pontos.toLocaleString()}
                                     </span>
-                                    <span className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">fitPoints</span>
+                                    <span className="text-slate-500 text-[9px] font-bold uppercase tracking-widest">FP</span>
                                 </div>
                             </div>
                         );
@@ -638,11 +694,11 @@ function ProgressoSection() {
 
                                 {/* Comparison label */}
                                 {myBest > 0 && commVal && commVal > 0 && (
-                                    <div className={`mt-1 flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg ${myBest >= commVal ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                                    <div className={`mt-1 flex items-center gap-1.5 text-[11px] font-bold px-3 py-2.5 rounded-xl border backdrop-blur-sm ${myBest >= commVal ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'bg-blue-500/10 border-blue-500/20 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.1)]'}`}>
                                         {myBest >= commVal ? (
-                                            <><Star size={12} /> Você está {((myBest / commVal - 1) * 100).toFixed(0)}% acima da média!</>
+                                            <><Star size={14} className="text-emerald-400 drop-shadow-md" /> Desempenho de Elite! {((myBest / commVal - 1) * 100).toFixed(0)}% acima da média!</>
                                         ) : (
-                                            <><TrendingUp size={12} /> {((commVal / myBest - 1) * 100).toFixed(0)}% abaixo da média — continue evoluindo!</>
+                                            <><TrendingUp size={14} className="text-blue-400 drop-shadow-md" /> Falta pouco para dominar! Suba apenas {((commVal / myBest - 1) * 100).toFixed(0)}% para superar a média!</>
                                         )}
                                     </div>
                                 )}
@@ -708,26 +764,48 @@ export function Premium() {
     const [activeTab, setActiveTab] = useState<Tab>('temporada');
 
     return (
-        <div className="w-full flex flex-col font-sans" style={{ background: '#0f141e' }}>
-            {/* Hero header */}
-            <div className="px-4 pt-6 pb-2 relative overflow-hidden">
-                <div>
-                    <h1 className="text-white font-black text-[22px] leading-tight tracking-[-0.3px]">Experiência Premium</h1>
-                    <p className="text-slate-400 text-xs font-medium">Temporada 1 · Ranking & Progresso</p>
+        <div className="w-full flex-1 flex flex-col font-sans bg-[#0a0f18] min-h-[100dvh] pb-24">
+            {/* Arena Hero Header */}
+            <div className="relative pt-12 pb-8 px-4 overflow-hidden rounded-b-[2.5rem] shadow-2xl mb-6 flex-shrink-0 bg-[#0c121e]">
+                {/* Background effects */}
+                <div className="absolute inset-0 bg-gradient-to-b from-blue-600/10 to-[#0a0f18] z-0" />
+                <div className="absolute -top-16 -right-16 w-64 h-64 bg-blue-500/20 rounded-full blur-[80px] z-0" />
+                <div className="absolute top-10 -left-12 w-48 h-48 bg-purple-500/20 rounded-full blur-[60px] z-0" />
+                
+                <div className="relative z-10 flex flex-col items-center text-center">
+                    <div className="flex items-center gap-1.5 mb-3 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 shadow-lg">
+                        <Flame size={12} className="text-orange-500 animate-pulse" />
+                        <span className="text-white text-[9px] font-black uppercase tracking-[0.2em]">Temporada 1 • Arena</span>
+                    </div>
+                    <h1 className="text-white font-black text-3xl tracking-tight mb-5 drop-shadow-xl">
+                        Ultimate <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400">FitClub</span>
+                    </h1>
+                    
+                    {/* Co-Branding Sponsor */}
+                    <div className="flex items-center gap-3 bg-gradient-to-r from-emerald-900/30 to-teal-900/30 backdrop-blur-xl border border-emerald-500/20 px-5 py-2.5 rounded-2xl shadow-[0_0_20px_rgba(16,185,129,0.15)]">
+                        <span className="text-slate-400 text-[9px] font-black uppercase tracking-widest">Patrocínio Oficial</span>
+                        <div className="w-px h-6 bg-white/10" />
+                        <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded border border-emerald-500/50 bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-md">
+                                <span className="text-white font-black text-[10px] italic pr-0.5">MC</span>
+                            </div>
+                            <span className="text-white font-black text-xs tracking-wider">MAXCORE<span className="text-emerald-400">NUTRITION</span></span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            {/* Tabs */}
-            <div className="px-4 mb-4">
-                <div className="flex bg-[#131b2b] rounded-xl p-1 border border-slate-700/30">
+            {/* Tabs (Cockpit Style) */}
+            <div className="px-4 mb-6 relative z-20">
+                <div className="flex bg-[#0a0f18] rounded-2xl p-1.5 border border-white/5 shadow-[inset_0_2px_15px_rgba(0,0,0,0.8)] relative">
                     {([
-                        { key: 'temporada', label: 'Temporada', icon: <Award size={14} /> },
-                        { key: 'progresso', label: 'Meu Progresso', icon: <BarChart2 size={14} /> },
+                        { key: 'temporada', label: 'Arena', icon: <Crown size={16} /> },
+                        { key: 'progresso', label: 'Estatísticas', icon: <BarChart2 size={16} /> },
                     ] as { key: Tab; label: string; icon: React.ReactNode }[]).map(tab => (
                         <button
                             key={tab.key}
                             onClick={() => setActiveTab(tab.key)}
-                            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-bold transition-all active:scale-[0.98] ${activeTab === tab.key ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/25' : 'text-slate-400 hover:text-slate-200'}`}
+                            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[11px] font-black uppercase tracking-[0.1em] transition-all duration-300 ${activeTab === tab.key ? 'bg-gradient-to-b from-blue-500 to-indigo-600 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)] border border-blue-400/40 relative z-10' : 'text-slate-500 hover:text-slate-300 bg-transparent'}`}
                         >
                             {tab.icon}
                             {tab.label}
@@ -737,7 +815,7 @@ export function Premium() {
             </div>
 
             {/* Content */}
-            <div className="flex-1 px-4">
+            <div className="flex-1 px-4 relative z-10">
                 {activeTab === 'temporada' ? <TemporadaSection /> : <ProgressoSection />}
             </div>
         </div>
