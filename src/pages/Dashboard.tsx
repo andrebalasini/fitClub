@@ -93,6 +93,7 @@ export function Dashboard() {
             userName={profile?.nome || 'Atleta'}
             avatarUrl={profile?.avatarUrl || ''}
             isPremium={false}
+            fitPoints={stats.fitPoints}
             attributes={attributes}
           />
         </div>

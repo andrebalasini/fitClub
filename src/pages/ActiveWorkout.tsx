@@ -4,13 +4,14 @@ import { useNavigate } from 'react-router-dom';
 import { TopBar } from '../components/layout/TopBar';
 import { BottomNav } from '../components/layout/BottomNav';
 import { supabase } from '../lib/supabase';
-import { CheckCircle, Clock, Loader2, Layers, RefreshCw, Info, Zap, TrendingUp, AlertTriangle, SkipForward, MessageCircle } from 'lucide-react';
+import { CheckCircle, Clock, Loader2, Layers, RefreshCw, Info, Zap, TrendingUp, AlertTriangle, SkipForward, MessageCircle, Camera, Award, Play, Pause, Square } from 'lucide-react';
 import { useDragScroll } from '../hooks/useDragScroll';
 import { LogSetModal } from '../components/LogSetModal';
 import { getCurrentUserId } from '../lib/auth';
 import { useActiveWorkout } from '../contexts/WorkoutContext';
 import { showToast } from '../components/Toast';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
+import { FitCheckCamera } from '../components/FitCheckCamera';
 
 const DEFAULT_EXERCISE_IMAGE = 'https://fafisurbnecapdpguudb.supabase.co/storage/v1/object/public/assets/geral/exercise_default_min.png';
 
@@ -360,6 +361,25 @@ export function ActiveWorkout() {
     const [isLogModalOpen, setIsLogModalOpen] = useState(false);
     const [showExitModal, setShowExitModal] = useState(false);
     const [showSkipConfirm, setShowSkipConfirm] = useState(false);
+    
+    // FitCheck States
+    const [showWorkoutCompletedModal, setShowWorkoutCompletedModal] = useState(false);
+    const [showFitCheckCamera, setShowFitCheckCamera] = useState(false);
+    const [earnedFitPoints, setEarnedFitPoints] = useState(0);
+
+    const [cardioState, setCardioState] = useState<'idle' | 'running' | 'paused'>(() => {
+        return (localStorage.getItem('@fw:cardioState') as 'idle' | 'running' | 'paused') || 'idle';
+    });
+    const [cardioEndTime, setCardioEndTime] = useState<number | null>(() => {
+        const val = localStorage.getItem('@fw:cardioEndTime');
+        return val ? parseInt(val, 10) : null;
+    });
+    const [cardioRemainingDuration, setCardioRemainingDuration] = useState<number>(() => {
+        const val = localStorage.getItem('@fw:cardioRemainingDuration');
+        return val ? parseInt(val, 10) : 0;
+    });
+    const [showStopCardioConfirm, setShowStopCardioConfirm] = useState(false);
+
     const [sessionHistoryIds, setSessionHistoryIds] = useState<string[]>(() => {
         try { return JSON.parse(localStorage.getItem('@fw:sessionHistoryIds') || '[]'); } catch { return []; }
     });
@@ -385,7 +405,12 @@ export function ActiveWorkout() {
         localStorage.setItem('@fw:isResting', isResting.toString());
         if (restEndTime) localStorage.setItem('@fw:restEndTime', restEndTime.toString());
         else localStorage.removeItem('@fw:restEndTime');
-    }, [currentIndex, currentSetIndex, focusedIndex, workoutStarted, workoutStartTime, sessionHistoryIds, isResting, restEndTime]);
+        
+        localStorage.setItem('@fw:cardioState', cardioState);
+        if (cardioEndTime) localStorage.setItem('@fw:cardioEndTime', cardioEndTime.toString());
+        else localStorage.removeItem('@fw:cardioEndTime');
+        localStorage.setItem('@fw:cardioRemainingDuration', cardioRemainingDuration.toString());
+    }, [currentIndex, currentSetIndex, focusedIndex, workoutStarted, workoutStartTime, sessionHistoryIds, isResting, restEndTime, cardioState, cardioEndTime, cardioRemainingDuration]);
 
     const isInitialMount = useRef(true);
     useEffect(() => {
@@ -395,6 +420,10 @@ export function ActiveWorkout() {
         }
         // Reiniciar a série sempre que mudar de exercício
         setCurrentSetIndex(0);
+        // Resetar cardio state
+        setCardioState('idle');
+        setCardioEndTime(null);
+        setCardioRemainingDuration(0);
     }, [currentIndex]);
 
     useEffect(() => {
@@ -568,6 +597,7 @@ export function ActiveWorkout() {
 
     const handleSavePartialWorkout = async () => {
         setIsSavingExit(true);
+        const points = 50;
         try {
             await supabase.from('tbTreinosCompletos').insert({
                 user_id: getCurrentUserId(),
@@ -577,16 +607,16 @@ export function ActiveWorkout() {
             });
             await supabase.from('tbFitPoints').insert({
                 user_id: getCurrentUserId(),
-                pontos: 50,
+                pontos: points,
                 motivo: 'treino_parcial'
             });
         } catch (err) {
             console.error('Erro ao registrar treino parcial:', err);
         }
         setIsSavingExit(false);
-        endWorkout();
-        showToast('Treino encerrado. Suas informações foram salvas!', 'success');
-        navigate('/treino', { replace: true });
+        setEarnedFitPoints(points);
+        setShowExitModal(false);
+        setShowWorkoutCompletedModal(true);
     };
 
     // Discard workout — delete all history records created in this session
@@ -605,6 +635,7 @@ export function ActiveWorkout() {
     };
 
     const handleFinishWorkout = async () => {
+        const points = 100;
         try {
             await supabase.from('tbTreinosCompletos').insert({
                 user_id: getCurrentUserId(),
@@ -614,15 +645,66 @@ export function ActiveWorkout() {
             });
             await supabase.from('tbFitPoints').insert({
                 user_id: getCurrentUserId(),
-                pontos: 100,
+                pontos: points,
                 motivo: 'treino_concluido'
             });
         } catch (err) {
             console.error('Erro ao registrar conclusão:', err);
         }
+        
+        setEarnedFitPoints(points);
+        setShowWorkoutCompletedModal(true);
+        // Do not immediately navigate or clear context; wait for the user to interact with the FitCheck modal
+    };
+
+    const handleCloseWorkoutCompleted = () => {
         endWorkout();
-        showToast('Treino concluído! Suas informações foram salvas.', 'success');
         navigate('/treino', { replace: true });
+    };
+
+    const handleOpenFitCheck = () => {
+        setShowWorkoutCompletedModal(false);
+        setShowFitCheckCamera(true);
+    };
+
+    const handleFitCheckShare = (platform: 'instagram' | 'facebook' | 'both', imageUrl: string) => {
+        // We convert the dataUrl to a blob for the Web Share API
+        fetch(imageUrl)
+            .then(res => res.blob())
+            .then(blob => {
+                const file = new File([blob], "fitcheck.jpg", { type: "image/jpeg" });
+                
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    navigator.share({
+                        title: 'Meu FitCheck!',
+                        text: 'Mais um treino concluído no fitClub! 💪🔥 #fitClub #FitCheck',
+                        files: [file],
+                    })
+                    .then(() => {
+                        showToast('Compartilhado com sucesso!', 'success');
+                        setTimeout(() => {
+                            setShowFitCheckCamera(false);
+                            handleCloseWorkoutCompleted();
+                        }, 1000);
+                    })
+                    .catch((error) => console.log('Erro ao compartilhar', error));
+                } else {
+                    // Fallback se não suportar Web Share API
+                    const link = document.createElement('a');
+                    link.href = imageUrl;
+                    link.download = `fitcheck.jpg`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    
+                    showToast('Imagem salva! Compartilhe no seu ' + platform, 'success');
+                    
+                    setTimeout(() => {
+                        setShowFitCheckCamera(false);
+                        handleCloseWorkoutCompleted();
+                    }, 2000);
+                }
+            });
     };
 
     const handleNextExercise = () => {
@@ -652,6 +734,14 @@ export function ActiveWorkout() {
         } else {
             handleFinishWorkout();
         }
+    };
+
+    const handleJumpToExercise = (index: number) => {
+        setIsResting(false);
+        setRestEndTime(null);
+        setCurrentIndex(index);
+        setCurrentSetIndex(0);
+        setTimeout(() => scrollToCard(index), 50);
     };
 
     useEffect(() => {
@@ -701,6 +791,7 @@ export function ActiveWorkout() {
 
     useEffect(() => {
         let isHandlingRest = false;
+        let isHandlingCardioEnd = false;
         
         const calculateElapsed = () => {
             if (workoutStarted && workoutStartTime) {
@@ -716,6 +807,19 @@ export function ActiveWorkout() {
                     setIsResting(false);
                     setRestEndTime(null);
                     if (handleNextExerciseRef.current) handleNextExerciseRef.current();
+                }
+            }
+            if (cardioState === 'running' && cardioEndTime && !isHandlingCardioEnd) {
+                const remaining = Math.ceil((cardioEndTime - Date.now()) / 1000);
+                if (remaining > 0) {
+                    setCardioRemainingDuration(remaining);
+                } else {
+                    isHandlingCardioEnd = true;
+                    playAlarmSound();
+                    setCardioState('idle');
+                    setCardioEndTime(null);
+                    setCardioRemainingDuration(0);
+                    setIsLogModalOpen(true);
                 }
             }
         };
@@ -738,7 +842,7 @@ export function ActiveWorkout() {
             window.removeEventListener('focus', calculateElapsed);
             window.removeEventListener('pageshow', calculateElapsed);
         };
-    }, [workoutStarted, workoutStartTime, isResting, restEndTime, playAlarmSound]);
+    }, [workoutStarted, workoutStartTime, isResting, restEndTime, playAlarmSound, cardioState, cardioEndTime]);
 
     // Detect which card is centered when user manually scrolls the carousel
     const handleCarouselScroll = useCallback(() => {
@@ -1001,32 +1105,89 @@ export function ActiveWorkout() {
 
                                             {/* Botões - sempre exibidos para consistência visual */}
                                             <div className="flex flex-col mt-1 gap-1">
-                                                <button
-                                                    onClick={() => setIsLogModalOpen(true)}
-                                                    disabled={!workoutStarted || (isResting && idx === currentIndex) || idx !== currentIndex}
-                                                    className={`w-full font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all ${
-                                                        workoutStarted && !isResting && idx === currentIndex
-                                                            ? 'bg-blue-500 hover:bg-blue-600 text-white active:scale-[0.98] shadow-lg shadow-blue-500/25' 
-                                                            : 'bg-slate-700/50 text-slate-400 cursor-not-allowed'
-                                                    }`}
-                                                >
-                                                    <CheckCircle size={18} />
-                                                    <span className="text-[15px]">
-                                                        {idx < currentIndex 
-                                                            ? 'Treino concluído'
-                                                            : idx > currentIndex
-                                                            ? 'Aguarde'
-                                                            : exercise.grupo === 'Cardio'
-                                                            ? (currentIndex === exercises.length - 1 ? 'Finalizar Treino' : 'Concluir exercício')
-                                                            : currentIndex === exercises.length - 1 && currentSetIndex === exercise.series - 1
-                                                            ? 'Finalizar Treino' 
-                                                            : currentSetIndex === exercise.series - 1 
-                                                            ? 'Concluir exercício'
-                                                            : `Concluir série (${currentSetIndex + 1}/${exercise.series})`}
-                                                    </span>
-                                                </button>
+                                                {workoutStarted && exercise.grupo === 'Cardio' && idx === currentIndex ? (
+                                                    cardioState === 'idle' ? (
+                                                        <button
+                                                            onClick={(e) => { 
+                                                                e.stopPropagation(); 
+                                                                setCardioState('running');
+                                                                const durationInSeconds = exercise.repeticoes * 60;
+                                                                setCardioRemainingDuration(durationInSeconds);
+                                                                setCardioEndTime(Date.now() + durationInSeconds * 1000);
+                                                            }}
+                                                            className="w-full font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all bg-green-500 hover:bg-green-600 text-white active:scale-[0.98] shadow-lg shadow-green-500/25"
+                                                        >
+                                                            <Play size={18} />
+                                                            <span className="text-[15px]">Iniciar Cardio</span>
+                                                        </button>
+                                                    ) : (
+                                                        <div className="flex flex-col gap-2 w-full">
+                                                            <div className="flex items-center justify-between px-3 py-2 bg-[#0f141e]/80 rounded-xl border border-white/5">
+                                                                <span className="text-white font-black text-2xl tabular-nums tracking-wider">{formatTime(cardioRemainingDuration)}</span>
+                                                                <span className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">{cardioState === 'running' ? 'Em andamento' : 'Pausado'}</span>
+                                                            </div>
+                                                            <div className="flex gap-2 w-full">
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        if (cardioState === 'running') {
+                                                                            setCardioState('paused');
+                                                                            setCardioEndTime(null);
+                                                                        } else {
+                                                                            setCardioState('running');
+                                                                            setCardioEndTime(Date.now() + cardioRemainingDuration * 1000);
+                                                                        }
+                                                                    }}
+                                                                    className={`flex-1 font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-lg ${cardioState === 'running' ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/25' : 'bg-green-500 hover:bg-green-600 text-white shadow-green-500/25'}`}
+                                                                >
+                                                                    {cardioState === 'running' ? <Pause size={18} /> : <Play size={18} />}
+                                                                    <span className="text-[15px]">{cardioState === 'running' ? 'Pausar' : 'Continuar'}</span>
+                                                                </button>
+                                                                <button
+                                                                    onClick={(e) => { e.stopPropagation(); setShowStopCardioConfirm(true); }}
+                                                                    className="w-[60px] flex-shrink-0 font-bold py-3.5 rounded-xl flex items-center justify-center transition-all bg-red-500/10 hover:bg-red-500/20 text-red-500 active:scale-[0.98]"
+                                                                >
+                                                                    <Square size={18} />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                ) : workoutStarted && idx !== currentIndex ? (
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); handleJumpToExercise(idx); }}
+                                                        className="w-full font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all bg-slate-700 hover:bg-slate-600 text-white active:scale-[0.98] shadow-lg shadow-black/20"
+                                                    >
+                                                        <SkipForward size={18} />
+                                                        <span className="text-[15px]">Fazer este exercício</span>
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => setIsLogModalOpen(true)}
+                                                        disabled={!workoutStarted || (isResting && idx === currentIndex) || idx !== currentIndex}
+                                                        className={`w-full font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all ${
+                                                            workoutStarted && !isResting && idx === currentIndex
+                                                                ? 'bg-blue-500 hover:bg-blue-600 text-white active:scale-[0.98] shadow-lg shadow-blue-500/25' 
+                                                                : 'bg-slate-700/50 text-slate-400 cursor-not-allowed'
+                                                        }`}
+                                                    >
+                                                        <CheckCircle size={18} />
+                                                        <span className="text-[15px]">
+                                                            {idx < currentIndex && !workoutStarted
+                                                                ? 'Treino concluído'
+                                                                : idx > currentIndex && !workoutStarted
+                                                                ? 'Aguarde'
+                                                                : exercise.grupo === 'Cardio'
+                                                                ? (currentIndex === exercises.length - 1 ? 'Finalizar Treino' : 'Concluir exercício')
+                                                                : currentIndex === exercises.length - 1 && currentSetIndex === exercise.series - 1
+                                                                ? 'Finalizar Treino' 
+                                                                : currentSetIndex === exercise.series - 1 
+                                                                ? 'Concluir exercício'
+                                                                : `Concluir série (${currentSetIndex + 1}/${exercise.series})`}
+                                                        </span>
+                                                    </button>
+                                                )}
                                                 
-                                                {workoutStarted && !isResting && idx === currentIndex ? (
+                                                {workoutStarted && !isResting && idx === currentIndex && exercise.grupo !== 'Cardio' ? (
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); setShowSkipConfirm(true); }}
                                                         className="w-full font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all text-slate-400 bg-transparent hover:text-slate-200 hover:bg-white/5 active:scale-[0.95]"
@@ -1034,9 +1195,9 @@ export function ActiveWorkout() {
                                                         <SkipForward size={16} />
                                                         <span className="text-[14px]">Não fiz o exercício</span>
                                                     </button>
-                                                ) : (
+                                                ) : exercise.grupo !== 'Cardio' ? (
                                                     <div className="h-[40px] w-full" />
-                                                )}
+                                                ) : null}
                                             </div>
                                         </div>
                                         </div>
@@ -1222,6 +1383,87 @@ export function ActiveWorkout() {
                         confirmText="Sim, pular"
                         icon={SkipForward}
                         variant="warning"
+                    />,
+                    document.body
+                )}
+
+                {/* Workout Completed / FitCheck Prompt Modal */}
+                {showWorkoutCompletedModal && createPortal(
+                    <div className="fixed inset-0 z-[110] flex items-center justify-center px-4">
+                        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm animate-[fadeIn_200ms_ease-out]" />
+                        
+                        <div className="relative w-full max-w-sm bg-[#1a1f2e] rounded-3xl p-6 animate-[slideUp_300ms_ease-out] shadow-2xl shadow-black/50 z-10 flex flex-col items-center text-center">
+                            
+                            <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-500 mb-4 shadow-[0_0_30px_rgba(16,185,129,0.3)]">
+                                <CheckCircle size={32} />
+                            </div>
+
+                            <h2 className="text-white font-bold text-2xl leading-tight mb-2">
+                                Treino Concluído!
+                            </h2>
+                            
+                            <p className="text-[#8e95a3] text-[15px] font-medium leading-relaxed mb-4">
+                                Excelente trabalho! Seu progresso foi salvo com sucesso.
+                            </p>
+
+                            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4 w-full flex items-center justify-center gap-3 mb-6">
+                                <Award className="text-yellow-500" size={24} />
+                                <div className="text-left">
+                                    <div className="text-yellow-500 font-black text-xl leading-none">+{earnedFitPoints} FitPoints</div>
+                                    <div className="text-yellow-500/70 text-xs font-bold uppercase tracking-wider mt-1">Conquistados hoje</div>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col gap-3 w-full">
+                                <button
+                                    onClick={handleOpenFitCheck}
+                                    className="w-full py-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-base flex items-center justify-center gap-2 hover:from-blue-500 hover:to-indigo-500 transition-all active:scale-[0.98] shadow-lg shadow-blue-500/25 relative overflow-hidden group"
+                                >
+                                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
+                                    <Camera size={20} className="relative z-10" />
+                                    <span className="relative z-10">Fazer FitCheck</span>
+                                </button>
+                                
+                                <button
+                                    onClick={handleCloseWorkoutCompleted}
+                                    className="w-full py-3.5 rounded-xl bg-slate-800 text-white font-bold text-base hover:bg-slate-700 transition-all active:scale-[0.98]"
+                                >
+                                    Voltar para o Início
+                                </button>
+                            </div>
+                        </div>
+                    </div>,
+                    document.body
+                )}
+
+                {showStopCardioConfirm && createPortal(
+                    <ConfirmDeleteModal
+                        title="Parar Cardio?"
+                        description="Você não completou o tempo planejado. Tem certeza que deseja parar o cardio agora?"
+                        onConfirm={() => {
+                            setShowStopCardioConfirm(false);
+                            setCardioState('idle');
+                            setCardioRemainingDuration(0);
+                            setCardioEndTime(null);
+                            handleSkipExercise();
+                        }}
+                        onCancel={() => setShowStopCardioConfirm(false)}
+                        confirmText="Sim, parar"
+                        icon={Square}
+                        variant="danger"
+                    />,
+                    document.body
+                )}
+
+                {/* FitCheck Camera Interface */}
+                {showFitCheckCamera && createPortal(
+                    <FitCheckCamera 
+                        fitPoints={earnedFitPoints} 
+                        onClose={() => {
+                            setShowFitCheckCamera(false);
+                            handleCloseWorkoutCompleted();
+                        }}
+                        onShare={handleFitCheckShare}
                     />,
                     document.body
                 )}

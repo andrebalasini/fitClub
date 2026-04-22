@@ -181,35 +181,40 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
         )}
       >
         {/* Header - User Profile Summary */}
-        <div className="p-5 flex flex-col items-start gap-4 bg-[#1E1E1E] shadow-sm">
-          <div className="flex justify-between items-start w-full">
-            <div>
-              <div className="w-16 h-16 rounded-full overflow-hidden border-[3px] border-blue-500/20 bg-zinc-800 flex items-center justify-center">
-                {(avatarFile || avatarUrl) ? (
-                  <img src={avatarFile ? URL.createObjectURL(avatarFile) : avatarUrl} className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-2xl font-black text-blue-400">{displayUserName.charAt(0).toUpperCase()}</span>
-                )}
-              </div>
+        <div className="relative p-5 pt-6 flex flex-col bg-[#1E1E1E] shadow-sm">
+          {/* Close Button */}
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 p-2.5 rounded-full bg-black/20 hover:bg-black/40 active:scale-95 transition-all text-slate-400"
+          >
+            <X className="w-5 h-5" />
+          </button>
+
+          {/* Avatar and Name Row */}
+          <div className="flex items-center gap-4 w-full pr-10">
+            <div className="flex-shrink-0 w-[60px] h-[60px] rounded-[16px] overflow-hidden border-2 border-white/10 bg-[#1a2744] flex items-center justify-center">
+              {(avatarFile || avatarUrl) ? (
+                <img src={avatarFile ? URL.createObjectURL(avatarFile) : avatarUrl} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-[#4d9fff] font-bold text-[24px]">
+                  {displayUserName.charAt(0).toUpperCase()}
+                </span>
+              )}
             </div>
             
-            <button
-              onClick={onClose}
-              className="p-2.5 rounded-full bg-black/20 hover:bg-black/40 active:scale-95 transition-all text-slate-400"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          <div className="flex flex-col gap-1 w-full mt-2">
-            <h2 className="text-xl font-bold text-white tracking-tight">{displayUserName}</h2>
-            <div className="mt-3 w-full bg-black/30 rounded-lg p-4 flex flex-col items-center justify-center border border-white/5">
-              <span className="text-xs font-black tracking-widest uppercase mb-1 drop-shadow-sm">
-                <span className="text-white">fit</span><span className="text-blue-500">Points</span>
-              </span>
-              <span className="text-3xl font-black text-blue-400 drop-shadow-md">
-                {fitPoints.toLocaleString('pt-BR')} <span className="text-lg text-blue-500/60 ml-1">px</span>
-              </span>
+            <div className="flex flex-col min-w-0">
+               <h2 className="text-[20px] font-bold text-white leading-tight truncate">{displayUserName}</h2>
             </div>
+          </div>
+
+          {/* FitPoints Row */}
+          <div className="mt-4 w-full pb-2 flex flex-col items-center justify-center">
+            <span className="text-[46px] leading-none font-black text-white tracking-tight drop-shadow-md">
+              {fitPoints.toLocaleString('pt-BR')}
+            </span>
+            <span className="text-[17px] font-black tracking-tight mt-1 drop-shadow-sm">
+              <span className="text-white">fit</span><span className="text-[#4d9fff]">Points</span>
+            </span>
           </div>
         </div>
 

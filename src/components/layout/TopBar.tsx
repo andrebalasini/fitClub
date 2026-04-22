@@ -43,13 +43,14 @@ export function TopBar({
             </div>
 
             {/* Right: fitClub Logo */}
-            <Link to="/" className="flex items-center active:scale-95 transition-all">
-                <img
-                    src="https://fafisurbnecapdpguudb.supabase.co/storage/v1/object/public/assets/geral/logo_fitclub_500kb%20(1).png"
-                    alt="fitClub Logo"
-                    className="h-[34px] w-auto object-contain"
-                />
-            </Link>
+        <Link to="/" className="flex items-center active:scale-95 transition-all outline-none">
+            <img
+                src="https://fafisurbnecapdpguudb.supabase.co/storage/v1/object/public/assets/geral/logo_fitclub_500kb%20(1).png"
+                alt="fitClub Logo"
+                className="h-[34px] w-auto object-contain"
+                style={{ imageRendering: '-webkit-optimize-contrast' as any }}
+            />
+        </Link>
         </header>
     );
 }
