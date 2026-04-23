@@ -55,7 +55,7 @@ export function AuthLogin() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: provider,
         options: {
-          redirectTo: 'https://appfitclub.com.br/dashboard',
+          redirectTo: window.location.origin,
         },
       });
 

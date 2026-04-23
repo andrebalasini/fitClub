@@ -383,6 +383,12 @@ export function ActiveWorkout() {
     const [sessionHistoryIds, setSessionHistoryIds] = useState<string[]>(() => {
         try { return JSON.parse(localStorage.getItem('@fw:sessionHistoryIds') || '[]'); } catch { return []; }
     });
+    const [completedIndices, setCompletedIndices] = useState<number[]>(() => {
+        try { return JSON.parse(localStorage.getItem('@fw:completedIndices') || '[]'); } catch { return []; }
+    });
+    const [setsLoggedByIndex, setSetsLoggedByIndex] = useState<Record<number, number>>(() => {
+        try { return JSON.parse(localStorage.getItem('@fw:setsLoggedByIndex') || '{}'); } catch { return {}; }
+    });
     const [isSavingExit, setIsSavingExit] = useState(false);
     const [isResting, setIsResting] = useState(() => localStorage.getItem('@fw:isResting') === 'true');
     const [restTimeRemaining, setRestTimeRemaining] = useState(0);
@@ -393,6 +399,10 @@ export function ActiveWorkout() {
     const carouselRef = useDragScroll<HTMLDivElement>({ disabled: false });
     const isScrollingProgrammatically = useRef(false);
     const handleNextExerciseRef = useRef<(() => void) | null>(null);
+    const jumpedRef = useRef(false);
+    const exerciseHistoryRef = useRef<HistoryRecord[]>([]);
+    const sessionHistoryIdsRef = useRef<string[]>([]);
+    const setsLoggedByIndexRef = useRef<Record<number, number>>({});
 
     useEffect(() => {
         localStorage.setItem('@fw:currentIndex', currentIndex.toString());
@@ -410,7 +420,14 @@ export function ActiveWorkout() {
         if (cardioEndTime) localStorage.setItem('@fw:cardioEndTime', cardioEndTime.toString());
         else localStorage.removeItem('@fw:cardioEndTime');
         localStorage.setItem('@fw:cardioRemainingDuration', cardioRemainingDuration.toString());
-    }, [currentIndex, currentSetIndex, focusedIndex, workoutStarted, workoutStartTime, sessionHistoryIds, isResting, restEndTime, cardioState, cardioEndTime, cardioRemainingDuration]);
+        localStorage.setItem('@fw:completedIndices', JSON.stringify(completedIndices));
+        localStorage.setItem('@fw:setsLoggedByIndex', JSON.stringify(setsLoggedByIndex));
+    }, [currentIndex, currentSetIndex, focusedIndex, workoutStarted, workoutStartTime, sessionHistoryIds, isResting, restEndTime, cardioState, cardioEndTime, cardioRemainingDuration, completedIndices, setsLoggedByIndex]);
+
+    // Keep refs in sync with state so closures always read fresh values
+    useEffect(() => { exerciseHistoryRef.current = exerciseHistory; }, [exerciseHistory]);
+    useEffect(() => { sessionHistoryIdsRef.current = sessionHistoryIds; }, [sessionHistoryIds]);
+    useEffect(() => { setsLoggedByIndexRef.current = setsLoggedByIndex; }, [setsLoggedByIndex]);
 
     const isInitialMount = useRef(true);
     useEffect(() => {
@@ -418,12 +435,16 @@ export function ActiveWorkout() {
             isInitialMount.current = false;
             return;
         }
-        // Reiniciar a série sempre que mudar de exercício
-        setCurrentSetIndex(0);
+        
+        // Read sets done for this specific workout position (not exercicio_id) to avoid duplicate-exercise bug
+        const setsDone = setsLoggedByIndexRef.current[currentIndex] ?? 0;
+        setCurrentSetIndex(setsDone);
+        
         // Resetar cardio state
         setCardioState('idle');
         setCardioEndTime(null);
         setCardioRemainingDuration(0);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentIndex]);
 
     useEffect(() => {
@@ -548,14 +569,19 @@ export function ActiveWorkout() {
         }
 
         // Track the session record ID so it can be deleted if user discards
-        if (insertedRow?.id) {
-            setSessionHistoryIds(prev => [...prev, insertedRow.id]);
-        }
+        const finalId = insertedRow?.id || (Date.now() + Math.random()).toString();
+        
+        setSessionHistoryIds(prev => [...prev, finalId]);
+        
+        // Track sets by index (position in workout) — avoids duplicate exercicio_id collision
+        setSetsLoggedByIndex(prev => ({
+            ...prev,
+            [currentIndex]: (prev[currentIndex] ?? 0) + 1
+        }));
 
-        const tempId = (Date.now() + Math.random()).toString();
         // Add to local state dynamically so chart updates immediately
         setExerciseHistory(prev => [...prev, {
-            id: tempId,
+            id: finalId,
             exercicio_id: currentExercise.exercicio_id,
             carga_usada: weight,
             repeticoes_feitas: reps,
@@ -567,10 +593,9 @@ export function ActiveWorkout() {
         setIsLogModalOpen(false);
         
         const isLastSet = currentSetIndex === currentExercise.series - 1;
-        const isLastExercise = currentIndex === exercises.length - 1;
 
-        // Cardio: sem descanso, vai direto pro próximo
-        if (currentExercise.grupo === 'Cardio' || isLastSet && isLastExercise) {
+        // Cardio: sem descanso, vai direto pro próximo exercício pendente
+        if (currentExercise.grupo === 'Cardio') {
             handleNextExercise();
         } else if (isLastSet) {
             // Última série de exercício normal → descanso e avança
@@ -714,33 +739,58 @@ export function ActiveWorkout() {
         if (currentSetIndex < currentExercise.series - 1) {
             setCurrentSetIndex(prev => prev + 1);
         } else {
-            // Se já foi a última série, vai pro próximo exercício ou finaliza
-            if (currentIndex < exercises.length - 1) {
-                const nextIndex = currentIndex + 1;
-                setCurrentIndex(nextIndex);
-                setTimeout(() => scrollToCard(nextIndex), 50);
-            } else {
-                // Treino concluído — salvar no banco antes de navegar
+            const newCompletedIndices = Array.from(new Set([...completedIndices, currentIndex]));
+            setCompletedIndices(newCompletedIndices);
+            
+            // Só finaliza o treino se TODOS os exercícios foram concluídos
+            const allDone = exercises.every((_, idx) => newCompletedIndices.includes(idx));
+            if (allDone) {
                 handleFinishWorkout();
+            } else {
+                // Procura o próximo exercício pendente (começa pelo próximo, depois faz wrap)
+                let nextIndex = -1;
+                for (let i = 1; i <= exercises.length; i++) {
+                    const candidate = (currentIndex + i) % exercises.length;
+                    if (!newCompletedIndices.includes(candidate)) {
+                        nextIndex = candidate;
+                        break;
+                    }
+                }
+                if (nextIndex !== -1) {
+                    setCurrentIndex(nextIndex);
+                    setTimeout(() => scrollToCard(nextIndex), 50);
+                }
             }
         }
     };
 
     const handleSkipExercise = () => {
-        if (currentIndex < exercises.length - 1) {
+        // Só finaliza se todos os outros exercícios também estiverem concluídos
+        const allDone = exercises.every((_, idx) => idx === currentIndex || completedIndices.includes(idx));
+        if (allDone) {
+            handleFinishWorkout();
+        } else if (currentIndex < exercises.length - 1) {
             const nextIndex = currentIndex + 1;
             setCurrentIndex(nextIndex);
             setTimeout(() => scrollToCard(nextIndex), 50);
         } else {
-            handleFinishWorkout();
+            // Último por posição mas há pendentes antes — vai para o primeiro pendente
+            const firstPending = exercises.findIndex((_, idx) => idx !== currentIndex && !completedIndices.includes(idx));
+            if (firstPending !== -1) {
+                setCurrentIndex(firstPending);
+                setTimeout(() => scrollToCard(firstPending), 50);
+            }
         }
     };
 
     const handleJumpToExercise = (index: number) => {
+        // Signal to the rest timer that we jumped — prevent it from calling handleNextExercise
+        jumpedRef.current = true;
+        setTimeout(() => { jumpedRef.current = false; }, 1000);
+        
         setIsResting(false);
         setRestEndTime(null);
         setCurrentIndex(index);
-        setCurrentSetIndex(0);
         setTimeout(() => scrollToCard(index), 50);
     };
 
@@ -806,7 +856,9 @@ export function ActiveWorkout() {
                     playAlarmSound();
                     setIsResting(false);
                     setRestEndTime(null);
-                    if (handleNextExerciseRef.current) handleNextExerciseRef.current();
+                    if (!jumpedRef.current && handleNextExerciseRef.current) {
+                        handleNextExerciseRef.current();
+                    }
                 }
             }
             if (cardioState === 'running' && cardioEndTime && !isHandlingCardioEnd) {
@@ -1152,29 +1204,58 @@ export function ActiveWorkout() {
                                                             </div>
                                                         </div>
                                                     )
-                                                ) : workoutStarted && idx !== currentIndex ? (
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); handleJumpToExercise(idx); }}
-                                                        className="w-full font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all bg-slate-700 hover:bg-slate-600 text-white active:scale-[0.98] shadow-lg shadow-black/20"
-                                                    >
-                                                        <SkipForward size={18} />
-                                                        <span className="text-[15px]">Fazer este exercício</span>
-                                                    </button>
+                                                ) : workoutStarted && idx !== currentIndex && !completedIndices.includes(idx) ? (
+                                                    (() => {
+                                                        const setsDone = setsLoggedByIndex[idx] ?? 0;
+                                                        
+                                                        if (isResting) {
+                                                            return (
+                                                                <div className="w-full flex items-center justify-center py-2 h-[52px]">
+                                                                    <span className="text-slate-400 font-bold text-[13px] tracking-widest bg-slate-800/60 px-4 py-1.5 rounded-full border border-white/5">
+                                                                        {setsDone}/{exercise.series} SÉRIES
+                                                                    </span>
+                                                                </div>
+                                                            );
+                                                        }
+                                                        
+                                                        return (
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); handleJumpToExercise(idx); }}
+                                                                className="w-full font-bold py-3.5 rounded-xl flex items-center justify-between px-4 transition-all bg-slate-700 hover:bg-slate-600 text-white active:scale-[0.98] shadow-lg shadow-black/20"
+                                                            >
+                                                                <div className="flex items-center gap-2">
+                                                                    <SkipForward size={18} />
+                                                                    <span className="text-[15px]">
+                                                                        {setsDone > 0 ? 'Continuar exercício' : 'Fazer este exercício'}
+                                                                    </span>
+                                                                </div>
+                                                                <span className="px-2.5 py-1 rounded-md bg-black/20 text-white/80 text-[12px] font-black tracking-widest">
+                                                                    {setsDone}/{exercise.series}
+                                                                </span>
+                                                            </button>
+                                                        );
+                                                    })()
+                                                ) : completedIndices.includes(idx) ? (
+                                                    <div className="w-full flex items-center justify-center py-2 min-h-[52px]">
+                                                        <div className="w-[60px] h-[60px] rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+                                                            <CheckCircle size={32} className="text-emerald-500" />
+                                                        </div>
+                                                    </div>
                                                 ) : (
                                                     <button
                                                         onClick={() => setIsLogModalOpen(true)}
-                                                        disabled={!workoutStarted || (isResting && idx === currentIndex) || idx !== currentIndex}
+                                                        disabled={!workoutStarted || isResting || idx !== currentIndex}
                                                         className={`w-full font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all ${
                                                             workoutStarted && !isResting && idx === currentIndex
                                                                 ? 'bg-blue-500 hover:bg-blue-600 text-white active:scale-[0.98] shadow-lg shadow-blue-500/25' 
+                                                                : isResting
+                                                                ? 'opacity-0 pointer-events-none'
                                                                 : 'bg-slate-700/50 text-slate-400 cursor-not-allowed'
                                                         }`}
                                                     >
                                                         <CheckCircle size={18} />
                                                         <span className="text-[15px]">
-                                                            {idx < currentIndex && !workoutStarted
-                                                                ? 'Treino concluído'
-                                                                : idx > currentIndex && !workoutStarted
+                                                            {!workoutStarted
                                                                 ? 'Aguarde'
                                                                 : exercise.grupo === 'Cardio'
                                                                 ? (currentIndex === exercises.length - 1 ? 'Finalizar Treino' : 'Concluir exercício')

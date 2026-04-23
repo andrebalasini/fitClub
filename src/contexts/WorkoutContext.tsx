@@ -56,7 +56,7 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
         '@fw:currentIndex', '@fw:currentSetIndex', '@fw:focusedIndex',
         '@fw:workoutStarted', '@fw:workoutStartTime',
         '@fw:sessionHistoryIds', '@fw:isResting',
-        '@fw:restEndTime'
+        '@fw:restEndTime', '@fw:completedIndices', '@fw:setsLoggedByIndex'
     ];
     keys.forEach(k => localStorage.removeItem(k));
   };
