@@ -29,11 +29,11 @@ function pointsToPath(points: { x: number; y: number }[]): string {
 }
 
 export function HexRadarChart({ attributes, communityAttributes, size = 240 }: HexRadarChartProps) {
-  const n = attributes.length; // should be 6
+  const n = attributes.length; // should be 5
   const cx = size / 2;
   const cy = size / 2;
   const maxR = size * 0.33;
-  const labelR = size * 0.40;
+  const labelR = size * 0.44;
 
   // Background rings (3 levels)
   const rings = [0.33, 0.66, 1];

@@ -28,6 +28,13 @@ const DEFAULT_ATTRIBUTES: FitAttribute[] = [
     color: '#f55c2d',
   },
   {
+    key: 'VOL',
+    name: 'Volume',
+    value: 85,
+    tooltip: 'Volume total de peso levantado na última semana (Séries × Repetições × Carga em KG).',
+    color: '#1d70f5',
+  },
+  {
     key: 'CAR',
     name: 'Cardio',
     value: 74,
@@ -35,49 +42,34 @@ const DEFAULT_ATTRIBUTES: FitAttribute[] = [
     color: '#2de8f5',
   },
   {
-    key: 'CONS',
-    name: 'Constância',
-    value: 88,
-    tooltip: 'Frequência semanal de treinos: dias ativos dividido pela sua meta de dias por semana.',
-    color: '#a855f7',
-  },
-  {
-    key: 'TEC',
-    name: 'Técnica',
-    value: 79,
-    tooltip: 'Pontuação gerada pelo Bio-feedback e precisão na execução dos treinos (séries completas vs. metas).',
-    color: '#f5c518',
-  },
-  {
-    key: 'REC',
-    name: 'Recuperação',
-    value: 71,
-    tooltip: 'Baseado no tempo de descanso inter-sessões e na qualidade do repouso reportada nos treinos.',
+    key: 'DIE',
+    name: 'Dieta',
+    value: 68,
+    tooltip: 'Consistência alimentar registrada: adesão ao plano nutricional e qualidade das refeições.',
     color: '#22c55e',
   },
   {
-    key: 'VOL',
-    name: 'Volume',
-    value: 85,
-    tooltip: 'Volume total de peso levantado na última semana (Séries × Repetições × Carga em KG).',
-    color: '#1d70f5',
+    key: 'FRQ',
+    name: 'Frequência',
+    value: 88,
+    tooltip: 'Frequência semanal de treinos: dias ativos dividido pela sua meta de dias por semana.',
+    color: '#a855f7',
   },
 ];
 
 const DEFAULT_COMMUNITY_ATTRIBUTES: FitAttribute[] = [
   { ...DEFAULT_ATTRIBUTES[0], value: 65 },
-  { ...DEFAULT_ATTRIBUTES[1], value: 60 },
-  { ...DEFAULT_ATTRIBUTES[2], value: 75 },
-  { ...DEFAULT_ATTRIBUTES[3], value: 68 },
-  { ...DEFAULT_ATTRIBUTES[4], value: 72 },
-  { ...DEFAULT_ATTRIBUTES[5], value: 70 },
+  { ...DEFAULT_ATTRIBUTES[1], value: 70 },
+  { ...DEFAULT_ATTRIBUTES[2], value: 60 },
+  { ...DEFAULT_ATTRIBUTES[3], value: 55 },
+  { ...DEFAULT_ATTRIBUTES[4], value: 75 },
 ];
 
 function computeOVR(attributes: FitAttribute[]): number {
   const weights: Record<string, number> = {
-    FOR: 0.2, CAR: 0.15, CONS: 0.25, TEC: 0.15, REC: 0.1, VOL: 0.15,
+    FOR: 0.25, VOL: 0.20, CAR: 0.20, DIE: 0.15, FRQ: 0.20,
   };
-  const total = attributes.reduce((sum, a) => sum + a.value * (weights[a.key] ?? 0.166), 0);
+  const total = attributes.reduce((sum, a) => sum + a.value * (weights[a.key] ?? 0.2), 0);
   return Math.round(total);
 }
 
@@ -132,7 +124,7 @@ export function FitClubCard({
   const ovr = computeOVR(attributes);
   const displayPoints = fitPoints !== undefined ? fitPoints : ovr * 10;
 
-  // Split attributes into 2 columns
+  // Split attributes into 2 columns: 3 left + 3 right
   const leftCol = attributes.slice(0, 3);
   const rightCol = attributes.slice(3, 6);
 

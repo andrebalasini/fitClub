@@ -107,15 +107,15 @@ export function Dashboard() {
 }
 
 /**
- * Computes the 6 user attributes from real workout data.
- * Since the user just registered and has no history yet, all values start at 0.
- * As they train, these will grow based on:
- * - FOR (Força): max load registered
- * - CAR (Cardio): workout frequency / cardio sessions
- * - CONS (Constância): streak & weekly consistency
- * - TEC (Técnica): series completion rate
- * - REC (Recuperação): rest patterns
- * - VOL (Volume): total volume lifted
+ * Computes the 6 fitness pillars from real workout data.
+ * Pillars: Força, Volume, Frequência, Cardio, Nutrição, Recuperação.
+ *
+ * - FOR (Força): Cargas máximas e recordes pessoais (PRs)
+ * - VOL (Volume): Quantidade total de trabalho (Peso x Reps)
+ * - FRQ (Frequência): Dias treinados vs. Planejados
+ * - CAR (Cardio): Tempo de atividade aeróbica e queima calórica
+ * - NUT (Nutrição): Batimento de metas de macros (Proteína/Carbo)
+ * - REC (Recuperação): Qualidade do descanso e prontidão do Sistema Nervoso Central
  */
 function computeAttributes(stats: {
   totalWorkoutsThisMonth: number;
@@ -127,55 +127,55 @@ function computeAttributes(stats: {
   fitPoints: number;
 }) {
   // Scale each stat into a 0-99 range with reasonable thresholds
-  const forValue = Math.min(99, Math.round(stats.totalVolumeThisWeek / 500 * 10));
-  const carValue = Math.min(99, Math.round(stats.totalWorkoutsThisMonth * 10));
-  const consValue = Math.min(99, Math.round(stats.streak * 14));
-  const tecValue = Math.min(99, Math.round(stats.totalSeriesThisWeek / 30 * 99));
-  const recValue = Math.min(99, Math.round(stats.totalWorkoutsAllTime > 0 ? 50 + stats.streak * 5 : 0));
-  const volValue = Math.min(99, Math.round(stats.totalVolumeThisWeek / 1000 * 20));
+  const forValue = Math.min(99, Math.round(stats.totalVolumeThisWeek / 500 * 10)); // proxy for Força
+  const volValue = Math.min(99, Math.round(stats.totalVolumeThisWeek / 1000 * 20)); // proxy for Volume
+  const frqValue = Math.min(99, Math.round(stats.totalSeriesThisWeek / 30 * 99)); // proxy for Frequência
+  const carValue = Math.min(99, Math.round(stats.totalWorkoutsThisMonth * 10)); // proxy for Cardio
+  const nutValue = Math.min(99, Math.round(stats.totalWorkoutsAllTime > 0 ? Math.min(99, stats.streak * 10) : 0)); // proxy for Nutrição
+  const recValue = Math.min(99, Math.round((stats.totalWorkoutsThisMonth / 20) * 80 + 20)); // proxy for Recuperação
 
   return [
     {
       key: 'FOR',
       name: 'Força',
       value: forValue,
-      tooltip: 'Baseado na carga máxima (KG) registrada em todos os exercícios.',
+      tooltip: 'Cargas máximas e recordes pessoais (PRs).',
       color: '#f55c2d',
-    },
-    {
-      key: 'CAR',
-      name: 'Cardio',
-      value: carValue,
-      tooltip: 'Baseado no tempo total e intensidade de atividades aeróbicas registradas.',
-      color: '#2de8f5',
-    },
-    {
-      key: 'CONS',
-      name: 'Constância',
-      value: consValue,
-      tooltip: 'Frequência semanal de treinos: dias ativos dividido pela sua meta de dias por semana.',
-      color: '#a855f7',
-    },
-    {
-      key: 'TEC',
-      name: 'Técnica',
-      value: tecValue,
-      tooltip: 'Pontuação gerada pelo Bio-feedback e precisão na execução dos treinos.',
-      color: '#f5c518',
-    },
-    {
-      key: 'REC',
-      name: 'Recuperação',
-      value: recValue,
-      tooltip: 'Baseado no tempo de descanso inter-sessões e na qualidade do repouso.',
-      color: '#22c55e',
     },
     {
       key: 'VOL',
       name: 'Volume',
       value: volValue,
-      tooltip: 'Volume total de peso levantado na última semana (Séries × Repetições × Carga em KG).',
+      tooltip: 'Quantidade total de trabalho (Peso x Reps).',
       color: '#1d70f5',
+    },
+    {
+      key: 'FRQ',
+      name: 'Frequência',
+      value: frqValue,
+      tooltip: 'Dias treinados vs. Planejados.',
+      color: '#a855f7',
+    },
+    {
+      key: 'CAR',
+      name: 'Cardio',
+      value: carValue,
+      tooltip: 'Tempo de atividade aeróbica e queima calórica.',
+      color: '#2de8f5',
+    },
+    {
+      key: 'NUT',
+      name: 'Nutrição',
+      value: nutValue,
+      tooltip: 'Batimento de metas de macros (Proteína/Carbo).',
+      color: '#22c55e',
+    },
+    {
+      key: 'REC',
+      name: 'Recuperação',
+      value: recValue,
+      tooltip: 'Qualidade do descanso e prontidão do Sistema Nervoso Central. (sono e descanso entre as séries)',
+      color: '#eab308', // yellow-500
     },
   ];
 }

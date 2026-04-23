@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { getCurrentUserId } from '../lib/auth';
+import { useDragScroll } from '../hooks/useDragScroll';
 import {
-    Trophy, TrendingUp, Loader2, Search, Users, Dumbbell,
-    ChevronDown, BarChart2, Star, Target, Zap, MapPin,
-    Medal, Layers, Crown, Flame, ShoppingBag, Shield
+    Trophy, TrendingUp, Loader2, Users, Dumbbell,
+    BarChart2, Star, Target, Zap,
+    Medal, Layers, Crown
 } from 'lucide-react';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -19,11 +20,6 @@ interface LeaderboardEntry {
     avatar_url: string;
 }
 
-interface ExerciseOption {
-    exercicio_id: string;
-    nome: string;
-    grupo: string;
-}
 
 interface HistoryPoint {
     date: string;
@@ -60,12 +56,6 @@ const WEIGHT_FILTERS = [
     { label: '90kg+', value: [90, 999] as [number, number] },
 ];
 
-function getLeagueInfo(points: number) {
-    if (points >= 6000) return { name: 'Elite', color: 'from-purple-500 to-fuchsia-600', min: 6000, max: 6000, next: null };
-    if (points >= 3000) return { name: 'Ouro', color: 'from-yellow-400 to-amber-600', min: 3000, max: 6000, next: 6000 };
-    if (points >= 1000) return { name: 'Prata', color: 'from-slate-300 to-slate-500', min: 1000, max: 3000, next: 3000 };
-    return { name: 'Bronze', color: 'from-orange-600 to-orange-800', min: 0, max: 1000, next: 1000 };
-}
 
 // ─── Mini Chart ───────────────────────────────────────────────────────────────
 
@@ -219,7 +209,8 @@ function TemporadaSection() {
 
     const myEntry = leaderboard.find(e => e.user_id === myUserId);
 
-    const myLeague = myEntry ? getLeagueInfo(myEntry.total_pontos) : null;
+
+
     let rival = null;
     if (myEntry) {
         const myIndex = leaderboard.findIndex(e => e.user_id === myUserId);
@@ -228,53 +219,10 @@ function TemporadaSection() {
     }
 
     const podiumTop3 = filtered.slice(0, 3);
-    const listTop = filtered.slice(3, 20); // show limited leaders after podium
+    const listTop = filtered.slice(0, 15); // top 1–15 including podium
 
     return (
         <div className="flex flex-col gap-6">
-            {/* Division & Progress */}
-            {myEntry && myLeague && (
-                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[24px] p-5 shadow-2xl relative overflow-hidden group">
-                    <div className="absolute right-0 top-0 w-32 h-32 bg-blue-500/10 rounded-full blur-[40px] opacity-70" />
-                    <div className="absolute -left-10 bottom-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-[40px] opacity-50" />
-                    
-                    <div className="flex items-center justify-between mb-4 relative z-10">
-                        <div className="flex items-center gap-3">
-                            <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${myLeague.color} flex items-center justify-center shadow-lg`}>
-                                <Shield className="text-white/90" size={24} />
-                            </div>
-                            <div>
-                                <h3 className="text-white font-black text-lg tracking-tight leading-none drop-shadow-sm">Liga {myLeague.name}</h3>
-                                <p className="text-slate-400 text-[11px] font-bold uppercase tracking-wider mt-1">Divisão Atual</p>
-                            </div>
-                        </div>
-                        <div className="text-right">
-                            <span className="text-white font-black text-2xl drop-shadow-md">{myEntry.total_pontos}</span>
-                            <span className="text-blue-400 text-xs ml-1 font-bold">FP</span>
-                        </div>
-                    </div>
-
-                    <div className="relative z-10">
-                        <div className="flex justify-between text-[11px] font-bold mb-2">
-                            <span className="text-slate-400">{myLeague.min} FP</span>
-                            <span className={`text-[#00ff88] drop-shadow-[0_0_5px_rgba(0,255,136,0.5)] ${myLeague.next ? '' : 'hidden'}`}>Subir Divisão: {myLeague.max} FP</span>
-                        </div>
-                        <div className="h-[14px] bg-black/40 rounded-full overflow-hidden border border-white/5 shadow-inner p-0.5">
-                            <div 
-                                className="h-full bg-gradient-to-r from-[#00ff88] to-[#00b8ff] rounded-full relative"
-                                style={{ width: `${myLeague.next ? Math.max(5, ((myEntry.total_pontos - myLeague.min) / (myLeague.max - myLeague.min)) * 100) : 100}%` }}
-                            >
-                                <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.2)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.2)_50%,rgba(255,255,255,0.2)_75%,transparent_75%,transparent)] bg-[length:12px_12px] opacity-50" />
-                            </div>
-                        </div>
-                        {myLeague.next && (
-                            <p className="text-center text-slate-400 text-[10px] font-bold mt-2.5">
-                                Hora de amassar! Faltam apenas <span className="text-blue-400">{myLeague.max - myEntry.total_pontos} pontos</span> para o próximo nível.
-                            </p>
-                        )}
-                    </div>
-                </div>
-            )}
 
             {/* Direct Rival Card */}
             {rival && myEntry && rival.total_pontos > myEntry.total_pontos && (
@@ -336,97 +284,112 @@ function TemporadaSection() {
                 </div>
             )}
 
-            {/* Marketplace Reward Integration */}
-            {myEntry && (
-                <div className="bg-gradient-to-br from-emerald-900/40 via-teal-900/20 to-black/60 border border-emerald-500/30 backdrop-blur-md rounded-2xl p-4 relative overflow-hidden mt-2">
-                    <div className="absolute -right-4 -bottom-4 opacity-[0.06] text-emerald-400">
-                        <ShoppingBag size={120} />
-                    </div>
-                    <div className="relative z-10 flex items-start justify-between mb-3">
-                        <div>
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                                <ShoppingBag size={14} className="text-emerald-400" />
-                                <span className="text-emerald-400 font-bold text-[10px] uppercase tracking-widest drop-shadow">Recompensa da Loja</span>
-                            </div>
-                            <h4 className="text-white font-black text-sm drop-shadow-sm">Libere 15% OFF na Marca Patrocinadora</h4>
-                        </div>
-                        <div className="bg-emerald-500/20 px-2 py-1 rounded-md border border-emerald-500/40 shadow-lg">
-                            <span className="text-emerald-400 font-black text[12px]">-15%</span>
-                        </div>
-                    </div>
-                    <div className="relative z-10 bg-black/40 p-3 rounded-xl border border-white/5">
-                        <div className="flex justify-between text-[10px] font-bold text-slate-400 mb-2">
-                            <span className="uppercase tracking-wider">Progresso da Meta</span>
-                            <span className="text-emerald-400">{myEntry.total_pontos} / {(Math.floor(myEntry.total_pontos / 500) + 1) * 500} FP</span>
-                        </div>
-                        <div className="h-2.5 bg-[#0a0f18] rounded-full overflow-hidden border border-white/5 shadow-inner">
-                            <div className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.8)] relative" style={{ width: `${(myEntry.total_pontos % 500) / 500 * 100}%` }}>
-                                <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.2)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.2)_50%,rgba(255,255,255,0.2)_75%,transparent_75%,transparent)] bg-[length:10px_10px] opacity-40" />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Leaderboard List Selection */}
             {listTop.length > 0 && (
-                <div className="flex flex-col gap-3 mt-4 relative z-10">
-                    <div className="flex items-center justify-between pl-1 pr-2">
-                        <h3 className="text-white font-black text-base tracking-tight pt-2">Ranking Global</h3>
-                    </div>
+                <div className="flex flex-col gap-3 mt-2">
+                    <h2 className="text-[#f8fafc] font-bold text-[22px] px-1 tracking-[-0.5px] mt-1 mb-1">Top 15 da temporada</h2>
                     {listTop.map((entry, idx) => {
+                        const rank = idx + 1;
                         const isMe = entry.user_id === myUserId;
-                        // Determine random favorite product badge for top 10 (simulate marketplace connection)
-                        const hasProduct = idx % 3 === 0; 
+                        const isGold   = rank === 1;
+                        const isSilver = rank === 2;
+                        const isBronze = rank === 3;
+                        const isPodium = isGold || isSilver || isBronze;
+
+                        const rankColor = isGold   ? '#facc15'
+                                        : isSilver ? '#cbd5e1'
+                                        : isBronze ? '#fb923c'
+                                        : '#64748b';
+
+                        const avatarBorder = isMe      ? '#3b82f6'
+                                           : isGold    ? '#facc15'
+                                           : isSilver  ? '#cbd5e1'
+                                           : isBronze  ? '#fb923c'
+                                           : 'rgba(255,255,255,0.1)';
+
                         return (
                             <div
                                 key={entry.user_id}
-                                className={`relative flex items-center gap-3 p-3.5 rounded-2xl transition-all shadow-md backdrop-blur-sm ${isMe ? 'bg-blue-500/10 border-blue-500/40 ring-1 ring-blue-500/50' : 'bg-white/5 border-white/5'} border`}
+                                className="relative w-full flex items-center rounded-[20px] p-4 select-none transition-all duration-200 overflow-hidden"
+                                style={{
+                                    background: '#131b2b',
+                                    boxShadow: isMe
+                                        ? '0 8px 32px rgba(0,0,0,0.4), inset 0 0 30px rgba(59,130,246,0.06)'
+                                        : '0 8px 32px rgba(0,0,0,0.4)',
+                                    minHeight: '72px',
+                                }}
                             >
-                                {/* Rank */}
-                                <div className="w-6 flex items-center justify-center flex-shrink-0">
-                                    <span className="text-slate-400 font-black text-sm">#{idx + 4}</span>
-                                </div>
+                                {/* Subtle diagonal texture overlay — same as FitClubCard */}
+                                <div
+                                    className="absolute inset-0 opacity-[0.03] pointer-events-none rounded-[20px] mix-blend-overlay"
+                                    style={{
+                                        backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 2px, #fff 2px, #fff 4px)',
+                                        backgroundSize: '8px 8px',
+                                    }}
+                                />
 
-                                {/* Avatar */}
-                                <div className="w-12 h-12 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 font-black text-base border border-white/10 bg-black/40">
-                                    {entry.avatar_url ? (
-                                        <img src={entry.avatar_url} alt={entry.nome} className="w-full h-full object-cover" />
-                                    ) : (
-                                        <span className={isMe ? 'text-blue-400' : 'text-slate-400'}>{entry.nome.charAt(0).toUpperCase()}</span>
-                                    )}
-                                </div>
+                                {/* Top highlight line */}
+                                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-                                {/* Info */}
-                                <div className="flex-1 min-w-0 pr-2">
-                                    <div className="flex items-center gap-2">
-                                        <span className={`font-bold text-[15px] truncate ${isMe ? 'text-blue-300' : 'text-white'}`}>
-                                            {entry.nome}
-                                        </span>
-                                        {isMe && <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest bg-blue-500/20 px-1.5 py-0.5 rounded-md border border-blue-500/30">Você</span>}
-                                    </div>
-                                    
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <div className="flex items-center gap-1.5">
-                                            {entry.cidade && <span className="text-slate-400 text-[11px] font-medium"><MapPin size={10} className="inline mr-0.5 text-slate-500"/>{entry.cidade}</span>}
-                                        </div>
-                                    </div>
-
-                                    {/* Marketplace favorite product mini badge */}
-                                    {hasProduct && !isMe && (
-                                        <div className="flex items-center gap-1 mt-1.5 opacity-80">
-                                            <ShoppingBag size={10} className="text-emerald-400" />
-                                            <span className="text-[9px] text-emerald-400 font-bold uppercase">Usa Whey MaxCore</span>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Points */}
-                                <div className="flex flex-col items-end gap-0.5 flex-shrink-0 bg-black/30 px-3 py-2 rounded-xl border border-white/5">
-                                    <span className={`font-black text-[16px] leading-none ${isMe ? 'text-blue-400' : 'text-white'}`}>
-                                        {entry.total_pontos.toLocaleString()}
+                                {/* Rank badge */}
+                                <div
+                                    className="flex-shrink-0 w-8 flex flex-col items-center justify-center mr-3 z-10"
+                                >
+                                    <span
+                                        className="font-black leading-none"
+                                        style={{
+                                            fontSize: isPodium ? '18px' : '14px',
+                                            color: rankColor,
+                                            textShadow: isPodium ? `0 0 12px ${rankColor}80` : 'none',
+                                        }}
+                                    >
+                                        {rank}º
                                     </span>
-                                    <span className="text-slate-500 text-[9px] font-bold uppercase tracking-widest">FP</span>
+                                </div>
+
+                                {/* Avatar — square-rounded like FitClubCard */}
+                                <div
+                                    className="flex-shrink-0 w-[50px] h-[50px] rounded-[14px] overflow-hidden flex items-center justify-center mr-4 z-10"
+                                    style={{
+                                        border: `2px solid ${avatarBorder}`,
+                                        background: !entry.avatar_url ? '#1a2744' : undefined,
+                                    }}
+                                >
+                                    {entry.avatar_url
+                                        ? <img src={entry.avatar_url} alt={entry.nome} className="w-full h-full object-cover" />
+                                        : <span className="font-bold text-[22px]" style={{ color: isMe ? '#4d9fff' : rankColor }}>
+                                            {entry.nome.charAt(0).toUpperCase()}
+                                          </span>
+                                    }
+                                </div>
+
+                                {/* Name + subtitle */}
+                                <div className="flex-1 min-w-0 z-10">
+                                    <p className="text-white font-bold text-[16px] leading-tight truncate">
+                                        {entry.nome}
+                                    </p>
+                                    {entry.cidade && (
+                                        <p className="text-[13px] font-bold tracking-tight mt-0.5" style={{ color: '#8e95a3', fontFamily: 'ui-sans-serif, system-ui, -apple-system, sans-serif' }}>
+                                            {entry.cidade}
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* fitPoints — same style as FitClubCard */}
+                                <div className="flex flex-col items-end flex-shrink-0 z-10">
+                                    <span
+                                        className="font-black leading-none"
+                                        style={{
+                                            fontSize: '28px',
+                                            letterSpacing: '-0.02em',
+                                            color: '#ffffff',
+                                        }}
+                                    >
+                                        {entry.total_pontos.toLocaleString('pt-BR')}
+                                    </span>
+                                    <div className="text-[12px] font-bold tracking-[-0.03em] mt-0.5" style={{ fontFamily: 'ui-sans-serif, system-ui, -apple-system, sans-serif' }}>
+                                        <span className="text-white">fit</span>
+                                        <span style={{ color: '#4d9fff' }}>Points</span>
+                                    </div>
                                 </div>
                             </div>
                         );
@@ -439,51 +402,78 @@ function TemporadaSection() {
 
 // ─── Progress Section ─────────────────────────────────────────────────────────
 
+interface WorkoutExercise {
+    exercicio_id: string;
+    nome: string;
+    grupo: string;
+    imagem_url: string | null;
+}
+
+const DEFAULT_EXERCISE_IMAGE = 'https://fafisurbnecapdpguudb.supabase.co/storage/v1/object/public/assets/geral/exercise_default_min.png';
+
 function ProgressoSection() {
-    const [myExercises, setMyExercises] = useState<ExerciseOption[]>([]);
-    const [selectedEx, setSelectedEx] = useState<ExerciseOption | null>(null);
-    const [search, setSearch] = useState('');
-    const [showDropdown, setShowDropdown] = useState(false);
+    // Carousel state
+    const [workoutExercises, setWorkoutExercises] = useState<WorkoutExercise[]>([]);
+    const [muscleGroups, setMuscleGroups] = useState<string[]>([]);
+    const [activeGroup, setActiveGroup] = useState<string | null>(null);
+    const [loadingExercises, setLoadingExercises] = useState(true);
+
+    // Selected exercise & stats state
+    const [selectedEx, setSelectedEx] = useState<WorkoutExercise | null>(null);
     const [history, setHistory] = useState<HistoryPoint[]>([]);
     const [communityStats, setCommunityStats] = useState<CommunityStats | null>(null);
     const [loading, setLoading] = useState(false);
-    const [loadingExercises, setLoadingExercises] = useState(true);
 
     const myUserId = getCurrentUserId();
+    const chipsScrollRef = useDragScroll();
+    const catalogScrollRef = useDragScroll();
 
-    // Load exercises the user has performed
+    // Load exercises from user's workout plans (tbTreinos)
     useEffect(() => {
         async function load() {
             setLoadingExercises(true);
             const { data } = await supabase
-                .from('tbHistorico')
-                .select('exercicio_id, tbExercicios:exercicio_id(nome, grupo)')
+                .from('tbTreinos')
+                .select('exercicio_id, tbExercicios:exercicio_id(nome, grupo, imagem_url)')
                 .eq('user_id', myUserId);
 
             if (data) {
                 const seen = new Set<string>();
-                const exList: ExerciseOption[] = [];
+                const exList: WorkoutExercise[] = [];
                 data.forEach((r: any) => {
                     if (!seen.has(r.exercicio_id) && r.tbExercicios) {
                         seen.add(r.exercicio_id);
-                        exList.push({ exercicio_id: r.exercicio_id, nome: r.tbExercicios.nome, grupo: r.tbExercicios.grupo });
+                        exList.push({
+                            exercicio_id: r.exercicio_id,
+                            nome: r.tbExercicios.nome,
+                            grupo: r.tbExercicios.grupo || 'Outros',
+                            imagem_url: r.tbExercicios.imagem_url || null,
+                        });
                     }
                 });
                 exList.sort((a, b) => a.nome.localeCompare(b.nome));
-                setMyExercises(exList);
+
+                const groups = [...new Set(exList.map(e => e.grupo))].sort();
+                setWorkoutExercises(exList);
+                setMuscleGroups(groups);
+                if (groups.length > 0) setActiveGroup(groups[0]);
             }
             setLoadingExercises(false);
         }
         load();
     }, []);
 
+    const filteredExercises = useMemo(
+        () => workoutExercises.filter(e => e.grupo === activeGroup),
+        [workoutExercises, activeGroup]
+    );
+
     // Load exercise history + community stats when exercise selected
-    const loadExerciseData = useCallback(async (ex: ExerciseOption) => {
+    const loadExerciseData = useCallback(async (ex: WorkoutExercise) => {
         setLoading(true);
         setHistory([]);
         setCommunityStats(null);
 
-        // My history
         const { data: myHist } = await supabase
             .from('tbHistorico')
             .select('created_at, repeticoes_feitas, carga_usada')
@@ -512,7 +502,6 @@ function ProgressoSection() {
             setHistory(points);
         }
 
-        // Community stats via RPC (bypasses RLS to get aggregated data safely)
         const { data: commData } = await supabase.rpc('community_exercise_stats' as any, {
             p_exercicio_id: ex.exercicio_id,
             p_user_id: myUserId,
@@ -531,15 +520,9 @@ function ProgressoSection() {
         setLoading(false);
     }, [myUserId]);
 
-    const filteredExercises = useMemo(() =>
-        myExercises.filter(e => e.nome.toLowerCase().includes(search.toLowerCase())),
-        [myExercises, search]
-    );
-
     const isWeightBased = history.some(h => h.bestSetCarga > 0);
     const myBest = history.length > 0 ? Math.max(...history.map(h => isWeightBased ? h.bestSetCarga : h.bestSetReps)) : 0;
     const myLast = history.length > 0 ? (isWeightBased ? history[history.length - 1].bestSetCarga : history[history.length - 1].bestSetReps) : 0;
-
     const commVal = communityStats ? (isWeightBased ? communityStats.avg_carga : communityStats.avg_reps) : null;
     const compareMax = commVal ? Math.max(myBest, commVal) * 1.1 : myBest * 1.1;
     const myPct = compareMax > 0 ? (myBest / compareMax) * 100 : 0;
@@ -547,67 +530,94 @@ function ProgressoSection() {
 
     return (
         <div className="flex flex-col gap-4">
-            {/* Exercise Selector */}
-            <div className="relative">
-                <div
-                    className="flex items-center gap-3 bg-[#1a2235] border border-slate-700/50 rounded-xl px-4 py-3 cursor-pointer active:scale-[0.99] transition-all"
-                    onClick={() => setShowDropdown(v => !v)}
-                >
-                    <Dumbbell size={18} className="text-slate-400 flex-shrink-0" />
-                    <span className={`flex-1 text-[14px] font-medium truncate ${selectedEx ? 'text-white' : 'text-slate-500'}`}>
-                        {selectedEx ? selectedEx.nome : 'Selecione um exercício'}
-                    </span>
-                    {selectedEx && <span className="text-[10px] text-blue-400 font-bold uppercase bg-blue-500/10 px-2 py-0.5 rounded-full flex-shrink-0">{selectedEx.grupo}</span>}
-                    <ChevronDown size={16} className={`text-slate-400 transition-transform flex-shrink-0 ${showDropdown ? 'rotate-180' : ''}`} />
-                </div>
 
-                {showDropdown && (
-                    <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 bg-[#131b2b] border border-slate-700/50 rounded-xl shadow-2xl shadow-black/60 overflow-hidden">
-                        <div className="p-2 border-b border-slate-700/30">
-                            <div className="flex items-center gap-2 bg-[#0f141e] rounded-lg px-3 py-2">
-                                <Search size={14} className="text-slate-500" />
-                                <input
-                                    autoFocus
-                                    value={search}
-                                    onChange={e => setSearch(e.target.value)}
-                                    placeholder="Buscar exercício..."
-                                    className="bg-transparent text-white text-sm flex-1 outline-none placeholder:text-slate-600"
-                                />
+            {/* ── Muscle Group Chips ── */}
+            {loadingExercises ? (
+                <div className="flex items-center gap-2 text-slate-400 text-sm py-2 px-1">
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>Carregando exercícios...</span>
+                </div>
+            ) : muscleGroups.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <Dumbbell size={32} className="text-slate-700 mb-3" />
+                    <p className="text-slate-400 text-sm font-medium">Nenhum treino cadastrado</p>
+                    <p className="text-slate-600 text-xs mt-1">Adicione exercícios às suas fichas para ver a evolução aqui</p>
+                </div>
+            ) : (
+                <>
+                    {/* Chips */}
+                    <div ref={chipsScrollRef} className="flex overflow-x-auto gap-2 pb-1 scrollbar-none -mx-4 px-4">
+                        {muscleGroups.map(group => (
+                            <button
+                                key={group}
+                                onClick={() => {
+                                    setActiveGroup(group);
+                                    setSelectedEx(null);
+                                    setHistory([]);
+                                    setCommunityStats(null);
+                                }}
+                                className={`whitespace-nowrap rounded-full px-4 py-1.5 text-[14px] transition-all active:scale-95 flex-shrink-0 ${
+                                    activeGroup === group
+                                        ? 'bg-[#185cf2] text-white font-bold'
+                                        : 'bg-[#1a2235] text-[#8e95a3] font-normal'
+                                }`}
+                            >
+                                {group}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Exercise Cards Carousel */}
+                    <div ref={catalogScrollRef} className="flex overflow-x-auto gap-4 pb-2 scrollbar-none -mx-4 px-4 min-h-[160px]">
+                        {filteredExercises.length === 0 ? (
+                            <div className="flex items-center justify-center w-full text-slate-500 text-sm">
+                                Nenhum exercício neste grupo
                             </div>
-                        </div>
-                        {loadingExercises ? (
-                            <div className="flex items-center justify-center py-8"><Loader2 size={20} className="text-blue-500 animate-spin" /></div>
-                        ) : filteredExercises.length === 0 ? (
-                            <div className="py-8 text-center text-slate-500 text-sm">Nenhum encontrado</div>
                         ) : (
-                            <div className="max-h-[240px] overflow-y-auto">
-                                {filteredExercises.map(ex => (
-                                    <button
-                                        key={ex.exercicio_id}
-                                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-all text-left active:scale-[0.99]"
+                            filteredExercises.map(exercise => {
+                                const isSelected = selectedEx?.exercicio_id === exercise.exercicio_id;
+                                return (
+                                    <div
+                                        key={exercise.exercicio_id}
                                         onClick={() => {
-                                            setSelectedEx(ex);
-                                            setShowDropdown(false);
-                                            setSearch('');
-                                            loadExerciseData(ex);
+                                            setSelectedEx(exercise);
+                                            loadExerciseData(exercise);
                                         }}
+                                        className="flex flex-col items-center flex-shrink-0 cursor-pointer active:scale-95 transition-all"
+                                        style={{ minWidth: '112px' }}
                                     >
-                                        <span className="text-white text-[13px] font-medium flex-1 truncate">{ex.nome}</span>
-                                        <span className="text-slate-500 text-[11px] font-medium flex-shrink-0">{ex.grupo}</span>
-                                    </button>
-                                ))}
-                            </div>
+                                        <div
+                                            className={`w-28 h-28 rounded-2xl p-2 flex items-center justify-center overflow-hidden mb-2 transition-all outline-none border-0 ${
+                                                isSelected
+                                                    ? 'bg-white ring-2 ring-[#185cf2] shadow-[0_0_16px_rgba(24,92,242,0.4)]'
+                                                    : 'bg-white'
+                                            }`}
+                                        >
+                                            <img
+                                                src={exercise.imagem_url || DEFAULT_EXERCISE_IMAGE}
+                                                alt={exercise.nome}
+                                                className="w-full h-full object-contain rounded-xl border-0 shadow-none"
+                                                onError={e => { (e.target as HTMLImageElement).src = DEFAULT_EXERCISE_IMAGE; }}
+                                            />
+                                        </div>
+                                        <span className={`text-sm text-center leading-tight font-medium max-w-[112px] ${isSelected ? 'text-[#4d9fff]' : 'text-white'}`}>
+                                            {exercise.nome}
+                                        </span>
+                                        <span className="text-slate-500 text-xs text-center mt-0.5">{exercise.grupo}</span>
+                                    </div>
+                                );
+                            })
                         )}
                     </div>
-                )}
-            </div>
+                </>
+            )}
 
-            {/* Results */}
-            {!selectedEx && !loading && (
-                <div className="flex flex-col items-center justify-center py-16 text-center">
+            {/* ── Empty state / loading / stats ── */}
+            {!selectedEx && !loading && !loadingExercises && muscleGroups.length > 0 && (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
                     <BarChart2 size={40} className="text-slate-700 mb-3" />
                     <p className="text-slate-400 text-sm font-medium">Selecione um exercício</p>
-                    <p className="text-slate-600 text-xs mt-1 max-w-[240px]">Escolha um exercício para ver sua evolução e comparar com a comunidade</p>
+                    <p className="text-slate-600 text-xs mt-1 max-w-[240px]">Toque em um exercício acima para ver sua evolução e comparar com a comunidade</p>
                 </div>
             )}
 
@@ -622,7 +632,7 @@ function ProgressoSection() {
                     {/* Stats Cards */}
                     <div className="grid grid-cols-3 gap-2">
                         {[
-                            { label: 'Melhor', value: isWeightBased ? `${myBest}kg` : `${myBest} reps`, icon: <Trophy size={14} className="text-yellow-400" /> },
+                            { label: 'Melhor', value: isWeightBased ? `${myBest}kg` : `${myBest} reps`, icon: <Trophy size={14} className="text-white" /> },
                             { label: 'Última', value: isWeightBased ? `${myLast}kg` : `${myLast} reps`, icon: <Zap size={14} className="text-blue-400" /> },
                             { label: 'Sessões', value: `${history.length}`, icon: <Target size={14} className="text-purple-400" /> },
                         ].map(stat => (
@@ -664,49 +674,37 @@ function ProgressoSection() {
 
                         {communityStats ? (
                             <div className="flex flex-col gap-3">
-                                {/* My bar */}
                                 <div className="flex flex-col gap-1.5">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-blue-400 text-xs font-bold">Você</span>
                                         <span className="text-white text-xs font-black">{isWeightBased ? `${myBest}kg` : `${myBest} reps`}</span>
                                     </div>
                                     <div className="h-2.5 bg-[#0f141e] rounded-full overflow-hidden">
-                                        <div
-                                            className="h-full rounded-full bg-gradient-to-r from-blue-600 to-blue-400 transition-all duration-700"
-                                            style={{ width: `${myPct}%` }}
-                                        />
+                                        <div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-blue-400 transition-all duration-700" style={{ width: `${myPct}%` }} />
                                     </div>
                                 </div>
 
-                                {/* Community bar */}
                                 <div className="flex flex-col gap-1.5">
                                     <div className="flex items-center justify-between">
                                         <span className="text-slate-400 text-xs font-bold">Média da comunidade</span>
                                         <span className="text-slate-300 text-xs font-black">{isWeightBased ? `${communityStats.avg_carga.toFixed(1)}kg` : `${communityStats.avg_reps.toFixed(0)} reps`}</span>
                                     </div>
                                     <div className="h-2.5 bg-[#0f141e] rounded-full overflow-hidden">
-                                        <div
-                                            className="h-full rounded-full bg-gradient-to-r from-slate-600 to-slate-400 transition-all duration-700"
-                                            style={{ width: `${commPct}%` }}
-                                        />
+                                        <div className="h-full rounded-full bg-gradient-to-r from-slate-600 to-slate-400 transition-all duration-700" style={{ width: `${commPct}%` }} />
                                     </div>
                                 </div>
 
-                                {/* Comparison label */}
                                 {myBest > 0 && commVal && commVal > 0 && (
-                                    <div className={`mt-1 flex items-center gap-1.5 text-[11px] font-bold px-3 py-2.5 rounded-xl border backdrop-blur-sm ${myBest >= commVal ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'bg-blue-500/10 border-blue-500/20 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.1)]'}`}>
+                                    <div className={`mt-1 flex items-center gap-1.5 text-[11px] font-bold px-3 py-2.5 rounded-xl border backdrop-blur-sm ${myBest >= commVal ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'}`}>
                                         {myBest >= commVal ? (
-                                            <><Star size={14} className="text-emerald-400 drop-shadow-md" /> Desempenho de Elite! {((myBest / commVal - 1) * 100).toFixed(0)}% acima da média!</>
+                                            <><Star size={14} className="text-emerald-400" /> Desempenho de Elite! {((myBest / commVal - 1) * 100).toFixed(0)}% acima da média!</>
                                         ) : (
-                                            <><TrendingUp size={14} className="text-blue-400 drop-shadow-md" /> Falta pouco para dominar! Suba apenas {((commVal / myBest - 1) * 100).toFixed(0)}% para superar a média!</>
+                                            <><TrendingUp size={14} className="text-blue-400" /> Falta pouco para dominar! Suba apenas {((commVal / myBest - 1) * 100).toFixed(0)}% para superar a média!</>
                                         )}
                                     </div>
                                 )}
 
-                                {/* Top 3 Leaders */}
                                 {communityStats.top_carga && communityStats.top_carga.length > 0 && (
                                     <div className="mt-4 pt-4 border-t border-slate-700/50 flex flex-col gap-4">
-                                        {/* Top Carga */}
                                         <div className="flex flex-col gap-2">
                                             <span className="text-slate-400 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"><Medal size={14} className="text-yellow-500" /> Top Carga Máxima</span>
                                             <div className="flex flex-col gap-1.5">
@@ -714,7 +712,7 @@ function ProgressoSection() {
                                                     <div key={user.user_id} className={`flex items-center justify-between p-2 rounded-lg ${user.user_id === myUserId ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-slate-800/30'}`}>
                                                         <div className="flex items-center gap-2">
                                                             <span className={`text-xs font-black min-w-[20px] text-center ${idx === 0 ? 'text-yellow-500' : idx === 1 ? 'text-slate-300' : 'text-amber-600'}`}>{idx + 1}º</span>
-                                                            <span className={`text-sm font-medium ${user.user_id === myUserId ? 'text-blue-400 font-bold' : 'text-slate-300'}`}>{user.user_id === myUserId ? 'Você' : user.nome}</span>
+                                                            <span className={`text-sm font-medium ${user.user_id === myUserId ? 'text-blue-400 font-bold' : 'text-slate-300'}`}>{user.nome}</span>
                                                         </div>
                                                         <span className="text-white text-sm font-black">{isWeightBased ? `${user.score}kg` : `${user.score} reps`}</span>
                                                     </div>
@@ -722,7 +720,6 @@ function ProgressoSection() {
                                             </div>
                                         </div>
 
-                                        {/* Top Volume */}
                                         {isWeightBased && communityStats.top_volume && communityStats.top_volume.length > 0 && (
                                             <div className="flex flex-col gap-2">
                                                 <span className="text-slate-400 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"><Layers size={14} className="text-purple-400" /> Top Volume Total</span>
@@ -731,7 +728,7 @@ function ProgressoSection() {
                                                         <div key={user.user_id} className={`flex items-center justify-between p-2 rounded-lg ${user.user_id === myUserId ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-slate-800/30'}`}>
                                                             <div className="flex items-center gap-2">
                                                                 <span className={`text-xs font-black min-w-[20px] text-center ${idx === 0 ? 'text-yellow-500' : idx === 1 ? 'text-slate-300' : 'text-amber-600'}`}>{idx + 1}º</span>
-                                                                <span className={`text-sm font-medium ${user.user_id === myUserId ? 'text-blue-400 font-bold' : 'text-slate-300'}`}>{user.user_id === myUserId ? 'Você' : user.nome}</span>
+                                                                <span className={`text-sm font-medium ${user.user_id === myUserId ? 'text-blue-400 font-bold' : 'text-slate-300'}`}>{user.nome}</span>
                                                             </div>
                                                             <span className="text-white text-sm font-black">{Intl.NumberFormat('pt-BR').format(user.score)}</span>
                                                         </div>
@@ -756,6 +753,7 @@ function ProgressoSection() {
     );
 }
 
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 type Tab = 'temporada' | 'progresso';
@@ -764,43 +762,13 @@ export function Premium() {
     const [activeTab, setActiveTab] = useState<Tab>('temporada');
 
     return (
-        <div className="w-full flex-1 flex flex-col font-sans bg-[#0a0f18] min-h-[100dvh] pb-24">
-            {/* Arena Hero Header */}
-            <div className="relative pt-12 pb-8 px-4 overflow-hidden rounded-b-[2.5rem] shadow-2xl mb-6 flex-shrink-0 bg-[#0c121e]">
-                {/* Background effects */}
-                <div className="absolute inset-0 bg-gradient-to-b from-blue-600/10 to-[#0a0f18] z-0" />
-                <div className="absolute -top-16 -right-16 w-64 h-64 bg-blue-500/20 rounded-full blur-[80px] z-0" />
-                <div className="absolute top-10 -left-12 w-48 h-48 bg-purple-500/20 rounded-full blur-[60px] z-0" />
-                
-                <div className="relative z-10 flex flex-col items-center text-center">
-                    <div className="flex items-center gap-1.5 mb-3 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 shadow-lg">
-                        <Flame size={12} className="text-orange-500 animate-pulse" />
-                        <span className="text-white text-[9px] font-black uppercase tracking-[0.2em]">Temporada 1 • Arena</span>
-                    </div>
-                    <h1 className="text-white font-black text-3xl tracking-tight mb-5 drop-shadow-xl">
-                        Ultimate <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400">FitClub</span>
-                    </h1>
-                    
-                    {/* Co-Branding Sponsor */}
-                    <div className="flex items-center gap-3 bg-gradient-to-r from-emerald-900/30 to-teal-900/30 backdrop-blur-xl border border-emerald-500/20 px-5 py-2.5 rounded-2xl shadow-[0_0_20px_rgba(16,185,129,0.15)]">
-                        <span className="text-slate-400 text-[9px] font-black uppercase tracking-widest">Patrocínio Oficial</span>
-                        <div className="w-px h-6 bg-white/10" />
-                        <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded border border-emerald-500/50 bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-md">
-                                <span className="text-white font-black text-[10px] italic pr-0.5">MC</span>
-                            </div>
-                            <span className="text-white font-black text-xs tracking-wider">MAXCORE<span className="text-emerald-400">NUTRITION</span></span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
+        <div className="w-full flex-1 flex flex-col font-sans bg-[#0f141e] min-h-full pb-24">
             {/* Tabs (Cockpit Style) */}
-            <div className="px-4 mb-6 relative z-20">
+            <div className="px-4 pt-4 mb-4 relative z-20">
                 <div className="flex bg-[#0a0f18] rounded-2xl p-1.5 border border-white/5 shadow-[inset_0_2px_15px_rgba(0,0,0,0.8)] relative">
                     {([
-                        { key: 'temporada', label: 'Arena', icon: <Crown size={16} /> },
-                        { key: 'progresso', label: 'Estatísticas', icon: <BarChart2 size={16} /> },
+                        { key: 'temporada', label: 'Temporada', icon: <Crown size={16} /> },
+                        { key: 'progresso', label: 'Evolução', icon: <BarChart2 size={16} /> },
                     ] as { key: Tab; label: string; icon: React.ReactNode }[]).map(tab => (
                         <button
                             key={tab.key}
