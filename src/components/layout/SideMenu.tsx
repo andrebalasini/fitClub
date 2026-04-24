@@ -122,9 +122,38 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
       const uid = getCurrentUserId();
       if (!uid) throw new Error('Not logged in');
       
-      // Request deletion locally by flagging or storing it, or just sign out.
-      await supabase.from('profiles').update({ is_deleted: true }).eq('id', uid);
+      // Attempt to delete user data across tables to simulate account deletion
+      const tablesToDelete = [
+        'tbFitPoints',
+        'tbHistorico',
+        'tbTreinosCompletos',
+        'tbTreinos',
+        'tbFichas',
+        'tbProgressoDesafios',
+        'tbFeedback'
+      ];
+
+      for (const table of tablesToDelete) {
+        await supabase.from(table).delete().eq('user_id', uid);
+      }
+
+      // Anonymize profile since we cannot delete the auth user directly from the client
+      await supabase.from('profiles').update({ 
+        nome: 'Conta Excluída',
+        cidade: '',
+        peso: null,
+        avatar_url: ''
+      }).eq('id', uid);
       
+      // If there's an avatar, attempt to remove it from storage
+      if (avatarUrl) {
+        const pathParts = avatarUrl.split('/avatars/');
+        if (pathParts.length > 1) {
+          const oldPath = pathParts[1];
+          await supabase.storage.from('avatars').remove([oldPath]);
+        }
+      }
+
       onClose();
       await signOut();
       navigate('/login', { replace: true });
@@ -341,13 +370,13 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
       )}
       {isDeleteModalOpen && (
         <ConfirmDeleteModal
-          title="Excluir Conta?"
-          description="Sua conta e todos os dados associados serão removidos em até 48 horas. Você perderá seus pontos e histórico de treino."
+          title="Excluir Conta e Dados?"
+          description="Sua conta e todos os seus dados associados (histórico, pontos, perfil) serão anonimizados e removidos imediatamente."
           onConfirm={handleDeleteAccount}
           onCancel={() => setIsDeleteModalOpen(false)}
           isDeleting={isDeletingAccount}
           confirmText="Bloquear e Excluir"
-          actionLoadingText="Processando..."
+          actionLoadingText="Excluindo Dados..."
         />
       )}
     </>
