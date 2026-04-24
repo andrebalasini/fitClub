@@ -42,7 +42,7 @@ export function DataDeletion() {
           <section className="space-y-2">
             <h2 className="text-xl font-semibold text-zinc-200">Qual é o prazo para a exclusão?</h2>
             <p>
-              O prazo para a exclusão total de seus dados de nossa base é de <strong>48 horas</strong> contadas a partir da sua solicitação. Após esse período, todas as suas métricas, histórico de treinos e informações de identificação social serão permanentemente obliteradas de nossos servidores.
+              A exclusão e anonimização de seus dados (métricas, histórico de treinos e identificação do perfil) ocorre <strong>imediatamente</strong> assim que você confirma a solicitação pelo aplicativo. Nenhuma informação pessoal sua será retida em nossos servidores.
             </p>
           </section>
         </div>
