@@ -122,7 +122,7 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
       const uid = getCurrentUserId();
       if (!uid) throw new Error('Not logged in');
       
-      // Attempt to delete user data across tables to simulate account deletion
+      // Attempt to delete user data across tables to clear related records
       const tablesToDelete = [
         'tbFitPoints',
         'tbHistorico',
@@ -137,14 +137,9 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
         await supabase.from(table).delete().eq('user_id', uid);
       }
 
-      // Anonymize profile since we cannot delete the auth user directly from the client
-      await supabase.from('profiles').update({ 
-        nome: 'Conta Excluída',
-        cidade: '',
-        peso: null,
-        avatar_url: ''
-      }).eq('id', uid);
-      
+      // Delete the profile explicitly to ensure it is removed from ranking immediately
+      await supabase.from('profiles').delete().eq('id', uid);
+
       // If there's an avatar, attempt to remove it from storage
       if (avatarUrl) {
         const pathParts = avatarUrl.split('/avatars/');
@@ -152,6 +147,12 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
           const oldPath = pathParts[1];
           await supabase.storage.from('avatars').remove([oldPath]);
         }
+      }
+
+      // Call the edge function to hard-delete the user from auth.users
+      const { error: invokeError } = await supabase.functions.invoke('delete-account');
+      if (invokeError) {
+        console.error("Erro ao chamar edge function delete-account. O usuário foi deletado do banco de dados, mas pode ainda existir no Auth:", invokeError);
       }
 
       onClose();
