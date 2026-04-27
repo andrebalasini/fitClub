@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Layers, RefreshCw, Clock, Plus, Loader2, Trash2, ChevronUp, ChevronDown, Save, Edit2 } from 'lucide-react';
+import { Layers, RefreshCw, Clock, Plus, Loader2, Trash2, ChevronUp, ChevronDown, Save, Edit2, ImageIcon } from 'lucide-react';
 import { TopBar } from '../components/layout/TopBar';
 import { BottomNav } from '../components/layout/BottomNav';
 import { ExerciseDetailModal } from '../components/ExerciseDetailModal';
@@ -9,6 +9,8 @@ import { supabase } from '../lib/supabase';
 import { getCurrentUserId } from '../lib/auth';
 import { useDragScroll } from '../hooks/useDragScroll';
 import { motion, AnimatePresence } from 'framer-motion';
+import { processWorkoutImage } from '../lib/gemini';
+import { showToast } from '../components/Toast';
 
 interface CatalogExercise {
     id: string;
@@ -64,6 +66,18 @@ export function NewWorkout() {
     const [selectedExercise, setSelectedExercise] = useState<CatalogExercise | null>(null);
     const [combiningExercises, setCombiningExercises] = useState<CatalogExercise[]>([]);
     const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+    const [isImportingImage, setIsImportingImage] = useState(false);
+    const [importProgress, setImportProgress] = useState(0);
+    const [importStatus, setImportStatus] = useState('');
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
+    const progressIntervalRef = React.useRef<number | null>(null);
+
+    // Cleanup interval
+    useEffect(() => {
+        return () => {
+            if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+        };
+    }, []);
     const chipsScrollRef = useDragScroll();
     const catalogScrollRef = useDragScroll();
 
@@ -229,6 +243,105 @@ export function NewWorkout() {
     const handleRequestCombine = (currentExercises: CatalogExercise[]) => {
         setCombiningExercises(currentExercises);
         setSelectedExercise(null);
+    };
+
+    const handleImageUploadAsync = async (file: File, targetDay: DayKey) => {
+        setIsImportingImage(true);
+        setImportProgress(5);
+        setImportStatus('Lendo formato da imagem...');
+
+        progressIntervalRef.current = window.setInterval(() => {
+            setImportProgress(prev => {
+                if (prev >= 85) {
+                    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+                    return 85;
+                }
+                return prev + (Math.random() * 3 + 1);
+            });
+        }, 300);
+
+        try {
+            // Fetch available exercises
+            const { data: exData, error: exError } = await supabase
+                .from('tbExercicios')
+                .select('id, nome, grupo, imagem_url');
+            
+            if (exError || !exData || exData.length === 0) {
+                throw new Error("Não foi possível carregar a base de exercícios.");
+            }
+
+            // Base64 conversion
+            const reader = new FileReader();
+            const base64Promise = new Promise<string>((resolve, reject) => {
+                reader.onload = () => {
+                    const dataUrl = reader.result as string;
+                    const base64 = dataUrl.split(',')[1];
+                    resolve(base64);
+                };
+                reader.onerror = error => reject(error);
+            });
+            reader.readAsDataURL(file);
+            const base64Data = await base64Promise;
+            
+            setImportStatus('Analisando exercícios com Inteligência Artificial...');
+
+            // Process with Gemini for specific day
+            const parsedExercises = await processWorkoutImage(base64Data, file.type, exData, targetDay);
+
+            if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+            setImportProgress(90);
+            setImportStatus('Adicionando à ficha...');
+
+            if (parsedExercises.length > 0) {
+                const currentDayExs = allExercises.filter(e => e.dia === targetDay && !deletedIds.has(e.id));
+                const startingOrder = currentDayExs.length > 0 ? Math.max(...currentDayExs.map(e => e.ordem || 0)) + 1 : 0;
+                
+                const newExercises: DayExercise[] = parsedExercises.map((e, index) => {
+                    const exInfo = exData.find(dbEx => dbEx.id === e.exercicio_id);
+                    return {
+                        id: `temp_${Date.now()}_${index}`,
+                        exercicio_id: e.exercicio_id,
+                        nome: exInfo?.nome || 'Exercício',
+                        imagem_url: exInfo?.imagem_url || null,
+                        grupo: exInfo?.grupo,
+                        series: e.series,
+                        repeticoes: e.repeticoes,
+                        carga: e.carga,
+                        descanso: e.descanso,
+                        dia: targetDay,
+                        ordem: startingOrder + index
+                    };
+                });
+
+                setAllExercises(prev => [...prev, ...newExercises]);
+                setHasUnsavedChanges(true);
+                showToast(`Treino ${targetDay} importado com sucesso via foto!`, 'success');
+            } else {
+                showToast("Nenhum exercício compreendido pela IA.", 'error');
+            }
+
+            setImportProgress(100);
+            setImportStatus('Pronto!');
+
+            await new Promise(r => setTimeout(r, 600));
+
+        } catch (error: any) {
+            if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+            console.error('API/Image Error:', error);
+            const msg = error.message || "Falha ao importar treino. Verifique console para detalhes.";
+            showToast(msg, 'error');
+        } finally {
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            setIsImportingImage(false);
+            setImportProgress(0);
+        }
+    };
+
+    const onFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            handleImageUploadAsync(file, selectedDay);
+        }
     };
 
     const handleSave = async () => {
@@ -452,6 +565,30 @@ export function NewWorkout() {
                             <Loader2 size={18} className="animate-spin" />
                             <span>Carregando treino...</span>
                         </div>
+                    ) : isImportingImage ? (
+                        <div className="flex flex-col items-center justify-center py-6 h-[200px]">
+                            <div className="relative w-20 h-20 mb-4">
+                                <svg className="w-full h-full transform -rotate-90">
+                                    <circle 
+                                        cx="40" cy="40" r="36" 
+                                        stroke="currentColor" strokeWidth="6" fill="none" 
+                                        className="text-[#0f141e]" 
+                                    />
+                                    <circle 
+                                        cx="40" cy="40" r="36" 
+                                        stroke="currentColor" strokeWidth="6" fill="none" 
+                                        className="text-blue-500 transition-all duration-300 ease-out" 
+                                        strokeDasharray="226.2" 
+                                        strokeDashoffset={226.2 - (226.2 * importProgress) / 100} 
+                                        strokeLinecap="round"
+                                    />
+                                </svg>
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <span className="text-white font-bold text-lg">{Math.round(importProgress)}%</span>
+                                </div>
+                            </div>
+                            <h3 className="text-white font-bold text-[15px] text-center">{importStatus}</h3>
+                        </div>
                     ) : dayExercises.length > 0 ? (
                         <div className="flex flex-col gap-3">
                             {(() => {
@@ -459,20 +596,29 @@ export function NewWorkout() {
 
                                 return (
                                     <>
-                                        {uniqueGroups.length > 0 && (
-                                            <div className="px-1 mb-2 mt-1">
-                                                <h3 className="text-white text-sm font-bold uppercase tracking-wide truncate">
-                                                    {uniqueGroups.map((group, index) => (
+                                        <div className="px-1 mb-2 mt-1 flex justify-between items-center">
+                                            <h3 className="text-white text-sm font-bold uppercase tracking-wide truncate">
+                                                {uniqueGroups.length > 0 ? (
+                                                    uniqueGroups.map((group, index) => (
                                                         <span key={group as string}>
                                                             {group}
                                                             {index < uniqueGroups.length - 1 && (
                                                                 <span className="text-blue-500 mx-1.5">+</span>
                                                             )}
                                                         </span>
-                                                    ))}
-                                                </h3>
-                                            </div>
-                                        )}
+                                                    ))
+                                                ) : (
+                                                    <span>Treino {selectedDay}</span>
+                                                )}
+                                            </h3>
+                                            <button 
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-600 flex items-center justify-center text-blue-400 hover:bg-slate-700 transition-all active:scale-95"
+                                                title={`Importar treino ${selectedDay} por foto`}
+                                            >
+                                                <ImageIcon size={16} />
+                                            </button>
+                                        </div>
                                         <div className="flex flex-col gap-3">
                                             <AnimatePresence>
                                         {dayExercises.map((exercise, index) => (
@@ -559,19 +705,36 @@ export function NewWorkout() {
                             })()}
                         </div>
                     ) : (
-                        <div className="flex flex-col items-center justify-center h-[200px] gap-3">
-                            <div className="w-14 h-14 rounded-full bg-slate-600/50 flex items-center justify-center">
-                                <Plus size={24} className="text-slate-400" />
+                        <div className="flex flex-col items-center justify-center min-h-[200px] gap-4 py-6">
+                            <div className="w-16 h-16 rounded-full bg-slate-600/30 flex items-center justify-center">
+                                <Plus size={28} className="text-slate-400" />
                             </div>
-                            <p className="text-slate-400 text-sm font-medium text-center">
-                                Nenhum exercício adicionado para <span className="text-blue-400 font-bold">{selectedDay}</span>
-                            </p>
-                            <p className="text-slate-500 text-xs text-center">
-                                Selecione um exercício acima para adicionar
-                            </p>
+                            <div className="flex flex-col items-center gap-1">
+                                <p className="text-slate-300 text-[15px] font-medium text-center">
+                                    Nenhum exercício no treino <span className="text-blue-400 font-bold">{selectedDay}</span> 📸
+                                </p>
+                                <p className="text-slate-500 text-xs text-center max-w-[250px]">
+                                    Selecione exercícios no catálogo acima ou importe de uma foto.
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                className="mt-2 py-3 px-6 rounded-xl bg-slate-800 border border-slate-600 text-white font-bold text-[14px] flex items-center justify-center gap-2 hover:bg-slate-700 transition-all active:scale-95"
+                            >
+                                <ImageIcon size={18} className="text-blue-400" />
+                                Importar treino {selectedDay} por foto
+                            </button>
                         </div>
                     )}
                 </div>
+
+                                <input 
+                                    type="file" 
+                                    ref={fileInputRef} 
+                                    onChange={onFileSelected} 
+                                    accept="image/*" 
+                                    className="hidden" 
+                                />
 
             </div>
             

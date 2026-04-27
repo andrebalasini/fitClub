@@ -12,7 +12,8 @@ export interface AnalyzedWorkoutItem {
 export async function processWorkoutImage(
     base64Data: string,
     mimeType: string,
-    availableExercises: { id: string; nome: string }[]
+    availableExercises: { id: string; nome: string }[],
+    targetDay?: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G'
 ): Promise<AnalyzedWorkoutItem[]> {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     if (!apiKey) {
@@ -27,9 +28,13 @@ export async function processWorkoutImage(
         .map(ex => `${ex.id}: ${ex.nome}`)
         .join("\n");
 
+    const dayInstruction = targetDay 
+        ? `\nATENÇÃO: Extraia APENAS os exercícios referentes ao treino de hoje. IGNORE o dia na imagem e DEFENA o campo "dia" de TODOS os exercícios retornados para EXATAMENTE "${targetDay}".`
+        : `\nATENÇÃO: Identifique os diferentes blocos ou dias de treino presentes na imagem e atribua a eles as letras "A", "B", "C", "D" etc., sequencialmente. Mesmo que a imagem não tenha letras explícitas (ex: "Treino 1", "Treino 2"), você DEVE usar as letras maiúsculas "A", "B", "C" para representar esses blocos na ordem em que aparecem.`;
+
     const prompt = `Você é um personal trainer especialista em converter planilhas de treino. 
 Eu vou te mostrar uma imagem de uma ficha de treino.
-Por favor, analise a imagem e extraia os exercícios. 
+Por favor, analise a imagem e extraia os exercícios. ${dayInstruction}
 
 Para cada exercício encontrado na imagem, você DEVE buscar a melhor correspondência APENAS dentro da seguinte lista de exercícios disponíveis no banco de dados do sistema, usando o ID exato:
 \`\`\`
@@ -44,7 +49,7 @@ A saída deve ser RIGOROSAMENTE um JSON e NADA MAIS. NENHUM texto adicional. O f
     "repeticoes": 10,
     "carga": 0,
     "descanso": 60,
-    "dia": "A"
+    "dia": "${targetDay || 'A'}"
   }
 ]
 Seja direto, responda APENAS com o JSON.`;
