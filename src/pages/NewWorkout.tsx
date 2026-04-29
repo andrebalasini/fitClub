@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Layers, RefreshCw, Clock, Plus, Loader2, Trash2, ChevronUp, ChevronDown, Save, Edit2, ImageIcon } from 'lucide-react';
+import { Layers, RefreshCw, Clock, Loader2, Trash2, ChevronUp, ChevronDown, Save, Edit2, ImageIcon } from 'lucide-react';
 import { TopBar } from '../components/layout/TopBar';
 import { BottomNav } from '../components/layout/BottomNav';
 import { ExerciseDetailModal } from '../components/ExerciseDetailModal';
@@ -613,10 +613,10 @@ export function NewWorkout() {
                                             </h3>
                                             <button 
                                                 onClick={() => fileInputRef.current?.click()}
-                                                className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-600 flex items-center justify-center text-blue-400 hover:bg-slate-700 transition-all active:scale-95"
+                                                className="w-12 h-12 rounded-xl bg-slate-800 border border-slate-600 flex items-center justify-center text-blue-400 hover:bg-slate-700 transition-all active:scale-95 shadow-md"
                                                 title={`Importar treino ${selectedDay} por foto`}
                                             >
-                                                <ImageIcon size={16} />
+                                                <ImageIcon size={24} />
                                             </button>
                                         </div>
                                         <div className="flex flex-col gap-3">
@@ -705,24 +705,21 @@ export function NewWorkout() {
                             })()}
                         </div>
                     ) : (
-                        <div className="flex flex-col items-center justify-center min-h-[200px] gap-4 py-6">
-                            <div className="w-16 h-16 rounded-full bg-slate-600/30 flex items-center justify-center">
-                                <Plus size={28} className="text-slate-400" />
-                            </div>
-                            <div className="flex flex-col items-center gap-1">
-                                <p className="text-slate-300 text-[15px] font-medium text-center">
-                                    Nenhum exercício no treino <span className="text-blue-400 font-bold">{selectedDay}</span> 📸
+                        <div className="flex flex-col items-center justify-center min-h-[250px] gap-8 py-10">
+                            <div className="flex flex-col items-center gap-3">
+                                <p className="text-slate-300 text-[18px] font-bold text-center">
+                                    Nenhum exercício no treino <span className="text-blue-400">{selectedDay}</span> 📸
                                 </p>
-                                <p className="text-slate-500 text-xs text-center max-w-[250px]">
-                                    Selecione exercícios no catálogo acima ou importe de uma foto.
+                                <p className="text-slate-500 text-sm text-center max-w-[300px] leading-relaxed">
+                                    Selecione exercícios no catálogo acima ou importe uma foto para começar sua rotina.
                                 </p>
                             </div>
                             <button
                                 onClick={() => fileInputRef.current?.click()}
-                                className="mt-2 py-3 px-6 rounded-xl bg-slate-800 border border-slate-600 text-white font-bold text-[14px] flex items-center justify-center gap-2 hover:bg-slate-700 transition-all active:scale-95"
+                                className="mt-4 py-5 px-12 rounded-[24px] bg-[#1e293b] border border-slate-600/60 text-white font-black text-[18px] flex items-center justify-center gap-4 hover:bg-slate-700 transition-all active:scale-95 shadow-2xl shadow-black/40 w-full max-w-[380px] group"
                             >
-                                <ImageIcon size={18} className="text-blue-400" />
-                                Importar treino {selectedDay} por foto
+                                <ImageIcon size={26} className="text-blue-400 group-hover:scale-110 transition-transform" />
+                                Importar Treino por Foto
                             </button>
                         </div>
                     )}
