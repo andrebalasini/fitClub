@@ -611,31 +611,24 @@ export function NewWorkout() {
                                                     <span>Treino {selectedDay}</span>
                                                 )}
                                             </h3>
-                                            <button 
-                                                onClick={() => fileInputRef.current?.click()}
-                                                className="w-12 h-12 rounded-xl bg-slate-800 border border-slate-600 flex items-center justify-center text-blue-400 hover:bg-slate-700 transition-all active:scale-95 shadow-md"
-                                                title={`Importar treino ${selectedDay} por foto`}
-                                            >
-                                                <ImageIcon size={24} />
-                                            </button>
                                         </div>
                                         <div className="flex flex-col gap-3">
                                             <AnimatePresence>
-                                        {dayExercises.map((exercise, index) => (
-                                <motion.div 
-                                    layout
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, scale: 0.95 }}
-                                    transition={{ type: "spring", stiffness: 350, damping: 25 }}
-                                    key={exercise.id} 
-                                    className="bg-[#0f141e] rounded-xl flex overflow-hidden shadow-md shadow-black/30 relative"
-                                >
-                                    {/* Actions vertical container */}
-                                    <div className="absolute right-0 top-0 bottom-0 py-2 w-16 flex flex-col justify-between items-center z-10 border-l border-white/5 bg-[#0f141e]/50 backdrop-blur-sm">
-                                        <button 
-                                            onClick={() => handleMoveExercise(index, -1)} 
-                                            disabled={index === 0}
+                                                {dayExercises.map((exercise, index) => (
+                                                    <motion.div 
+                                                        key={`${exercise.id}-${index}`}
+                                                        layout
+                                                        initial={{ opacity: 0, y: 10 }}
+                                                        animate={{ opacity: 1, y: 0 }}
+                                                        exit={{ opacity: 0, scale: 0.95 }}
+                                                        transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                                                        className="bg-[#0f141e] rounded-xl flex overflow-hidden shadow-md shadow-black/30 relative"
+                                                    >
+                                                        {/* Actions vertical container */}
+                                                        <div className="absolute right-0 top-0 bottom-0 py-2 w-16 flex flex-col justify-between items-center z-10 border-l border-white/5 bg-[#0f141e]/50 backdrop-blur-sm">
+                                                            <button 
+                                                                onClick={() => handleMoveExercise(index, -1)} 
+                                                                disabled={index === 0}
                                             className="text-slate-400 p-1 hover:text-white transition-colors disabled:opacity-30 disabled:hover:text-slate-400 active:scale-95"
                                         >
                                             <ChevronUp size={22} />
@@ -708,7 +701,7 @@ export function NewWorkout() {
                         <div className="flex flex-col items-center justify-center min-h-[250px] gap-8 py-10">
                             <div className="flex flex-col items-center gap-3">
                                 <p className="text-slate-300 text-[18px] font-bold text-center">
-                                    Nenhum exercício no treino <span className="text-blue-400">{selectedDay}</span> 📸
+                                    Nenhum exercício no treino <span className="text-blue-400">{selectedDay}</span>
                                 </p>
                                 <p className="text-slate-500 text-sm text-center max-w-[300px] leading-relaxed">
                                     Selecione exercícios no catálogo acima ou importe uma foto para começar sua rotina.
@@ -716,9 +709,9 @@ export function NewWorkout() {
                             </div>
                             <button
                                 onClick={() => fileInputRef.current?.click()}
-                                className="mt-4 py-5 px-12 rounded-[24px] bg-[#1e293b] border border-slate-600/60 text-white font-black text-[18px] flex items-center justify-center gap-4 hover:bg-slate-700 transition-all active:scale-95 shadow-2xl shadow-black/40 w-full max-w-[380px] group"
+                                className="mt-4 w-full max-w-[380px] h-[58px] bg-[#1d70f5] rounded-[18px] flex items-center justify-center gap-2.5 text-white font-bold text-[17px] shadow-[0_8px_24px_rgba(29,112,245,0.35)] transition-all active:scale-[0.98] focus:outline-none"
                             >
-                                <ImageIcon size={26} className="text-blue-400 group-hover:scale-110 transition-transform" />
+                                <ImageIcon size={20} strokeWidth={2.5} />
                                 Importar Treino por Foto
                             </button>
                         </div>

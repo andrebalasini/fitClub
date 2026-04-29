@@ -249,7 +249,7 @@ function TemporadaSection() {
             {!loading && podiumTop3.length >= 3 && (
                 <div className="flex items-end justify-center gap-2 sm:gap-4 h-56 mt-4">
                     {/* 2nd Place */}
-                    <Link to={podiumTop3[1].user_id === myUserId ? '/perfil' : `/perfil/${podiumTop3[1].user_id}`} className="flex flex-col items-center gap-0 w-24 cursor-pointer active:scale-95 transition-transform" style={{ textDecoration: 'none' }}>
+                    <Link to={podiumTop3[1].user_id === myUserId ? '/perfil' : `/perfil/${podiumTop3[1].user_id}`} state={{ preloadedProfile: podiumTop3[1] }} className="flex flex-col items-center gap-0 w-24 cursor-pointer active:scale-95 transition-transform" style={{ textDecoration: 'none' }}>
                         <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-4 border-slate-300 p-0.5 relative z-20 shadow-[0_5px_15px_rgba(0,0,0,0.5)] mb-2 translate-y-3">
                             {podiumTop3[1].avatar_url ? <img src={podiumTop3[1].avatar_url} className="w-full h-full rounded-full object-cover" /> : <div className="w-full h-full rounded-full bg-slate-800 flex items-center justify-center text-slate-300 font-bold text-xl">{podiumTop3[1].nome[0].toUpperCase()}</div>}
                             <div className="absolute -bottom-2 -translate-x-1/2 left-1/2 bg-gradient-to-b from-slate-200 to-slate-400 text-slate-900 font-black text-[12px] w-6 h-6 flex items-center justify-center rounded-full border-2 border-[#0a0f18] shadow-lg">2</div>
@@ -260,7 +260,7 @@ function TemporadaSection() {
                         </div>
                     </Link>
                     {/* 1st Place */}
-                    <Link to={podiumTop3[0].user_id === myUserId ? '/perfil' : `/perfil/${podiumTop3[0].user_id}`} className="flex flex-col items-center gap-0 w-28 relative z-30 cursor-pointer active:scale-95 transition-transform" style={{ textDecoration: 'none' }}>
+                    <Link to={podiumTop3[0].user_id === myUserId ? '/perfil' : `/perfil/${podiumTop3[0].user_id}`} state={{ preloadedProfile: podiumTop3[0] }} className="flex flex-col items-center gap-0 w-28 relative z-30 cursor-pointer active:scale-95 transition-transform" style={{ textDecoration: 'none' }}>
                         <Crown className="text-yellow-400 absolute -top-8 animate-bounce drop-shadow-[0_0_10px_rgba(250,204,21,0.8)]" size={32} />
                         <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 border-yellow-400 p-0.5 relative z-20 shadow-[0_0_30px_rgba(250,204,21,0.5)] mb-2 translate-y-3">
                             {podiumTop3[0].avatar_url ? <img src={podiumTop3[0].avatar_url} className="w-full h-full rounded-full object-cover" /> : <div className="w-full h-full rounded-full bg-slate-800 flex items-center justify-center text-yellow-400 font-bold text-xl">{podiumTop3[0].nome[0].toUpperCase()}</div>}
@@ -272,7 +272,7 @@ function TemporadaSection() {
                         </div>
                     </Link>
                     {/* 3rd Place */}
-                    <Link to={podiumTop3[2].user_id === myUserId ? '/perfil' : `/perfil/${podiumTop3[2].user_id}`} className="flex flex-col items-center gap-0 w-24 cursor-pointer active:scale-95 transition-transform" style={{ textDecoration: 'none' }}>
+                    <Link to={podiumTop3[2].user_id === myUserId ? '/perfil' : `/perfil/${podiumTop3[2].user_id}`} state={{ preloadedProfile: podiumTop3[2] }} className="flex flex-col items-center gap-0 w-24 cursor-pointer active:scale-95 transition-transform" style={{ textDecoration: 'none' }}>
                         <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-4 border-orange-700/80 p-0.5 relative z-20 shadow-[0_5px_15px_rgba(0,0,0,0.5)] mb-2 translate-y-3">
                             {podiumTop3[2].avatar_url ? <img src={podiumTop3[2].avatar_url} className="w-full h-full rounded-full object-cover" /> : <div className="w-full h-full rounded-full bg-slate-800 flex items-center justify-center text-orange-500 font-bold text-xl">{podiumTop3[2].nome[0].toUpperCase()}</div>}
                             <div className="absolute -bottom-2 -translate-x-1/2 left-1/2 bg-gradient-to-b from-orange-500 to-orange-700 text-orange-100 font-black text-[12px] w-6 h-6 flex items-center justify-center rounded-full border-2 border-[#0a0f18] shadow-lg">3</div>
@@ -311,6 +311,7 @@ function TemporadaSection() {
                             <Link
                                 key={entry.user_id}
                                 to={isMe ? '/perfil' : `/perfil/${entry.user_id}`}
+                                state={{ preloadedProfile: entry }}
                                 className="relative w-full flex items-center rounded-[20px] p-4 select-none transition-all duration-200 overflow-hidden cursor-pointer active:scale-[0.98]"
                                 style={{
                                     background: '#131b2b',

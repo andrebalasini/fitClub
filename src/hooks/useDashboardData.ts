@@ -20,7 +20,7 @@ export interface DashboardStats {
   fitPoints: number;
 }
 
-export function useDashboardData() {
+export function useDashboardData(targetUserId?: string, preloadedProfile?: any) {
   const { user } = useAuth();
   const [profile, setProfile] = useState<DashboardProfile | null>(null);
   const [stats, setStats] = useState<DashboardStats>({
@@ -37,7 +37,8 @@ export function useDashboardData() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
+    const effectiveUserId = targetUserId || user?.id;
+    if (!effectiveUserId) return;
 
     async function fetchData() {
       try {
@@ -47,20 +48,22 @@ export function useDashboardData() {
         const { data: profileData } = await supabase
           .from('profiles')
           .select('nome, cidade, avatar_url')
-          .eq('id', user!.id)
+          .eq('id', effectiveUserId)
           .single();
 
         if (profileData) {
+          const isOwnProfile = effectiveUserId === user?.id;
           setProfile({
-            nome: profileData.nome || user!.email?.split('@')[0] || 'Atleta',
+            nome: profileData.nome || (isOwnProfile ? user?.email?.split('@')[0] : undefined) || 'Atleta',
             cidade: profileData.cidade || '',
             avatarUrl: profileData.avatar_url || '',
           });
         } else {
+          const isOwnProfile = effectiveUserId === user?.id;
           setProfile({
-            nome: user!.user_metadata?.nome || user!.email?.split('@')[0] || 'Atleta',
-            cidade: '',
-            avatarUrl: '',
+            nome: preloadedProfile?.nome || (isOwnProfile ? (user?.user_metadata?.name || user?.email?.split('@')[0]) : undefined) || 'Atleta',
+            cidade: preloadedProfile?.cidade || '',
+            avatarUrl: preloadedProfile?.avatar_url || '',
           });
         }
 
@@ -69,32 +72,31 @@ export function useDashboardData() {
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
         const startOfWeek = getStartOfWeek(now).toISOString();
 
-        // Get all workout history for this user
         const { data: historyData } = await supabase
           .from('tbHistorico')
           .select('id, created_at, carga_usada, repeticoes_feitas, serie_atual')
-          .eq('user_id', user!.id)
+          .eq('user_id', effectiveUserId)
           .order('created_at', { ascending: false });
 
         // Get workout history this month  
         const { data: monthData } = await supabase
           .from('tbHistorico')
           .select('created_at')
-          .eq('user_id', user!.id)
+          .eq('user_id', effectiveUserId)
           .gte('created_at', startOfMonth);
 
         // Get workout history this week
         const { data: weekData } = await supabase
           .from('tbHistorico')
           .select('created_at, carga_usada, repeticoes_feitas')
-          .eq('user_id', user!.id)
+          .eq('user_id', effectiveUserId)
           .gte('created_at', startOfWeek);
 
         // Get completed workouts for the calendar
         const { data: completedData } = await supabase
           .from('tbTreinosCompletos')
           .select('concluido_em, dia')
-          .eq('user_id', user!.id)
+          .eq('user_id', effectiveUserId)
           .gte('concluido_em', startOfWeek);
 
         // Count unique workout days this month
@@ -123,18 +125,19 @@ export function useDashboardData() {
         // Total exercises completed all time
         const totalExercisesCompleted = (historyData || []).length;
 
-        // Total unique workout days all time
-        const totalWorkoutsAllTime = new Set(
-          (historyData || []).map(h => new Date(h.created_at).toDateString())
-        ).size;
+        const totalWorkoutsAllTime = (historyData && historyData.length > 0)
+          ? new Set(historyData.map(h => new Date(h.created_at).toDateString())).size
+          : (preloadedProfile?.total_treinos || 0);
 
         // Get all fitPoints for this user
         const { data: allFitPointsData } = await supabase
           .from('tbFitPoints')
           .select('ganho_em, pontos')
-          .eq('user_id', user!.id);
+          .eq('user_id', effectiveUserId);
         
-        const fitPoints = (allFitPointsData || []).reduce((acc, curr) => acc + (curr.pontos || 0), 0);
+        const fitPoints = (allFitPointsData && allFitPointsData.length > 0)
+          ? allFitPointsData.reduce((acc, curr) => acc + (curr.pontos || 0), 0)
+          : (preloadedProfile?.total_pontos || 0);
         
         const fitPointsWeekData = (allFitPointsData || []).filter(item => 
           item.ganho_em && item.ganho_em >= startOfWeek
@@ -164,7 +167,7 @@ export function useDashboardData() {
     }
 
     fetchData();
-  }, [user]);
+  }, [user, targetUserId]);
 
   return { profile, stats, loading };
 }
