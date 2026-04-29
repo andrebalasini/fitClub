@@ -255,7 +255,8 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
           <div className="flex flex-col gap-2">
             <span className="text-xs font-black text-zinc-500 tracking-wider uppercase ml-2">Perfil</span>
             <div className="flex flex-col gap-1">
-              <MenuItem icon={User} label="Editar Perfil" onClick={() => setModalState('profile')} />
+              <MenuItem icon={User} label="Meu Perfil" onClick={() => handleNavigation('/perfil')} />
+              <MenuItem icon={Settings} label="Editar Perfil" onClick={() => setModalState('profile')} />
             </div>
           </div>
 

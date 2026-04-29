@@ -10,6 +10,7 @@ import { NewWorkout } from './pages/NewWorkout';
 import { ActiveWorkoutWrapper } from './components/ActiveWorkoutWrapper';
 import { Diet } from './pages/Diet';
 import { Premium } from './pages/Premium';
+import { Profile } from './pages/Profile';
 import { AuthLogin } from './pages/AuthLogin';
 import { AuthSignUp } from './pages/AuthSignUp';
 import { PrivacyPolicy } from './pages/PrivacyPolicy';
@@ -72,6 +73,8 @@ function AppRoutes() {
           <MainLayout>
             <Routes>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/perfil" element={<Profile />} />
+              <Route path="/perfil/:userId" element={<Profile />} />
               <Route path="/loja" element={<Shop />} />
               <Route path="/treino" element={<WorkoutPlan />} />
               <Route path="/dieta" element={<Diet />} />

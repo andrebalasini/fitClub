@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { getCurrentUserId } from '../lib/auth';
 import { useDragScroll } from '../hooks/useDragScroll';
+import { Link } from 'react-router-dom';
 import {
     Trophy, TrendingUp, Loader2, Users, Dumbbell,
     BarChart2, Star, Target, Zap,
@@ -248,7 +249,7 @@ function TemporadaSection() {
             {!loading && podiumTop3.length >= 3 && (
                 <div className="flex items-end justify-center gap-2 sm:gap-4 h-56 mt-4">
                     {/* 2nd Place */}
-                    <div className="flex flex-col items-center gap-0 w-24">
+                    <Link to={podiumTop3[1].user_id === myUserId ? '/perfil' : `/perfil/${podiumTop3[1].user_id}`} className="flex flex-col items-center gap-0 w-24 cursor-pointer active:scale-95 transition-transform" style={{ textDecoration: 'none' }}>
                         <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-4 border-slate-300 p-0.5 relative z-20 shadow-[0_5px_15px_rgba(0,0,0,0.5)] mb-2 translate-y-3">
                             {podiumTop3[1].avatar_url ? <img src={podiumTop3[1].avatar_url} className="w-full h-full rounded-full object-cover" /> : <div className="w-full h-full rounded-full bg-slate-800 flex items-center justify-center text-slate-300 font-bold text-xl">{podiumTop3[1].nome[0].toUpperCase()}</div>}
                             <div className="absolute -bottom-2 -translate-x-1/2 left-1/2 bg-gradient-to-b from-slate-200 to-slate-400 text-slate-900 font-black text-[12px] w-6 h-6 flex items-center justify-center rounded-full border-2 border-[#0a0f18] shadow-lg">2</div>
@@ -257,9 +258,9 @@ function TemporadaSection() {
                             <span className="text-white text-[11px] font-bold truncate max-w-[80px] drop-shadow-md">{podiumTop3[1].nome.split(' ')[0]}</span>
                             <span className="text-slate-300 text-[10px] font-black tracking-wider">{podiumTop3[1].total_pontos}</span>
                         </div>
-                    </div>
+                    </Link>
                     {/* 1st Place */}
-                    <div className="flex flex-col items-center gap-0 w-28 relative z-30">
+                    <Link to={podiumTop3[0].user_id === myUserId ? '/perfil' : `/perfil/${podiumTop3[0].user_id}`} className="flex flex-col items-center gap-0 w-28 relative z-30 cursor-pointer active:scale-95 transition-transform" style={{ textDecoration: 'none' }}>
                         <Crown className="text-yellow-400 absolute -top-8 animate-bounce drop-shadow-[0_0_10px_rgba(250,204,21,0.8)]" size={32} />
                         <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 border-yellow-400 p-0.5 relative z-20 shadow-[0_0_30px_rgba(250,204,21,0.5)] mb-2 translate-y-3">
                             {podiumTop3[0].avatar_url ? <img src={podiumTop3[0].avatar_url} className="w-full h-full rounded-full object-cover" /> : <div className="w-full h-full rounded-full bg-slate-800 flex items-center justify-center text-yellow-400 font-bold text-xl">{podiumTop3[0].nome[0].toUpperCase()}</div>}
@@ -269,9 +270,9 @@ function TemporadaSection() {
                             <span className="text-white text-[13px] font-black truncate max-w-[90px] drop-shadow-md">{podiumTop3[0].nome.split(' ')[0]}</span>
                             <span className="text-yellow-400 text-[11px] font-black tracking-wider">{podiumTop3[0].total_pontos}</span>
                         </div>
-                    </div>
+                    </Link>
                     {/* 3rd Place */}
-                    <div className="flex flex-col items-center gap-0 w-24">
+                    <Link to={podiumTop3[2].user_id === myUserId ? '/perfil' : `/perfil/${podiumTop3[2].user_id}`} className="flex flex-col items-center gap-0 w-24 cursor-pointer active:scale-95 transition-transform" style={{ textDecoration: 'none' }}>
                         <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-4 border-orange-700/80 p-0.5 relative z-20 shadow-[0_5px_15px_rgba(0,0,0,0.5)] mb-2 translate-y-3">
                             {podiumTop3[2].avatar_url ? <img src={podiumTop3[2].avatar_url} className="w-full h-full rounded-full object-cover" /> : <div className="w-full h-full rounded-full bg-slate-800 flex items-center justify-center text-orange-500 font-bold text-xl">{podiumTop3[2].nome[0].toUpperCase()}</div>}
                             <div className="absolute -bottom-2 -translate-x-1/2 left-1/2 bg-gradient-to-b from-orange-500 to-orange-700 text-orange-100 font-black text-[12px] w-6 h-6 flex items-center justify-center rounded-full border-2 border-[#0a0f18] shadow-lg">3</div>
@@ -280,7 +281,7 @@ function TemporadaSection() {
                             <span className="text-white text-[11px] font-bold truncate max-w-[80px] drop-shadow-md">{podiumTop3[2].nome.split(' ')[0]}</span>
                             <span className="text-orange-400 text-[10px] font-black tracking-wider">{podiumTop3[2].total_pontos}</span>
                         </div>
-                    </div>
+                    </Link>
                 </div>
             )}
 
@@ -307,15 +308,17 @@ function TemporadaSection() {
                                            : 'rgba(255,255,255,0.1)';
 
                         return (
-                            <div
+                            <Link
                                 key={entry.user_id}
-                                className="relative w-full flex items-center rounded-[20px] p-4 select-none transition-all duration-200 overflow-hidden"
+                                to={isMe ? '/perfil' : `/perfil/${entry.user_id}`}
+                                className="relative w-full flex items-center rounded-[20px] p-4 select-none transition-all duration-200 overflow-hidden cursor-pointer active:scale-[0.98]"
                                 style={{
                                     background: '#131b2b',
                                     boxShadow: isMe
                                         ? '0 8px 32px rgba(0,0,0,0.4), inset 0 0 30px rgba(59,130,246,0.06)'
                                         : '0 8px 32px rgba(0,0,0,0.4)',
                                     minHeight: '72px',
+                                    textDecoration: 'none',
                                 }}
                             >
                                 {/* Subtle diagonal texture overlay — same as FitClubCard */}
@@ -391,7 +394,7 @@ function TemporadaSection() {
                                         <span style={{ color: '#4d9fff' }}>Points</span>
                                     </div>
                                 </div>
-                            </div>
+                            </Link>
                         );
                     })}
                 </div>
