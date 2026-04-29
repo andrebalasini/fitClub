@@ -117,7 +117,7 @@ export function Dashboard() {
  * - NUT (Nutrição): Batimento de metas de macros (Proteína/Carbo)
  * - REC (Recuperação): Qualidade do descanso e prontidão do Sistema Nervoso Central
  */
-function computeAttributes(stats: {
+export function computeAttributes(stats: {
   totalWorkoutsThisMonth: number;
   totalWorkoutsAllTime: number;
   streak: number;
@@ -140,42 +140,54 @@ function computeAttributes(stats: {
       name: 'Força',
       value: forValue,
       tooltip: 'Cargas máximas e recordes pessoais (PRs).',
-      color: '#f55c2d',
+      color: '#22c55e', // Green from the screenshot
+      displayValue: `${stats.totalVolumeThisWeek > 0 ? Math.round(stats.totalVolumeThisWeek / 100) : 0}kg`,
+      subtitle: `${stats.totalVolumeThisWeek > 0 ? Math.round(stats.totalVolumeThisWeek / 100) : 0}kg`,
     },
     {
       key: 'VOL',
       name: 'Volume',
       value: volValue,
       tooltip: 'Quantidade total de trabalho (Peso x Reps).',
-      color: '#1d70f5',
+      color: '#a855f7', // Purple
+      displayValue: (stats.totalVolumeThisWeek / 1000).toFixed(1),
+      subtitle: 'Toneladas',
     },
     {
       key: 'FRQ',
       name: 'Frequência',
       value: frqValue,
       tooltip: 'Dias treinados vs. Planejados.',
-      color: '#a855f7',
+      color: '#22c55e', // Green
+      displayValue: '',
+      subtitle: `${Math.min(5, Math.max(0, Math.round(stats.totalSeriesThisWeek / 6)))}/5 Dias`,
+    },
+    {
+      key: 'NUT',
+      name: 'Dieta', // Changed to Dieta as requested in print
+      value: nutValue,
+      tooltip: 'Batimento de metas de macros (Proteína/Carbo).',
+      color: '#eab308', // Yellow-green
+      displayValue: '', // Display icon inside instead? The print shows a fork/knife icon for Dieta
+      subtitle: `${nutValue}% Foco`,
     },
     {
       key: 'CAR',
       name: 'Cardio',
       value: carValue,
       tooltip: 'Tempo de atividade aeróbica e queima calórica.',
-      color: '#2de8f5',
-    },
-    {
-      key: 'NUT',
-      name: 'Nutrição',
-      value: nutValue,
-      tooltip: 'Batimento de metas de macros (Proteína/Carbo).',
-      color: '#22c55e',
+      color: '#3b82f6', // Blue
+      displayValue: '', // Shows a runner icon in the print
+      subtitle: 'Pace: 5:30 min/km',
     },
     {
       key: 'REC',
       name: 'Recuperação',
       value: recValue,
       tooltip: 'Qualidade do descanso e prontidão do Sistema Nervoso Central. (sono e descanso entre as séries)',
-      color: '#eab308', // yellow-500
+      color: '#f55c2d', // Orange
+      displayValue: `${recValue}%`,
+      subtitle: 'Prontidão',
     },
   ];
 }
