@@ -49,7 +49,7 @@ export function useDashboardData(targetUserId?: string, preloadedProfile?: any) 
           .from('profiles')
           .select('nome, cidade, avatar_url')
           .eq('id', effectiveUserId)
-          .single();
+          .maybeSingle();
 
         if (profileData) {
           const isOwnProfile = effectiveUserId === user?.id;
@@ -167,7 +167,7 @@ export function useDashboardData(targetUserId?: string, preloadedProfile?: any) 
     }
 
     fetchData();
-  }, [user, targetUserId]);
+  }, [user?.id, targetUserId]);
 
   return { profile, stats, loading };
 }

@@ -97,7 +97,7 @@ export function useProfileTimeline(targetUserId?: string) {
     }
 
     fetchTimeline();
-  }, [user, targetUserId]);
+  }, [user?.id, targetUserId]);
 
   return { timeline, loading };
 }

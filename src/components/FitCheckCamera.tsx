@@ -1,227 +1,576 @@
 import { useState, useRef, useCallback } from 'react';
-import Webcam from 'react-webcam';
-import html2canvas from 'html2canvas';
-import { RefreshCw, Download, Info, Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Download, ImagePlus, Loader2, Camera, AlertTriangle } from 'lucide-react';
 import { showToast } from './Toast';
+import { TopBar } from './layout/TopBar';
+import { BottomNav } from './layout/BottomNav';
+import { ConfirmDeleteModal } from './ConfirmDeleteModal';
+
+type SignaturePosition = 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
 interface FitCheckCameraProps {
     fitPoints: number;
+    workoutDivision: string;
+    elapsedSeconds: number;
+    totalVolumeKg: number;
     onClose: () => void;
-    onShare: (platform: 'instagram' | 'facebook' | 'both', imageUrl: string) => void;
+    onShare: () => void;
 }
 
-export function FitCheckCamera({ fitPoints, onClose, onShare }: FitCheckCameraProps) {
-    const [imageSrc, setImageSrc] = useState<string | null>(null);
-    const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
-    const [isProcessing, setIsProcessing] = useState(false);
-    
-    const webcamRef = useRef<Webcam>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
+const FITCHECK_BONUS = 50;
 
-    const capture = useCallback(() => {
-        if (webcamRef.current) {
-            const imageSrc = webcamRef.current.getScreenshot();
-            setImageSrc(imageSrc);
+const POSITION_OPTIONS: { id: SignaturePosition; label: string }[] = [
+    { id: 'center',       label: 'Centro' },
+    { id: 'top-left',     label: 'Superior Esq.' },
+    { id: 'top-right',    label: 'Superior Dir.' },
+    { id: 'bottom-left',  label: 'Inferior Esq.' },
+    { id: 'bottom-right', label: 'Inferior Dir.' },
+];
+
+function formatElapsed(totalSeconds: number): string {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    if (mins === 0) return `${secs}s`;
+    if (secs === 0) return `${mins}min`;
+    return `${mins}min ${secs}s`;
+}
+
+function formatVolume(kg: number): string {
+    if (kg >= 1000) return `${(kg / 1000).toFixed(1)}t`;
+    return `${kg.toLocaleString('pt-BR')}kg`;
+}
+
+/** Helper to load image for canvas with timeout */
+function loadCanvasImage(url: string, timeoutMs = 3000): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        let timeoutId: ReturnType<typeof setTimeout>;
+
+        const handleLoad = () => {
+            clearTimeout(timeoutId);
+            resolve(img);
+        };
+
+        const handleError = (e: any) => {
+            clearTimeout(timeoutId);
+            reject(e);
+        };
+
+        img.crossOrigin = "anonymous";
+        img.onload = handleLoad;
+        img.onerror = handleError;
+
+        timeoutId = setTimeout(() => {
+            img.onload = null;
+            img.onerror = null;
+            reject(new Error("Image load timeout"));
+        }, timeoutMs);
+
+        img.src = url;
+    });
+}
+
+/** Draws the Strava-style signature card onto the canvas at the requested position */
+async function drawSignatureOnCanvas(
+    canvas: HTMLCanvasElement,
+    ctx: CanvasRenderingContext2D,
+    position: SignaturePosition,
+    division: string,
+    elapsedSeconds: number,
+    volumeKg: number,
+    totalFitPoints: number
+): Promise<void> {
+    const W = canvas.width;
+    const H = canvas.height;
+
+    // ── Signature card dimensions ──────────────────────────────────────────
+    const PAD_CARD   = Math.round(W * 0.026);
+    const CARD_W     = Math.round(W * 0.44);
+    const rowH       = Math.round(W * 0.042);
+    const valueFontSize = Math.round(W * 0.022);
+    const bottomFontSize = Math.round(W * 0.016);
+    const logoDrawH  = Math.round(W * 0.034);
+    const bottomH    = Math.max(bottomFontSize, logoDrawH);
+    const contentH   = (rowH * 2) + valueFontSize + Math.round(W * 0.012) + Math.round(W * 0.012) + bottomH;
+    const CARD_H     = PAD_CARD + contentH + PAD_CARD;
+    const CORNER_R   = Math.round(W * 0.028);
+    const MARGIN     = Math.round(W * 0.032);
+
+    // ── Position ───────────────────────────────────────────────────────────
+    let cardX = 0;
+    let cardY = 0;
+    switch (position) {
+        case 'center':
+            cardX = (W - CARD_W) / 2;
+            cardY = (H - CARD_H) / 2;
+            break;
+        case 'top-left':
+            cardX = MARGIN;
+            cardY = MARGIN;
+            break;
+        case 'top-right':
+            cardX = W - CARD_W - MARGIN;
+            cardY = MARGIN;
+            break;
+        case 'bottom-left':
+            cardX = MARGIN;
+            cardY = H - CARD_H - MARGIN;
+            break;
+        case 'bottom-right':
+            cardX = W - CARD_W - MARGIN;
+            cardY = H - CARD_H - MARGIN;
+            break;
+    }
+
+    // ── Frosted dark card ──────────────────────────────────────────────────
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(cardX + CORNER_R, cardY);
+    ctx.lineTo(cardX + CARD_W - CORNER_R, cardY);
+    ctx.arcTo(cardX + CARD_W, cardY, cardX + CARD_W, cardY + CORNER_R, CORNER_R);
+    ctx.lineTo(cardX + CARD_W, cardY + CARD_H - CORNER_R);
+    ctx.arcTo(cardX + CARD_W, cardY + CARD_H, cardX + CARD_W - CORNER_R, cardY + CARD_H, CORNER_R);
+    ctx.lineTo(cardX + CORNER_R, cardY + CARD_H);
+    ctx.arcTo(cardX, cardY + CARD_H, cardX, cardY + CARD_H - CORNER_R, CORNER_R);
+    ctx.lineTo(cardX, cardY + CORNER_R);
+    ctx.arcTo(cardX, cardY, cardX + CORNER_R, cardY, CORNER_R);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(10, 14, 26, 0.82)';
+    ctx.fill();
+    ctx.clip();
+
+    // ── Three rows ─────────────────────────────────────────────────────────
+    const statsData = [
+        { label: '',               value: division || 'Treino' },
+        { label: 'Tempo',          value: formatElapsed(elapsedSeconds) },
+        { label: 'Volume',         value: formatVolume(volumeKg) },
+    ];
+
+    const STATS_TOP = cardY + PAD_CARD;
+    const labelFontSize = Math.round(W * 0.022);
+
+    statsData.forEach((stat, i) => {
+        const y = STATS_TOP + i * rowH;
+        
+        // Label (Left aligned)
+        ctx.font = `600 ${labelFontSize}px 'Inter', sans-serif`;
+        ctx.fillStyle = 'rgba(148,163,184,0.9)';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(stat.label, cardX + PAD_CARD, y);
+
+        const labelWidth = ctx.measureText(stat.label).width;
+
+        // Value (Right aligned)
+        let dynValueFontSize = valueFontSize;
+        ctx.font = `900 ${dynValueFontSize}px 'Inter', sans-serif`;
+        
+        const gap = Math.round(W * 0.02);
+        const maxValW = i === 0 ? (CARD_W - (PAD_CARD * 2)) : (CARD_W - (PAD_CARD * 2) - labelWidth - gap);
+        let valW = ctx.measureText(stat.value).width;
+        
+        if (i === 0) {
+            // Dynamically scale font size up or down to exactly fill the available width
+            if (valW < maxValW) {
+                while (valW < maxValW && dynValueFontSize < 32) {
+                    dynValueFontSize += 0.1;
+                    ctx.font = `900 ${dynValueFontSize}px 'Inter', sans-serif`;
+                    valW = ctx.measureText(stat.value).width;
+                }
+            } else {
+                while (valW > maxValW && dynValueFontSize > 8) {
+                    dynValueFontSize -= 0.1;
+                    ctx.font = `900 ${dynValueFontSize}px 'Inter', sans-serif`;
+                    valW = ctx.measureText(stat.value).width;
+                }
+            }
+        } else {
+            while (valW > maxValW && dynValueFontSize > 8) {
+                dynValueFontSize -= 0.5;
+                ctx.font = `900 ${dynValueFontSize}px 'Inter', sans-serif`;
+                valW = ctx.measureText(stat.value).width;
+            }
         }
-    }, [webcamRef]);
 
-    const toggleCamera = () => {
-        setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
+        ctx.fillStyle = '#ffffff';
+        const yOffset = (valueFontSize - dynValueFontSize) / 2;
+        if (i === 0) {
+            ctx.textAlign = 'left';
+            ctx.fillText(stat.value, cardX + PAD_CARD, y + yOffset);
+        } else {
+            ctx.textAlign = 'right';
+            ctx.fillText(stat.value, cardX + CARD_W - PAD_CARD, y + yOffset);
+        }
+        
+        // Divider
+        if (i < 2) {
+            const divY = y + rowH - Math.round(rowH * 0.15);
+            ctx.beginPath();
+            ctx.moveTo(cardX + PAD_CARD, divY);
+            ctx.lineTo(cardX + CARD_W - PAD_CARD, divY);
+            ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+    });
+
+    // ── Separator line ─────────────────────────────────────────────────────
+    const SEP_Y = STATS_TOP + rowH * 2 + valueFontSize + Math.round(W * 0.012);
+    ctx.beginPath();
+    ctx.moveTo(cardX + PAD_CARD, SEP_Y);
+    ctx.lineTo(cardX + CARD_W - PAD_CARD, SEP_Y);
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    const BOTTOM_Y = SEP_Y + Math.round(W * 0.012);
+    const bottomCY = BOTTOM_Y + bottomH / 2;
+
+    ctx.font = `700 ${bottomFontSize}px 'Inter', sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+
+    let currentX = cardX + PAD_CARD;
+
+    // 1. +{totalFitPoints}
+    const pointsText = `+${totalFitPoints} `;
+    ctx.fillStyle = '#e2c172';
+    ctx.fillText(pointsText, currentX, bottomCY);
+    currentX += ctx.measureText(pointsText).width;
+
+    // 2. fit
+    const fitText = `fit`;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(fitText, currentX, bottomCY);
+    currentX += ctx.measureText(fitText).width;
+
+    // 3. Points
+    const pointsWord = `Points`;
+    ctx.fillStyle = '#4d9fff';
+    ctx.fillText(pointsWord, currentX, bottomCY);
+    currentX += ctx.measureText(pointsWord).width;
+
+    // 4.  conquistados
+    const suffixText = ` conquistados`;
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillText(suffixText, currentX, bottomCY);
+
+    // FitClub Logo Image
+    try {
+        const logoImg = await loadCanvasImage('https://fafisurbnecapdpguudb.supabase.co/storage/v1/object/public/assets/geral/fitClub_mono2.png');
+        const logoH = logoDrawH;
+        const logoRatio = logoImg.width / logoImg.height;
+        const logoW = logoH * logoRatio;
+        const logoX = cardX + CARD_W - PAD_CARD - logoW;
+        const logoY = bottomCY - logoH / 2;
+        
+        ctx.drawImage(logoImg, logoX, logoY, logoW, logoH);
+    } catch (e) {
+        // Fallback if logo fails
+        ctx.font = `800 ${bottomFontSize}px 'Inter', sans-serif`;
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('fitClub', cardX + CARD_W - PAD_CARD, bottomCY);
+    }
+
+    ctx.restore();
+}
+
+export function FitCheckCamera({
+    fitPoints,
+    workoutDivision,
+    elapsedSeconds,
+    totalVolumeKg,
+    onClose,
+    onShare,
+}: FitCheckCameraProps) {
+    const [selectedImage, setSelectedImage] = useState<string | null>(null);
+    const [processedImage, setProcessedImage] = useState<string | null>(null);
+    const [position, setPosition] = useState<SignaturePosition>('bottom-right');
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [showExitConfirm, setShowExitConfirm] = useState(false);
+    const [showPointsAnimation, setShowPointsAnimation] = useState(false);
+    const [targetNavPath, setTargetNavPath] = useState<string | null>(null);
+    const navigate = useNavigate();
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const previewCanvasRef = useRef<HTMLCanvasElement>(null);
+
+    const totalFitPoints = fitPoints + FITCHECK_BONUS;
+
+    // Re-render the preview canvas whenever image or position changes
+    const renderPreview = useCallback(async (imageSrc: string, pos: SignaturePosition) => {
+        const canvas = previewCanvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const img = new Image();
+        img.onload = async () => {
+            try {
+                canvas.width  = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0);
+                await drawSignatureOnCanvas(
+                    canvas, ctx, pos,
+                    workoutDivision, elapsedSeconds, totalVolumeKg, totalFitPoints
+                );
+                setProcessedImage(canvas.toDataURL('image/jpeg', 0.93));
+            } catch (err) {
+                console.error("FitCheck Camera Error:", err);
+                // Fallback to original image if signature fails to render or export
+                setProcessedImage(imageSrc);
+            }
+        };
+        img.onerror = () => {
+            console.error("Failed to load user image to canvas.");
+            setProcessedImage(imageSrc); // Fallback so UI doesn't hang forever
+        };
+        img.src = imageSrc;
+    }, [workoutDivision, elapsedSeconds, totalVolumeKg, totalFitPoints]);
+
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const src = ev.target?.result as string;
+            setSelectedImage(src);
+            setProcessedImage(null);
+            renderPreview(src, position);
+        };
+        reader.readAsDataURL(file);
     };
 
-    const processPicture = async () => {
-        if (!containerRef.current || !imageSrc) return null;
-        
+    const handlePositionChange = (pos: SignaturePosition) => {
+        setPosition(pos);
+        if (selectedImage) renderPreview(selectedImage, pos);
+    };
+
+    const handleDownload = async () => {
+        if (!processedImage) return;
         setIsProcessing(true);
         try {
-            // Wait for images to load
-            await new Promise(resolve => setTimeout(resolve, 500));
+            const link = document.createElement('a');
+            link.href = processedImage;
+            link.download = `fitClub-fitCheck-${Date.now()}.jpg`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
             
-            const canvas = await html2canvas(containerRef.current, {
-                useCORS: true,
-                allowTaint: true,
-                backgroundColor: null,
-                scale: 2 // Better quality
-            });
+            setShowPointsAnimation(true);
+            showToast('FitCheck concluído!', 'success');
             
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-            return dataUrl;
-        } catch (error) {
-            console.error('Error generating image:', error);
-            showToast('Erro ao processar imagem', 'error');
-            return null;
-        } finally {
+            // Allow animation to play for 2.5 seconds before calling onShare to close
+            setTimeout(() => {
+                onShare();
+            }, 2500);
+        } catch (err) {
+            console.error('Erro ao salvar imagem', err);
             setIsProcessing(false);
         }
     };
 
-    const handleShare = async (platform: 'instagram' | 'facebook' | 'both') => {
-        const finalImage = await processPicture();
-        if (finalImage) {
-            onShare(platform, finalImage);
-        }
-    };
 
-    const handleDownload = async () => {
-        const finalImage = await processPicture();
-        if (finalImage) {
-            const link = document.createElement('a');
-            link.href = finalImage;
-            link.download = `fitClub-fitCheck-${new Date().getTime()}.jpg`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            showToast('Imagem salva!', 'success');
-        }
-    };
-
-    const retake = () => {
-        setImageSrc(null);
+    const handleBack = () => {
+        setShowExitConfirm(true);
     };
 
     return (
-        <div className="fixed inset-0 z-[100] bg-black flex flex-col pt-safe-top pb-safe-bottom">
-            {/* Header */}
-            <div className="absolute top-0 left-0 right-0 z-50 p-4 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent">
-                <button 
-                    onClick={onClose}
-                    className="text-white hover:bg-white/20 p-2 rounded-full transition-all"
-                >
-                    <span className="font-bold">Cancelar</span>
-                </button>
-                
-                {!imageSrc && (
-                    <button 
-                        onClick={toggleCamera}
-                        className="text-white hover:bg-white/20 p-2 rounded-full transition-all flex items-center gap-2"
+        <div 
+            className="fixed inset-0 z-[100] bg-[#0a0e1a] flex flex-col overflow-y-auto pb-28"
+            style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)' }}
+        >
+            {/* Standard TopBar */}
+            <TopBar showBackButton onBackClick={handleBack} />
+
+            {/* Hidden file input */}
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFileSelect}
+            />
+
+            {/* Hidden canvas for rendering */}
+            <canvas 
+                ref={previewCanvasRef} 
+                className="hidden" 
+                style={{ WebkitFontSmoothing: 'antialiased', textRendering: 'optimizeLegibility' }}
+            />
+
+            {!selectedImage ? (
+                /* ── Step 1: No image selected yet ── */
+                <div className="flex-1 flex flex-col items-center justify-center px-6 gap-6 pb-10">
+                    <div className="w-20 h-20 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                        <Camera size={40} className="text-blue-400" />
+                    </div>
+
+                    <div className="text-center max-w-xs">
+                        <h2 className="text-white font-bold text-2xl mb-3 leading-tight">
+                            Ganhe mais <span className="text-white">fit</span><span className="text-[#4d9fff]">Points</span>!
+                        </h2>
+                        <p className="text-slate-400 text-[15px] leading-relaxed">
+                            Compartilhe sua conquista nas redes sociais e ganhe{' '}
+                            <span className="font-bold"><span className="text-[#e2c172]">+{FITCHECK_BONUS} </span><span className="text-white">fit</span><span className="text-[#4d9fff]">Points</span></span>{' '}
+                            extras pelo FitCheck do dia.
+                        </p>
+                    </div>
+
+                    {/* FitPoints breakdown */}
+                    <div 
+                        className="w-full max-w-xs bg-[#151c2c] rounded-2xl p-4 flex flex-col gap-2"
+                        style={{ WebkitFontSmoothing: 'antialiased', textRendering: 'optimizeLegibility' }}
                     >
-                        <RefreshCw size={20} />
-                        <span className="text-sm font-medium">Virar Câmera</span>
+                        <div className="flex items-center justify-between">
+                            <span className="text-slate-400 text-sm">Treino concluído</span>
+                            <span className="text-xs font-bold"><span className="text-[#e2c172]">+{fitPoints} </span><span className="text-white">fit</span><span className="text-[#4d9fff]">Points</span></span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-slate-400 text-sm">FitCheck</span>
+                            <span className="text-xs font-bold"><span className="text-[#e2c172]">+{FITCHECK_BONUS} </span><span className="text-white">fit</span><span className="text-[#4d9fff]">Points</span></span>
+                        </div>
+                        <div className="h-px bg-white/5 my-1" />
+                        <div className="flex items-center justify-between">
+                            <span className="text-white font-bold text-sm">Total</span>
+                            <span className="font-black text-base"><span className="text-[#e2c172]">+{totalFitPoints} </span><span className="text-white">fit</span><span className="text-[#4d9fff]">Points</span></span>
+                        </div>
+                    </div>
+
+                    {/* CTA button */}
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full max-w-xs py-4 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold text-base flex items-center justify-center gap-3 transition-all active:scale-95 shadow-lg shadow-blue-500/30"
+                    >
+                        <ImagePlus size={22} />
+                        Selecione uma imagem do seu treino
                     </button>
-                )}
-            </div>
-
-            {/* Camera / Preview Area */}
-            <div className="flex-1 relative flex items-center justify-center overflow-hidden bg-[#121212]">
-                {/* We wrap the preview in a container to render it with html2canvas */}
-                <div 
-                    ref={containerRef} 
-                    className="relative w-full h-full max-w-md mx-auto aspect-[9/16] bg-black overflow-hidden flex items-center justify-center"
-                >
-                    {!imageSrc ? (
-                        <Webcam
-                            audio={false}
-                            ref={webcamRef}
-                            screenshotFormat="image/jpeg"
-                            videoConstraints={{
-                                facingMode: facingMode,
-                                aspectRatio: 9/16, // Use aspect ratio that works well for stories
-                            }}
-                            className="w-full h-full object-cover"
-                            mirrored={facingMode === 'user'}
-                        />
-                    ) : (
-                        <img 
-                            src={imageSrc} 
-                            alt="FitCheck" 
-                            className="w-full h-full object-cover" 
-                        />
-                    )}
-
-                    {/* Overlay Elements (visible always in preview, or when picture taken) */}
-                    {(imageSrc || !imageSrc) && (
-                        <>
-                            {/* Watermark / Logo */}
-                            <div className="absolute top-6 left-6 z-10 flex items-center gap-2 opacity-90 drop-shadow-md">
-                                <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center shadow-lg">
-                                    <span className="text-white font-black text-xl italic leading-none pt-1">fC</span>
-                                </div>
-                                <span className="text-white font-bold text-xl drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">fitClub</span>
-                            </div>
-
-                            {/* FitPoints Badge */}
-                            <div className="absolute bottom-10 inset-x-0 mx-auto w-max z-10 flex flex-col items-center">
-                                <div className="bg-black/60 backdrop-blur-md border border-yellow-500/30 px-6 py-3 rounded-2xl flex items-center gap-3 shadow-[0_0_30px_rgba(234,179,8,0.3)]">
-                                    <div className="w-10 h-10 rounded-full bg-yellow-500/20 flex flex-col items-center justify-center border border-yellow-400">
-                                        <span className="text-yellow-400 font-black leading-none drop-shadow-md pb-0.5">F</span>
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <span className="text-white font-black text-2xl leading-none drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">+{fitPoints}</span>
-                                        <span className="text-yellow-400 text-xs font-bold uppercase tracking-widest drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">FitPoints</span>
-                                    </div>
-                                </div>
-                                <div className="mt-2 text-white/90 text-sm font-bold bg-black/40 px-3 py-1 rounded-full backdrop-blur-sm drop-shadow-md">
-                                    Treino Concluído ✅
-                                </div>
-                            </div>
-                        </>
-                    )}
                 </div>
-            </div>
+            ) : (
+                /* ── Step 2: Image selected — show preview + position picker ── */
+                <div className="flex-1 flex flex-col gap-5 px-5 pt-4 pb-10">
 
-            {/* Bottom Controls */}
-            <div className="bg-black pt-6 pb-12 px-6">
-                {!imageSrc ? (
-                    <div className="flex justify-center">
-                        <button 
-                            onClick={capture}
-                            className="w-20 h-20 rounded-full border-4 border-white/80 p-1 active:scale-95 transition-all"
+                    {/* Preview */}
+                    <div className="relative w-full rounded-2xl overflow-hidden bg-black shadow-2xl" style={{ maxHeight: '55vh' }}>
+                        {processedImage ? (
+                            <img
+                                src={processedImage}
+                                alt="FitCheck Preview"
+                                className="w-full h-full object-contain"
+                                style={{ 
+                                    maxHeight: '55vh',
+                                    WebkitFontSmoothing: 'antialiased',
+                                    textRendering: 'optimizeLegibility',
+                                    backfaceVisibility: 'hidden',
+                                    transform: 'translateZ(0)'
+                                }}
+                            />
+                        ) : (
+                            <div className="flex items-center justify-center h-64">
+                                <Loader2 size={32} className="animate-spin text-blue-400" />
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Position picker */}
+                    <div>
+                        <div className="grid grid-cols-5 gap-2">
+                            {POSITION_OPTIONS.map(opt => (
+                                <button
+                                    key={opt.id}
+                                    onClick={() => handlePositionChange(opt.id)}
+                                    className={`py-2 px-1 rounded-xl text-[11px] font-bold text-center transition-all active:scale-95 ${
+                                        position === opt.id
+                                            ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30'
+                                            : 'bg-[#151c2c] text-slate-400 border border-white/5 hover:border-blue-500/40 hover:text-slate-200'
+                                    }`}
+                                >
+                                    {opt.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Change image */}
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex items-center justify-center gap-2 text-slate-400 hover:text-slate-200 text-sm font-medium transition-all active:scale-95"
+                    >
+                        <ImagePlus size={16} />
+                        Trocar imagem
+                    </button>
+
+                    {/* Action buttons */}
+                    <div className="flex flex-col gap-3 mt-auto">
+                        <button
+                            onClick={handleDownload}
+                            disabled={isProcessing || !processedImage}
+                            className="w-full py-4 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold text-base flex items-center justify-center gap-3 transition-all active:scale-95 shadow-lg shadow-blue-500/30 disabled:opacity-50"
                         >
-                            <div className="w-full h-full rounded-full bg-white transition-all hover:bg-slate-200"></div>
+                            {isProcessing
+                                ? <Loader2 size={20} className="animate-spin" />
+                                : <Download size={20} />
+                            }
+                            Salvar imagem
                         </button>
                     </div>
-                ) : (
-                    <div className="flex flex-col gap-4">
-                        <div className="flex flex-col gap-3">
-                            <span className="text-white text-center font-bold mb-2">Compartilhe sua conquista!</span>
-                            
-                            <div className="grid grid-cols-2 gap-3">
-                                <button 
-                                    onClick={() => handleShare('instagram')}
-                                    disabled={isProcessing}
-                                    className="bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-500 py-3 rounded-xl text-white font-bold text-sm tracking-wide disabled:opacity-50 transition-all active:scale-95 shadow-lg flex justify-center items-center gap-2"
-                                >
-                                    {isProcessing && <Loader2 size={16} className="animate-spin" />}
-                                    Instagram
-                                </button>
-                                <button 
-                                    onClick={() => handleShare('facebook')}
-                                    disabled={isProcessing}
-                                    className="bg-[#1877F2] py-3 rounded-xl text-white font-bold text-sm tracking-wide disabled:opacity-50 transition-all active:scale-95 shadow-lg flex justify-center items-center gap-2"
-                                >
-                                    {isProcessing && <Loader2 size={16} className="animate-spin" />}
-                                    Facebook
-                                </button>
-                            </div>
+                </div>
+            )}
 
-                            <div className="grid grid-cols-2 gap-3 mt-2">
-                                <button 
-                                    onClick={retake}
-                                    className="bg-slate-800 py-3 rounded-xl text-white font-medium text-sm disabled:opacity-50 transition-all active:scale-95 flex items-center justify-center gap-2"
-                                >
-                                    <RefreshCw size={16} />
-                                    Tirar Outra
-                                </button>
-                                <button 
-                                    onClick={handleDownload}
-                                    disabled={isProcessing}
-                                    className="bg-slate-800 py-3 rounded-xl text-white font-medium text-sm disabled:opacity-50 transition-all active:scale-95 flex items-center justify-center gap-2"
-                                >
-                                    {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-                                    Salvar Imagem
-                                </button>
-                            </div>
+            {/* Exit confirmation modal */}
+            {showExitConfirm && (
+                <ConfirmDeleteModal
+                    title="Sair do FitCheck?"
+                    description={
+                        <span>
+                            Seu FitCheck será perdido e você não ganhará os{' '}
+                            <span className="font-bold"><span className="text-white">fit</span><span className="text-[#4d9fff]">Points</span></span>{' '}
+                            extras. Deseja realmente sair?
+                        </span>
+                    }
+                    onConfirm={() => {
+                        setShowExitConfirm(false);
+                        onClose();
+                        if (targetNavPath) {
+                            navigate(targetNavPath, { replace: true });
+                        }
+                    }}
+                    onCancel={() => {
+                        setShowExitConfirm(false);
+                        setTargetNavPath(null);
+                    }}
+                    confirmText="Sim, sair"
+                    icon={AlertTriangle}
+                    variant="warning"
+                />
+            )}
+
+            {/* Success Points Animation Overlay */}
+            {showPointsAnimation && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center pointer-events-none">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-[fadeIn_300ms_ease-out]" />
+                    <div className="relative flex flex-col items-center justify-center animate-[slideUpFade_500ms_ease-out_forwards]">
+                        <div className="text-5xl font-black text-[#e2c172] drop-shadow-[0_0_20px_rgba(226,193,114,0.5)] scale-150 animate-[pulse_1.5s_ease-in-out_infinite]">
+                            +{FITCHECK_BONUS}
                         </div>
-
-                        <div className="mt-4 flex items-start gap-2 bg-blue-500/10 p-3 rounded-lg border border-blue-500/20">
-                            <Info size={16} className="text-blue-400 mt-0.5 flex-shrink-0" />
-                            <p className="text-blue-300 text-xs leading-relaxed">
-                                Você será redirecionado para compartilhar o link.
-                            </p>
+                        <div className="text-2xl font-bold mt-2">
+                            <span className="text-white drop-shadow-md">fit</span><span className="text-[#4d9fff] drop-shadow-md">Points</span>
                         </div>
                     </div>
-                )}
-            </div>
+                </div>
+            )}
+
+            {/* Fixed Bottom Navbar */}
+            <BottomNav
+                onNavClick={(path, e) => {
+                    e.preventDefault();
+                    setTargetNavPath(path);
+                    setShowExitConfirm(true);
+                }}
+            />
         </div>
     );
 }
