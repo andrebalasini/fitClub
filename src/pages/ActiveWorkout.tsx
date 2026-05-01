@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, Component } from 'react';
+import type { ErrorInfo, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { TopBar } from '../components/layout/TopBar';
@@ -40,6 +41,43 @@ interface DayExercise {
 }
 
 type ChartPeriod = '1S' | '1M' | '3M' | 'Todos';
+
+class TimerErrorBoundary extends Component<{children: ReactNode, onSkipError: () => void}, {hasError: boolean}> {
+    constructor(props: {children: ReactNode, onSkipError: () => void}) {
+        super(props);
+        this.state = { hasError: false };
+    }
+
+    static getDerivedStateFromError() {
+        return { hasError: true };
+    }
+
+    componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+        console.error("Timer Error:", error, errorInfo);
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-6 bg-gradient-to-br from-[#1c2436] to-[#121825]">
+                    <AlertTriangle size={48} className="text-red-500 mb-6" />
+                    <h3 className="text-white text-xl font-bold mb-2">Erro no Descanso</h3>
+                    <p className="text-slate-400 text-sm text-center mb-6">Não foi possível carregar o cronômetro para este exercício.</p>
+                    <button 
+                        onClick={() => { 
+                            this.setState({hasError: false}); 
+                            this.props.onSkipError(); 
+                        }} 
+                        className="w-full py-4 rounded-xl bg-blue-500 text-white font-bold text-base shadow-lg shadow-blue-500/25"
+                    >
+                        Continuar Treino
+                    </button>
+                </div>
+            );
+        }
+        return <>{this.props.children}</>;
+    }
+}
 
 const PerformanceChart = ({ 
     data, 
@@ -519,6 +557,7 @@ export function ActiveWorkout() {
     };
 
     const formatTime = (totalSeconds: number) => {
+        if (isNaN(totalSeconds) || totalSeconds === undefined || totalSeconds === null) totalSeconds = 0;
         const mins = Math.floor(totalSeconds / 60);
         const secs = totalSeconds % 60;
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
@@ -552,21 +591,36 @@ export function ActiveWorkout() {
 
     const handleSaveSetLog = async (reps: number, weight: number, feedback: string) => {
         const currentExercise = exercises[currentIndex];
-        const { data: insertedRow, error } = await supabase.from('tbHistorico').insert({
-            ficha_id: fichaId,
-            dia: dia,
-            exercicio_id: currentExercise.exercicio_id,
-            serie_atual: currentSetIndex + 1,
-            repeticoes_feitas: reps,
-            carga_usada: weight,
-            feedback: feedback,
-            user_id: getCurrentUserId()
-        }).select('id').single();
-
-        if (error) {
-            console.error("Erro ao salvar histórico:", error);
-            alert("Erro ao salvar a série. Tente novamente.");
+        
+        if (!currentExercise) {
+            console.error("Exercício atual não encontrado");
+            alert("Erro interno: Exercício não encontrado.");
             return;
+        }
+
+        let insertedRow;
+
+        try {
+            const { data, error } = await supabase.from('tbHistorico').insert({
+                ficha_id: fichaId,
+                dia: dia,
+                exercicio_id: currentExercise.exercicio_id,
+                serie_atual: currentSetIndex + 1,
+                repeticoes_feitas: reps,
+                carga_usada: weight,
+                feedback: feedback,
+                user_id: getCurrentUserId()
+            }).select('id').single();
+
+            if (error) {
+                console.error("Erro ao salvar histórico:", error);
+                alert("Erro ao salvar a série. Verifique sua conexão. O treino continuará.");
+            } else {
+                insertedRow = data;
+            }
+        } catch (err) {
+            console.error("Exceção ao salvar histórico:", err);
+            alert("Erro de conexão ao salvar a série. O treino continuará.");
         }
 
         // Track the session record ID so it can be deleted if user discards
@@ -596,9 +650,8 @@ export function ActiveWorkout() {
         }]);
 
         setIsLogModalOpen(false);
-        
-        // Atualiza a carga do exercício se feedback for "ideal" e peso for superior ao configurado
-        if (feedback === 'ideal' && weight > currentExercise.carga) {
+        // Atualiza a carga do exercício se feedback for "ideal" ou "facil"
+        if (feedback === 'ideal' || feedback === 'facil') {
             setExercises(prev => prev.map((ex, i) =>
                 i === currentIndex ? { ...ex, carga: weight } : ex
             ));
@@ -621,13 +674,15 @@ export function ActiveWorkout() {
             handleNextExercise();
         } else if (isLastSet) {
             // Última série de exercício normal → descanso e avança
-            setRestTimeRemaining(currentExercise.descanso);
-            setRestEndTime(Date.now() + currentExercise.descanso * 1000);
+            const descanso = Number(currentExercise.descanso) || 60;
+            setRestTimeRemaining(descanso);
+            setRestEndTime(Date.now() + descanso * 1000);
             setIsResting(true);
         } else {
             // Série intermediária → descanso e incrementa série
-            setRestTimeRemaining(currentExercise.descanso);
-            setRestEndTime(Date.now() + currentExercise.descanso * 1000);
+            const descanso = Number(currentExercise.descanso) || 60;
+            setRestTimeRemaining(descanso);
+            setRestEndTime(Date.now() + descanso * 1000);
             setIsResting(true);
         }
     };
@@ -1071,50 +1126,53 @@ export function ActiveWorkout() {
                                         <div className={`absolute inset-0 z-20 flex flex-col items-center justify-center p-6 bg-gradient-to-br from-[#1c2436] to-[#121825] transition-all duration-500 ${
                                             idx === currentIndex && isResting ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
                                         }`}>
-                                            <Clock size={48} className="text-blue-500 mb-6 animate-pulse" />
-                                            <h3 className="text-slate-400 text-[15px] font-bold uppercase tracking-widest mb-2">Tempo de Descanso</h3>
-                                            <div className="text-white text-7xl font-black tabular-nums tracking-tighter mb-4 drop-shadow-lg">
-                                                {formatTime(restTimeRemaining)}
-                                            </div>
-                                            {/* Mensagem sutil de séries restantes */}
-                                            {(() => {
-                                                const totalSeries = exercise.series;
-                                                const seriesRestantes = totalSeries - currentSetIndex - 1;
-                                                const isLastExercise = (() => {
-                                                    const wouldBeCompleted = [...completedIndices, currentIndex];
-                                                    return exercises.every((_, i) => wouldBeCompleted.includes(i));
-                                                })();
+                                            <TimerErrorBoundary onSkipError={() => { setIsResting(false); setRestEndTime(null); if(handleNextExerciseRef.current) handleNextExerciseRef.current(); }}>
+                                                <Clock size={48} className="text-blue-500 mb-6 animate-pulse" />
+                                                <h3 className="text-slate-400 text-[15px] font-bold uppercase tracking-widest mb-2">Tempo de Descanso</h3>
+                                                <div className="text-white text-7xl font-black tabular-nums tracking-tighter mb-4 drop-shadow-lg">
+                                                    {formatTime(restTimeRemaining)}
+                                                </div>
+                                                {/* Mensagem sutil de séries restantes */}
+                                                {(() => {
+                                                    if (!exercise) return null;
+                                                    const totalSeries = exercise.series || 0;
+                                                    const seriesRestantes = totalSeries - currentSetIndex - 1;
+                                                    const isLastExercise = (() => {
+                                                        const wouldBeCompleted = [...completedIndices, currentIndex];
+                                                        return exercises.every((_, i) => wouldBeCompleted.includes(i));
+                                                    })();
 
-                                                if (seriesRestantes <= 0) {
+                                                    if (seriesRestantes <= 0) {
+                                                        return (
+                                                            <p className="text-slate-400/80 text-[13px] font-medium text-center mb-6 px-4 leading-relaxed animate-[fadeIn_600ms_ease-out]">
+                                                                {isLastExercise
+                                                                    ? 'Última série concluída — bora finalizar! 🏆'
+                                                                    : 'Prepare-se para o próximo exercício 🔥'}
+                                                            </p>
+                                                        );
+                                                    }
+
+                                                    const mensagem = seriesRestantes === 1
+                                                        ? 'Falta só mais 1 série pra fechar esse exercício 💪'
+                                                        : `Mais ${seriesRestantes} séries e esse exercício tá feito 💪`;
+
                                                     return (
-                                                        <p className="text-slate-400/80 text-[13px] font-medium text-center mb-6 px-4 leading-relaxed animate-[fadeIn_600ms_ease-out]">
-                                                            {isLastExercise
-                                                                ? 'Última série concluída — bora finalizar! 🏆'
-                                                                : 'Prepare-se para o próximo exercício 🔥'}
+                                                        <p className="text-slate-500/90 text-[13px] font-medium text-center mb-6 px-4 leading-relaxed animate-[fadeIn_600ms_ease-out]">
+                                                            {mensagem}
                                                         </p>
                                                     );
-                                                }
-
-                                                const mensagem = seriesRestantes === 1
-                                                    ? 'Falta só mais 1 série pra fechar esse exercício 💪'
-                                                    : `Mais ${seriesRestantes} séries e esse exercício tá feito 💪`;
-
-                                                return (
-                                                    <p className="text-slate-500/90 text-[13px] font-medium text-center mb-6 px-4 leading-relaxed animate-[fadeIn_600ms_ease-out]">
-                                                        {mensagem}
-                                                    </p>
-                                                );
-                                            })()}
-                                            <button
-                                                onClick={() => {
-                                                    setIsResting(false);
-                                                    setRestEndTime(null);
-                                                    if (handleNextExerciseRef.current) handleNextExerciseRef.current();
-                                                }}
-                                                className="w-full mt-auto py-4 rounded-xl bg-blue-500 text-white font-bold text-base flex items-center justify-center gap-2 hover:bg-blue-600 transition-all active:scale-[0.98] shadow-lg shadow-blue-500/25"
-                                            >
-                                                Continuar
-                                            </button>
+                                                })()}
+                                                <button
+                                                    onClick={() => {
+                                                        setIsResting(false);
+                                                        setRestEndTime(null);
+                                                        if (handleNextExerciseRef.current) handleNextExerciseRef.current();
+                                                    }}
+                                                    className="w-full mt-auto py-4 rounded-xl bg-blue-500 text-white font-bold text-base flex items-center justify-center gap-2 hover:bg-blue-600 transition-all active:scale-[0.98] shadow-lg shadow-blue-500/25"
+                                                >
+                                                    Continuar
+                                                </button>
+                                            </TimerErrorBoundary>
                                         </div>
 
                                         {/* Exercise View */}

@@ -117,6 +117,7 @@ export function Dashboard() {
  * - NUT (Nutrição): Batimento de metas de macros (Proteína/Carbo)
  * - REC (Recuperação): Qualidade do descanso e prontidão do Sistema Nervoso Central
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function computeAttributes(stats: {
   totalWorkoutsThisMonth: number;
   totalWorkoutsAllTime: number;

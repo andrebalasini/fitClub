@@ -8,7 +8,7 @@ export interface TimelineEvent {
   title: string;
   subtitle: string;
   date: Date;
-  details?: any;
+  details?: Record<string, unknown>;
 }
 
 export function useProfileTimeline(targetUserId?: string) {

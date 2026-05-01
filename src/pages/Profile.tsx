@@ -178,7 +178,7 @@ export function Profile() {
                     <div className="flex flex-col">
                       <span className="text-[#8e95a3] text-[11px] font-bold uppercase">Duração</span>
                       <span className="text-white font-black text-[15px]">
-                        {Math.round((event.details?.duracao_segundos || 0) / 60)}
+                        {Math.round(((event.details?.duracao_segundos as number) || 0) / 60)}
                         <span className="text-[#8e95a3] text-[12px] font-medium"> MIN</span>
                       </span>
                     </div>
@@ -189,7 +189,7 @@ export function Profile() {
                   <div className="mt-3 flex items-center gap-3">
                     <div className="px-3 py-1.5 bg-[rgba(34,197,94,0.1)] rounded-lg border border-[rgba(34,197,94,0.2)]">
                       <span className="text-[#22c55e] font-black text-[18px]">
-                        +{event.details?.pontos}
+                        +{event.details?.pontos as number}
                         <span className="text-[12px] ml-1">PTS</span>
                       </span>
                     </div>
@@ -200,7 +200,7 @@ export function Profile() {
                   <div className="mt-3 flex items-center gap-3">
                     <div className="px-3 py-1.5 bg-[rgba(226,193,114,0.1)] rounded-lg border border-[rgba(226,193,114,0.2)]">
                       <span className="text-[#e2c172] font-black text-[18px]">
-                        +{event.details?.pontos}
+                        +{event.details?.pontos as number}
                         <span className="text-[12px] ml-1">PTS</span>
                       </span>
                     </div>

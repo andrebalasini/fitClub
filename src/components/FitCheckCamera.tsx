@@ -379,12 +379,11 @@ export function FitCheckCamera({
     };
 
     return (
-        <div 
-            className="fixed inset-0 z-[100] bg-[#0a0e1a] flex flex-col overflow-y-auto"
-            style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)' }}
-        >
+        <div className="fixed inset-0 z-[100] bg-[#0a0e1a] flex flex-col">
             {/* Standard TopBar */}
-            <TopBar showBackButton onBackClick={handleBack} />
+            <div className="flex-none">
+                <TopBar showBackButton onBackClick={handleBack} />
+            </div>
 
             {/* Hidden file input */}
             <input
@@ -402,9 +401,12 @@ export function FitCheckCamera({
                 style={{ WebkitFontSmoothing: 'antialiased', textRendering: 'optimizeLegibility' }}
             />
 
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto w-full">
+
             {!selectedImage ? (
                 /* ── Step 1: No image selected yet ── */
-                <div className="flex-1 flex flex-col items-center justify-center px-6 gap-6 pb-32">
+                <div className="min-h-full flex flex-col items-center justify-center px-6 gap-6 py-[40px] pb-[120px]">
                     <div className="w-20 h-20 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
                         <Camera size={40} className="text-blue-400" />
                     </div>
@@ -451,7 +453,7 @@ export function FitCheckCamera({
                 </div>
             ) : (
                 /* ── Step 2: Image selected — show preview + position picker ── */
-                <div className="flex-1 flex flex-col gap-5 px-5 pt-4 pb-32">
+                <div className="min-h-full flex flex-col gap-5 px-5 pt-4 pb-[120px]">
 
                     {/* Preview */}
                     <div className="relative w-full rounded-2xl overflow-hidden bg-black shadow-2xl" style={{ maxHeight: '55vh' }}>
@@ -519,6 +521,7 @@ export function FitCheckCamera({
                     </div>
                 </div>
             )}
+            </div>
 
             {/* Exit confirmation modal */}
             {showExitConfirm && (

@@ -20,7 +20,16 @@ export interface DashboardStats {
   fitPoints: number;
 }
 
-export function useDashboardData(targetUserId?: string, preloadedProfile?: any) {
+export function useDashboardData(
+  targetUserId?: string,
+  preloadedProfile?: {
+    nome?: string;
+    cidade?: string;
+    avatar_url?: string;
+    total_treinos?: number;
+    total_pontos?: number;
+  } | null
+) {
   const { user } = useAuth();
   const [profile, setProfile] = useState<DashboardProfile | null>(null);
   const [stats, setStats] = useState<DashboardStats>({
@@ -167,7 +176,7 @@ export function useDashboardData(targetUserId?: string, preloadedProfile?: any) 
     }
 
     fetchData();
-  }, [user?.id, targetUserId]);
+  }, [user?.id, targetUserId, user?.email, user?.user_metadata?.name, preloadedProfile?.nome, preloadedProfile?.cidade, preloadedProfile?.avatar_url, preloadedProfile?.total_treinos, preloadedProfile?.total_pontos]);
 
   return { profile, stats, loading };
 }
