@@ -66,6 +66,7 @@ export function NewWorkout() {
     const [selectedExercise, setSelectedExercise] = useState<CatalogExercise | null>(null);
     const [combiningExercises, setCombiningExercises] = useState<CatalogExercise[]>([]);
     const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+    const [showDeleteDayModal, setShowDeleteDayModal] = useState(false);
     const [isImportingImage, setIsImportingImage] = useState(false);
     const [importProgress, setImportProgress] = useState(0);
     const [importStatus, setImportStatus] = useState('');
@@ -412,6 +413,25 @@ export function NewWorkout() {
         }
     };
 
+    const confirmDeleteDay = () => {
+        const dayExs = allExercises.filter(ex => ex.dia === selectedDay && !deletedIds.has(ex.id));
+        const persistedIds = dayExs.filter(ex => !ex.id.startsWith('temp_')).map(ex => ex.id);
+        
+        // Marca exercícios persistidos para exclusão no banco
+        if (persistedIds.length > 0) {
+            setDeletedIds(prev => {
+                const next = new Set(prev);
+                persistedIds.forEach(id => next.add(id));
+                return next;
+            });
+        }
+        
+        // Remove exercícios temporários do estado
+        setAllExercises(prev => prev.filter(ex => ex.dia !== selectedDay || deletedIds.has(ex.id)));
+        setHasUnsavedChanges(true);
+        setShowDeleteDayModal(false);
+    };
+
     const days: DayKey[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
 
     return (
@@ -611,6 +631,22 @@ export function NewWorkout() {
                                                     <span>Treino {selectedDay}</span>
                                                 )}
                                             </h3>
+                                            <div className="flex items-center gap-1.5">
+                                                <button
+                                                    onClick={() => fileInputRef.current?.click()}
+                                                    className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400 hover:bg-blue-500/20 transition-all active:scale-95"
+                                                    aria-label="Importar treino por foto"
+                                                >
+                                                    <ImageIcon size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={() => setShowDeleteDayModal(true)}
+                                                    className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center text-red-400 hover:bg-red-500/20 transition-all active:scale-95"
+                                                    aria-label="Apagar todos exercícios do dia"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
                                         </div>
                                         <div className="flex flex-col gap-3">
                                             <AnimatePresence>
@@ -769,6 +805,15 @@ export function NewWorkout() {
                     description="Tem certeza que deseja remover este exercício da sua ficha nesta visualização? Ao salvar, ele será permanentemente excluído."
                     onConfirm={confirmDeleteExercise}
                     onCancel={() => setDeleteTargetId(null)}
+                />
+            )}
+            {showDeleteDayModal && (
+                <ConfirmDeleteModal
+                    title={`Apagar treino ${selectedDay}?`}
+                    description={`Todos os ${dayExercises.length} exercícios do dia ${selectedDay} serão removidos. Ao salvar, a exclusão será permanente. Você poderá reimportar por foto ou adicionar manualmente.`}
+                    onConfirm={confirmDeleteDay}
+                    onCancel={() => setShowDeleteDayModal(false)}
+                    confirmText="Apagar tudo"
                 />
             )}
             {showDiscardModal && (

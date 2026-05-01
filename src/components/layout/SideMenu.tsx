@@ -45,7 +45,7 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
       }
       
       // Load Profile
-      const { data: profData } = await supabase.from('profiles').select('nome, cidade, peso, avatar_url').eq('id', uid).single();
+      const { data: profData } = await supabase.from('profiles').select('nome, cidade, peso, avatar_url').eq('id', uid).maybeSingle();
       if (profData) {
         setProfileData({
           nome: profData.nome || '',

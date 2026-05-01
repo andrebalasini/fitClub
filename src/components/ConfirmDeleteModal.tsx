@@ -1,8 +1,9 @@
 import { Loader2, Trash2, type LucideIcon } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 interface ConfirmDeleteModalProps {
     title: string;
-    description: string;
+    description: string | ReactNode;
     onConfirm: () => void;
     onCancel: () => void;
     isDeleting?: boolean;

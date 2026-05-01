@@ -9,7 +9,7 @@ import { useDragScroll } from '../hooks/useDragScroll';
 import { LogSetModal } from '../components/LogSetModal';
 import { getCurrentUserId } from '../lib/auth';
 import { useActiveWorkout } from '../contexts/WorkoutContext';
-import { showToast } from '../components/Toast';
+
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { FitCheckCamera } from '../components/FitCheckCamera';
 
@@ -366,6 +366,7 @@ export function ActiveWorkout() {
     const [showWorkoutCompletedModal, setShowWorkoutCompletedModal] = useState(false);
     const [showFitCheckCamera, setShowFitCheckCamera] = useState(false);
     const [earnedFitPoints, setEarnedFitPoints] = useState(0);
+    const [sessionVolumeKg, setSessionVolumeKg] = useState(0);
 
     const [cardioState, setCardioState] = useState<'idle' | 'running' | 'paused'>(() => {
         return (localStorage.getItem('@fw:cardioState') as 'idle' | 'running' | 'paused') || 'idle';
@@ -572,6 +573,10 @@ export function ActiveWorkout() {
         const finalId = insertedRow?.id || (Date.now() + Math.random()).toString();
         
         setSessionHistoryIds(prev => [...prev, finalId]);
+        // Accumulate session volume (weight × reps per set; skip bodyweight sets with 0 kg)
+        if (weight > 0) {
+            setSessionVolumeKg(prev => prev + weight * reps);
+        }
         
         // Track sets by index (position in workout) — avoids duplicate exercicio_id collision
         setSetsLoggedByIndex(prev => ({
@@ -592,10 +597,25 @@ export function ActiveWorkout() {
 
         setIsLogModalOpen(false);
         
+        // Atualiza a carga do exercício se feedback for "ideal" e peso for superior ao configurado
+        if (feedback === 'ideal' && weight > currentExercise.carga) {
+            setExercises(prev => prev.map((ex, i) =>
+                i === currentIndex ? { ...ex, carga: weight } : ex
+            ));
+        }
+
         const isLastSet = currentSetIndex === currentExercise.series - 1;
+
+        // Verifica se ao concluir este exercício, todos estarão finalizados
+        const wouldFinishAll = isLastSet && exercises.every((_, idx) =>
+            idx === currentIndex || completedIndices.includes(idx)
+        );
 
         // Cardio: sem descanso, vai direto pro próximo exercício pendente
         if (currentExercise.grupo === 'Cardio') {
+            handleNextExercise();
+        } else if (wouldFinishAll) {
+            // Todos os exercícios concluídos → finaliza direto, sem descanso
             handleNextExercise();
         } else if (isLastSet) {
             // Última série de exercício normal → descanso e avança
@@ -692,44 +712,19 @@ export function ActiveWorkout() {
         setShowFitCheckCamera(true);
     };
 
-    const handleFitCheckShare = (platform: 'instagram' | 'facebook' | 'both', imageUrl: string) => {
-        // We convert the dataUrl to a blob for the Web Share API
-        fetch(imageUrl)
-            .then(res => res.blob())
-            .then(blob => {
-                const file = new File([blob], "fitcheck.jpg", { type: "image/jpeg" });
-                
-                if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    navigator.share({
-                        title: 'Meu FitCheck!',
-                        text: 'Mais um treino concluído no fitClub! 💪🔥 #fitClub #FitCheck',
-                        files: [file],
-                    })
-                    .then(() => {
-                        showToast('Compartilhado com sucesso!', 'success');
-                        setTimeout(() => {
-                            setShowFitCheckCamera(false);
-                            handleCloseWorkoutCompleted();
-                        }, 1000);
-                    })
-                    .catch((error) => console.log('Erro ao compartilhar', error));
-                } else {
-                    // Fallback se não suportar Web Share API
-                    const link = document.createElement('a');
-                    link.href = imageUrl;
-                    link.download = `fitcheck.jpg`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    
-                    showToast('Imagem salva! Compartilhe no seu ' + platform, 'success');
-                    
-                    setTimeout(() => {
-                        setShowFitCheckCamera(false);
-                        handleCloseWorkoutCompleted();
-                    }, 2000);
-                }
+    const handleFitCheckShare = async () => {
+        try {
+            await supabase.from('tbFitPoints').insert({
+                user_id: getCurrentUserId(),
+                pontos: 50,
+                motivo: 'fitcheck'
             });
+        } catch (err) {
+            console.error('Erro ao registrar pontos do fitcheck:', err);
+        }
+        
+        setShowFitCheckCamera(false);
+        handleCloseWorkoutCompleted();
     };
 
     const handleNextExercise = () => {
@@ -1063,9 +1058,38 @@ export function ActiveWorkout() {
                                         }`}>
                                             <Clock size={48} className="text-blue-500 mb-6 animate-pulse" />
                                             <h3 className="text-slate-400 text-[15px] font-bold uppercase tracking-widest mb-2">Tempo de Descanso</h3>
-                                            <div className="text-white text-7xl font-black tabular-nums tracking-tighter mb-8 drop-shadow-lg">
+                                            <div className="text-white text-7xl font-black tabular-nums tracking-tighter mb-4 drop-shadow-lg">
                                                 {formatTime(restTimeRemaining)}
                                             </div>
+                                            {/* Mensagem sutil de séries restantes */}
+                                            {(() => {
+                                                const totalSeries = exercise.series;
+                                                const seriesRestantes = totalSeries - currentSetIndex - 1;
+                                                const isLastExercise = (() => {
+                                                    const wouldBeCompleted = [...completedIndices, currentIndex];
+                                                    return exercises.every((_, i) => wouldBeCompleted.includes(i));
+                                                })();
+
+                                                if (seriesRestantes <= 0) {
+                                                    return (
+                                                        <p className="text-slate-400/80 text-[13px] font-medium text-center mb-6 px-4 leading-relaxed animate-[fadeIn_600ms_ease-out]">
+                                                            {isLastExercise
+                                                                ? 'Última série concluída — bora finalizar! 🏆'
+                                                                : 'Prepare-se para o próximo exercício 🔥'}
+                                                        </p>
+                                                    );
+                                                }
+
+                                                const mensagem = seriesRestantes === 1
+                                                    ? 'Falta só mais 1 série pra fechar esse exercício 💪'
+                                                    : `Mais ${seriesRestantes} séries e esse exercício tá feito 💪`;
+
+                                                return (
+                                                    <p className="text-slate-500/90 text-[13px] font-medium text-center mb-6 px-4 leading-relaxed animate-[fadeIn_600ms_ease-out]">
+                                                        {mensagem}
+                                                    </p>
+                                                );
+                                            })()}
                                             <button
                                                 onClick={() => {
                                                     setIsResting(false);
@@ -1482,15 +1506,15 @@ export function ActiveWorkout() {
                             <h2 className="text-white font-bold text-2xl leading-tight mb-2">
                                 Treino Concluído!
                             </h2>
-                            
+
                             <p className="text-[#8e95a3] text-[15px] font-medium leading-relaxed mb-4">
-                                Excelente trabalho! Seu progresso foi salvo com sucesso.
+                                Excelente trabalho! Seu progresso foi salvo com sucesso. Faça o FitCheck do dia, compartilhe nas redes sociais e ganhe <span className="font-bold"><span className="text-yellow-400">+50 </span><span className="text-white">fit</span><span className="text-[#4d9fff]">Points</span></span> extras.
                             </p>
 
                             <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4 w-full flex items-center justify-center gap-3 mb-6">
                                 <Award className="text-yellow-500" size={24} />
                                 <div className="text-left">
-                                    <div className="text-yellow-500 font-black text-xl leading-none">+{earnedFitPoints} FitPoints</div>
+                                    <div className="font-black text-xl leading-none"><span className="text-yellow-400">+{earnedFitPoints} </span><span className="text-white">fit</span><span className="text-[#4d9fff]">Points</span></div>
                                     <div className="text-yellow-500/70 text-xs font-bold uppercase tracking-wider mt-1">Conquistados hoje</div>
                                 </div>
                             </div>
@@ -1498,11 +1522,10 @@ export function ActiveWorkout() {
                             <div className="flex flex-col gap-3 w-full">
                                 <button
                                     onClick={handleOpenFitCheck}
-                                    className="w-full py-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-base flex items-center justify-center gap-2 hover:from-blue-500 hover:to-indigo-500 transition-all active:scale-[0.98] shadow-lg shadow-blue-500/25 relative overflow-hidden group"
+                                    className="w-full py-4 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold text-base flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-lg shadow-blue-500/25"
                                 >
-                                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
-                                    <Camera size={20} className="relative z-10" />
-                                    <span className="relative z-10">Fazer FitCheck</span>
+                                    <Camera size={20} />
+                                    <span>Selecione uma imagem do seu treino</span>
                                 </button>
                                 
                                 <button
@@ -1536,13 +1559,17 @@ export function ActiveWorkout() {
                     document.body
                 )}
 
-                {/* FitCheck Camera Interface */}
+                {/* FitCheck Gallery Interface */}
                 {showFitCheckCamera && createPortal(
-                    <FitCheckCamera 
-                        fitPoints={earnedFitPoints} 
+                    <FitCheckCamera
+                        fitPoints={earnedFitPoints}
+                        workoutDivision={dia ? `${dia}. ${gruposList.join(' + ')}` : gruposList.join(' + ')}
+                        elapsedSeconds={elapsedSeconds}
+                        totalVolumeKg={sessionVolumeKg}
                         onClose={() => {
                             setShowFitCheckCamera(false);
-                            handleCloseWorkoutCompleted();
+                            endWorkout();
+                            navigate('/', { replace: true });
                         }}
                         onShare={handleFitCheckShare}
                     />,
