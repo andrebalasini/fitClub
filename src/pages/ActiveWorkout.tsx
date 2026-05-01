@@ -376,6 +376,62 @@ function getExerciseFeedbackTip(
     return null;
 }
 
+const coachPhrasesGlobal = [
+    "A dor é o sinal de que a fraqueza está saindo. Faltam {setsLeft} séries.",
+    "Não negocie com a sua mente. Execute. Só mais {setsLeft}.",
+    "Seu corpo aguenta, é sua mente que você precisa convencer. Faltam {setsLeft}.",
+    "O descanso é um privilégio de quem terminou. Só faltam {setsLeft}.",
+    "Conforto não constrói resultados de elite. Sangue no olho, faltam {setsLeft}.",
+    "Cada repetição é uma martelada no físico. Só mais {setsLeft}.",
+    "Onde a maioria para, você acelera. Faltam {setsLeft} séries.",
+    "Silencie o cansaço. O resultado não ouve desculpas. Só mais {setsLeft}.",
+    "Transforme o 'não consigo' em 'está feito'. Faltam {setsLeft}.",
+    "Pare de ser comum. Atletas de elite não param. Só faltam {setsLeft}.",
+    "O ferro não mente. Ele sabe se houve esforço máximo. Faltam {setsLeft}.",
+    "A vitória é construída agora, no cansaço. Só mais {setsLeft}.",
+    "Ninguém vai treinar por você. Faltam {setsLeft} séries.",
+    "A disciplina é o que mantém você no caminho. Só mais {setsLeft}.",
+    "Supere a vontade de parar. Faltam {setsLeft}.",
+    "Cada gota de suor é um investimento no seu objetivo. Faltam {setsLeft}.",
+    "Mantenha a densidade. A evolução exige foco total. Faltam {setsLeft}.",
+    "Controle a fase negativa. Domine a carga. Só mais {setsLeft}.",
+    "Eficiência metabólica máxima. Use bem este descanso. Faltam {setsLeft}.",
+    "Conexão mente-músculo ativada. Concentração máxima. Só mais {setsLeft}.",
+    "Treino técnico é treino eficiente. Faltam {setsLeft} séries.",
+    "Sua melhor versão exige sua melhor execução. Faltam {setsLeft}.",
+    "Cadência controlada, resultado garantido. Só mais {setsLeft}.",
+    "Respeite o plano, confie no processo. Faltam {setsLeft} séries.",
+    "A constância é a base da excelência. Só mais {setsLeft}.",
+    "Aumente a tensão mecânica. Não alivie agora. Faltam {setsLeft} séries.",
+    "Sinta cada fibra recrutada. O progresso é real. Só mais {setsLeft}.",
+    "Padrão de movimento impecável. É assim que se evolui. Faltam {setsLeft}.",
+    "Cada série é uma oportunidade de perfeição. Só mais {setsLeft}.",
+    "O físico de elite exige o esforço de hoje. Faltam {setsLeft}."
+];
+
+const saideiraPhrasesGlobal = [
+    "É AGORA! O esforço final separa vencedores de amadores. ÚLTIMA!",
+    "Tudo o que restou no tanque. Deixe tudo aqui. ÚLTIMA SÉRIE!",
+    "O round final. É aqui que a verdadeira mudança acontece. VAI!",
+    "Missão quase cumprida. Dê o seu melhor na última!",
+    "Sem reservas agora. Finalize com intensidade máxima. ÚLTIMA!",
+    "É a saideira! Honre o seu treino até o último segundo!",
+    "Foco total na última série. Acabe com autoridade!",
+    "A última repetição é a que define o seu compromisso. VAI!",
+    "Não guarde energia para depois. É a última. EXPLODE!",
+    "Feche o treino como um verdadeiro campeão. Última série!"
+];
+
+function generateRestPhrase(seriesRestantes: number): string {
+    if (seriesRestantes === 1) {
+        const idx = Math.floor(Math.random() * saideiraPhrasesGlobal.length);
+        return saideiraPhrasesGlobal[idx];
+    } else {
+        const idx = Math.floor(Math.random() * coachPhrasesGlobal.length);
+        return coachPhrasesGlobal[idx].replace(/{setsLeft}/g, String(seriesRestantes));
+    }
+}
+
 export function ActiveWorkout() {
     const navigate = useNavigate();
     const { workoutConfig, endWorkout } = useActiveWorkout();
@@ -435,6 +491,7 @@ export function ActiveWorkout() {
         const val = localStorage.getItem('@fw:restEndTime');
         return val ? parseInt(val, 10) : null;
     });
+    const [currentRestPhrase, setCurrentRestPhrase] = useState(() => localStorage.getItem('@fw:currentRestPhrase') || '');
     const carouselRef = useDragScroll<HTMLDivElement>({ disabled: false });
     const isScrollingProgrammatically = useRef(false);
     const handleNextExerciseRef = useRef<(() => void) | null>(null);
@@ -461,7 +518,8 @@ export function ActiveWorkout() {
         localStorage.setItem('@fw:cardioRemainingDuration', cardioRemainingDuration.toString());
         localStorage.setItem('@fw:completedIndices', JSON.stringify(completedIndices));
         localStorage.setItem('@fw:setsLoggedByIndex', JSON.stringify(setsLoggedByIndex));
-    }, [currentIndex, currentSetIndex, focusedIndex, workoutStarted, workoutStartTime, sessionHistoryIds, isResting, restEndTime, cardioState, cardioEndTime, cardioRemainingDuration, completedIndices, setsLoggedByIndex]);
+        localStorage.setItem('@fw:currentRestPhrase', currentRestPhrase);
+    }, [currentIndex, currentSetIndex, focusedIndex, workoutStarted, workoutStartTime, sessionHistoryIds, isResting, restEndTime, cardioState, cardioEndTime, cardioRemainingDuration, completedIndices, setsLoggedByIndex, currentRestPhrase]);
 
     // Keep refs in sync with state so closures always read fresh values
     useEffect(() => { exerciseHistoryRef.current = exerciseHistory; }, [exerciseHistory]);
@@ -677,12 +735,22 @@ export function ActiveWorkout() {
             const descanso = Number(currentExercise.descanso) || 60;
             setRestTimeRemaining(descanso);
             setRestEndTime(Date.now() + descanso * 1000);
+            
+            const isLastExercise = exercises.every((_, i) => i === currentIndex || completedIndices.includes(i));
+            const finalMsg = isLastExercise
+                ? 'Última série concluída — bora finalizar! 🏆'
+                : 'Prepare-se para o próximo exercício 🔥💪';
+            setCurrentRestPhrase(finalMsg);
             setIsResting(true);
         } else {
             // Série intermediária → descanso e incrementa série
             const descanso = Number(currentExercise.descanso) || 60;
             setRestTimeRemaining(descanso);
             setRestEndTime(Date.now() + descanso * 1000);
+            
+            const totalSeries = currentExercise.series || 0;
+            const seriesRestantes = totalSeries - currentSetIndex - 1;
+            setCurrentRestPhrase(generateRestPhrase(seriesRestantes));
             setIsResting(true);
         }
     };
@@ -1116,14 +1184,14 @@ export function ActiveWorkout() {
                                 {exercises.map((exercise, idx) => (
                                     <div
                                         key={exercise.id}
-                                        className={`w-[85%] sm:w-[380px] snap-center flex-shrink-0 bg-gradient-to-br from-[#1c2436] to-[#121825] rounded-[24px] overflow-hidden shadow-xl shadow-black/40 transition-all duration-300 relative ${
+                                        className={`w-[85%] sm:w-[380px] snap-center flex-shrink-0 bg-[#121825] rounded-[24px] shadow-xl shadow-black/40 transition-all duration-300 relative ${
                                             idx === focusedIndex
                                                 ? ''
                                                 : 'opacity-60'
                                         }`}
                                     >
                                         {/* Timer View */}
-                                        <div className={`absolute inset-0 z-20 flex flex-col items-center justify-center p-6 bg-gradient-to-br from-[#1c2436] to-[#121825] transition-all duration-500 ${
+                                        <div className={`absolute inset-0 z-20 flex flex-col items-center justify-center p-6 bg-[#121825] rounded-[24px] transition-all duration-500 ${
                                             idx === currentIndex && isResting ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
                                         }`}>
                                             <TimerErrorBoundary onSkipError={() => { setIsResting(false); setRestEndTime(null); if(handleNextExerciseRef.current) handleNextExerciseRef.current(); }}>
@@ -1135,30 +1203,16 @@ export function ActiveWorkout() {
                                                 {/* Mensagem sutil de séries restantes */}
                                                 {(() => {
                                                     if (!exercise) return null;
-                                                    const totalSeries = exercise.series || 0;
-                                                    const seriesRestantes = totalSeries - currentSetIndex - 1;
-                                                    const isLastExercise = (() => {
-                                                        const wouldBeCompleted = [...completedIndices, currentIndex];
-                                                        return exercises.every((_, i) => wouldBeCompleted.includes(i));
-                                                    })();
 
-                                                    if (seriesRestantes <= 0) {
-                                                        return (
-                                                            <p className="text-slate-400/80 text-[13px] font-medium text-center mb-6 px-4 leading-relaxed animate-[fadeIn_600ms_ease-out]">
-                                                                {isLastExercise
-                                                                    ? 'Última série concluída — bora finalizar! 🏆'
-                                                                    : 'Prepare-se para o próximo exercício 🔥'}
-                                                            </p>
-                                                        );
-                                                    }
-
-                                                    const mensagem = seriesRestantes === 1
-                                                        ? 'Falta só mais 1 série pra fechar esse exercício 💪'
-                                                        : `Mais ${seriesRestantes} séries e esse exercício tá feito 💪`;
+                                                    const phraseToRender = currentRestPhrase || (
+                                                        (exercise.series || 1) === 1
+                                                        ? "É AGORA! O esforço final separa vencedores de amadores. ÚLTIMA!"
+                                                        : `Não negocie com a sua mente. Execute.`
+                                                    );
 
                                                     return (
-                                                        <p className="text-slate-500/90 text-[13px] font-medium text-center mb-6 px-4 leading-relaxed animate-[fadeIn_600ms_ease-out]">
-                                                            {mensagem}
+                                                        <p className="text-slate-400/80 text-[13px] font-medium text-center mb-6 px-4 leading-relaxed animate-[fadeIn_600ms_ease-out]">
+                                                            {phraseToRender}
                                                         </p>
                                                     );
                                                 })()}
@@ -1180,7 +1234,7 @@ export function ActiveWorkout() {
                                             idx === currentIndex && isResting ? 'opacity-0 scale-105 pointer-events-none' : 'opacity-100 scale-100'
                                         }`}>
                                             {/* Imagem do Exercicio */}
-                                            <div className="w-full h-[150px] bg-white relative">
+                                            <div className="w-full h-[150px] bg-white relative overflow-hidden rounded-t-[24px]">
                                             <img
                                                 src={exercise.imagem_url || DEFAULT_EXERCISE_IMAGE}
                                                 alt={exercise.nome}
@@ -1189,9 +1243,7 @@ export function ActiveWorkout() {
                                                     (e.target as HTMLImageElement).src = DEFAULT_EXERCISE_IMAGE;
                                                 }}
                                             />
-                                            <div className="absolute inset-0 bg-gradient-to-t from-[#121825] via-transparent to-transparent opacity-90" />
-
-
+                                            <div className="absolute inset-0 bg-gradient-to-t from-[#121825] via-[#121825]/50 to-transparent" />
 
                                             {/* Titulo sobre a imagem */}
                                             <div className="absolute bottom-2.5 left-3.5 right-12">
