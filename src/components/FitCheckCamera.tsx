@@ -380,7 +380,7 @@ export function FitCheckCamera({
 
     return (
         <div 
-            className="fixed inset-0 z-[100] bg-[#0a0e1a] flex flex-col overflow-y-auto pb-28"
+            className="fixed inset-0 z-[100] bg-[#0a0e1a] flex flex-col overflow-y-auto"
             style={{ backfaceVisibility: 'hidden', transform: 'translateZ(0)' }}
         >
             {/* Standard TopBar */}
@@ -404,7 +404,7 @@ export function FitCheckCamera({
 
             {!selectedImage ? (
                 /* ── Step 1: No image selected yet ── */
-                <div className="flex-1 flex flex-col items-center justify-center px-6 gap-6 pb-10">
+                <div className="flex-1 flex flex-col items-center justify-center px-6 gap-6 pb-32">
                     <div className="w-20 h-20 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
                         <Camera size={40} className="text-blue-400" />
                     </div>
@@ -451,7 +451,7 @@ export function FitCheckCamera({
                 </div>
             ) : (
                 /* ── Step 2: Image selected — show preview + position picker ── */
-                <div className="flex-1 flex flex-col gap-5 px-5 pt-4 pb-10">
+                <div className="flex-1 flex flex-col gap-5 px-5 pt-4 pb-32">
 
                     {/* Preview */}
                     <div className="relative w-full rounded-2xl overflow-hidden bg-black shadow-2xl" style={{ maxHeight: '55vh' }}>

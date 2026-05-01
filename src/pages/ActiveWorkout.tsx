@@ -611,11 +611,13 @@ export function ActiveWorkout() {
             idx === currentIndex || completedIndices.includes(idx)
         );
 
-        // Cardio: sem descanso, vai direto pro próximo exercício pendente
-        if (currentExercise.grupo === 'Cardio') {
-            handleNextExercise();
-        } else if (wouldFinishAll) {
+        if (wouldFinishAll) {
             // Todos os exercícios concluídos → finaliza direto, sem descanso
+            const newCompletedIndices = Array.from(new Set([...completedIndices, currentIndex]));
+            setCompletedIndices(newCompletedIndices);
+            handleFinishWorkout();
+        } else if (currentExercise.grupo === 'Cardio') {
+            // Cardio: sem descanso, vai direto pro próximo exercício pendente
             handleNextExercise();
         } else if (isLastSet) {
             // Última série de exercício normal → descanso e avança
@@ -680,6 +682,14 @@ export function ActiveWorkout() {
     };
 
     const handleFinishWorkout = async () => {
+        // Garantir limpeza de estado para evitar execuções redundantes no timer
+        setIsResting(false);
+        setRestEndTime(null);
+        setRestTimeRemaining(0);
+        setCardioState('idle');
+        setCardioEndTime(null);
+        setCardioRemainingDuration(0);
+
         const points = 100;
         try {
             await supabase.from('tbTreinosCompletos').insert({
@@ -698,7 +708,12 @@ export function ActiveWorkout() {
         }
         
         setEarnedFitPoints(points);
-        setShowWorkoutCompletedModal(true);
+        
+        // Delay para prevenir ghost clicks (toques fantasmas) de interfaces anteriores 
+        // que estavam na mesma posição na tela
+        setTimeout(() => {
+            setShowWorkoutCompletedModal(true);
+        }, 350);
         // Do not immediately navigate or clear context; wait for the user to interact with the FitCheck modal
     };
 
