@@ -59,7 +59,7 @@ class TimerErrorBoundary extends Component<{children: ReactNode, onSkipError: ()
     render() {
         if (this.state.hasError) {
             return (
-                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-6 bg-gradient-to-br from-[#1c2436] to-[#121825]">
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-6 bg-gradient-to-br from-[#1c2436] to-[#121825] rounded-[24px]">
                     <AlertTriangle size={48} className="text-red-500 mb-6" />
                     <h3 className="text-white text-xl font-bold mb-2">Erro no Descanso</h3>
                     <p className="text-slate-400 text-sm text-center mb-6">Não foi possível carregar o cronômetro para este exercício.</p>
@@ -76,6 +76,51 @@ class TimerErrorBoundary extends Component<{children: ReactNode, onSkipError: ()
             );
         }
         return <>{this.props.children}</>;
+    }
+}
+
+class WorkoutErrorBoundary extends Component<{children: ReactNode}, {hasError: boolean, error?: Error, errorInfo?: ErrorInfo}> {
+    constructor(props: {children: ReactNode}) {
+        super(props);
+        this.state = { hasError: false };
+    }
+
+    static getDerivedStateFromError(error: Error) {
+        return { hasError: true, error };
+    }
+
+    componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+        console.error("Critical Workout Error:", error, errorInfo);
+        this.setState({ errorInfo });
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="min-h-screen bg-[#0f141e] flex flex-col items-center justify-center p-6 font-sans">
+                    <AlertTriangle size={64} className="text-red-500 mb-6 animate-pulse" />
+                    <h1 className="text-white text-2xl font-bold mb-4 text-center">Ops! Ocorreu um erro.</h1>
+                    <p className="text-slate-400 text-center mb-8 max-w-sm">
+                        Detectamos uma falha inesperada na tela de treino. Fique tranquilo, seu progresso até aqui está salvo.
+                    </p>
+                    <button 
+                        onClick={() => window.location.href = '/treino'} 
+                        className="w-full max-w-xs py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl active:scale-95 transition-all shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2"
+                    >
+                        <RefreshCw size={20} />
+                        Recarregar Treino
+                    </button>
+                    {this.state.error && (
+                        <div className="mt-12 w-full max-w-md p-4 bg-black/40 rounded-xl border border-red-500/20">
+                            <p className="text-red-400 text-[10px] font-mono break-all">
+                                {this.state.error.message}
+                            </p>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+        return this.props.children;
     }
 }
 
@@ -432,7 +477,7 @@ function generateRestPhrase(seriesRestantes: number): string {
     }
 }
 
-export function ActiveWorkout() {
+function ActiveWorkoutContent() {
     const navigate = useNavigate();
     const { workoutConfig, endWorkout } = useActiveWorkout();
     
@@ -658,6 +703,8 @@ export function ActiveWorkout() {
 
         let insertedRow;
 
+        console.log('[DEBUG Timer] Iniciando gravação da série:', { reps, weight, feedback });
+
         try {
             const { data, error } = await supabase.from('tbHistorico').insert({
                 ficha_id: fichaId,
@@ -672,8 +719,16 @@ export function ActiveWorkout() {
 
             if (error) {
                 console.error("Erro ao salvar histórico:", error);
+                
+                if (error.code === 'PGRST301' || error.message?.includes('JWT') || error.message?.includes('auth') || (error as any).status === 401) {
+                    alert("Sua sessão expirou. Redirecionando para o login...");
+                    navigate('/login', { replace: true });
+                    return;
+                }
+                
                 alert("Erro ao salvar a série. Verifique sua conexão. O treino continuará.");
             } else {
+                console.log('[DEBUG Timer] Resposta do Supabase com sucesso:', data);
                 insertedRow = data;
             }
         } catch (err) {
@@ -681,77 +736,91 @@ export function ActiveWorkout() {
             alert("Erro de conexão ao salvar a série. O treino continuará.");
         }
 
-        // Track the session record ID so it can be deleted if user discards
-        const finalId = insertedRow?.id || (Date.now() + Math.random()).toString();
-        
-        setSessionHistoryIds(prev => [...prev, finalId]);
-        // Accumulate session volume (weight × reps per set; skip bodyweight sets with 0 kg)
-        if (weight > 0) {
-            setSessionVolumeKg(prev => prev + weight * reps);
-        }
-        
-        // Track sets by index (position in workout) — avoids duplicate exercicio_id collision
-        setSetsLoggedByIndex(prev => ({
-            ...prev,
-            [currentIndex]: (prev[currentIndex] ?? 0) + 1
-        }));
+        try {
+            console.log('[DEBUG Timer] Calculando próximo estado');
 
-        // Add to local state dynamically so chart updates immediately
-        setExerciseHistory(prev => [...prev, {
-            id: finalId,
-            exercicio_id: currentExercise.exercicio_id,
-            carga_usada: weight,
-            repeticoes_feitas: reps,
-            serie_atual: currentSetIndex + 1,
-            feedback: feedback,
-            created_at: new Date().toISOString()
-        }]);
-
-        setIsLogModalOpen(false);
-        // Atualiza a carga do exercício se feedback for "ideal" ou "facil"
-        if (feedback === 'ideal' || feedback === 'facil') {
-            setExercises(prev => prev.map((ex, i) =>
-                i === currentIndex ? { ...ex, carga: weight } : ex
-            ));
-        }
-
-        const isLastSet = currentSetIndex === currentExercise.series - 1;
-
-        // Verifica se ao concluir este exercício, todos estarão finalizados
-        const wouldFinishAll = isLastSet && exercises.every((_, idx) =>
-            idx === currentIndex || completedIndices.includes(idx)
-        );
-
-        if (wouldFinishAll) {
-            // Todos os exercícios concluídos → finaliza direto, sem descanso
-            const newCompletedIndices = Array.from(new Set([...completedIndices, currentIndex]));
-            setCompletedIndices(newCompletedIndices);
-            handleFinishWorkout();
-        } else if (currentExercise.grupo === 'Cardio') {
-            // Cardio: sem descanso, vai direto pro próximo exercício pendente
-            handleNextExercise();
-        } else if (isLastSet) {
-            // Última série de exercício normal → descanso e avança
-            const descanso = Number(currentExercise.descanso) || 60;
-            setRestTimeRemaining(descanso);
-            setRestEndTime(Date.now() + descanso * 1000);
+            // Track the session record ID so it can be deleted if user discards
+            const finalId = insertedRow?.id || (Date.now() + Math.random()).toString();
             
-            const isLastExercise = exercises.every((_, i) => i === currentIndex || completedIndices.includes(i));
-            const finalMsg = isLastExercise
-                ? 'Última série concluída — bora finalizar! 🏆'
-                : 'Prepare-se para o próximo exercício 🔥💪';
-            setCurrentRestPhrase(finalMsg);
-            setIsResting(true);
-        } else {
-            // Série intermediária → descanso e incrementa série
-            const descanso = Number(currentExercise.descanso) || 60;
-            setRestTimeRemaining(descanso);
-            setRestEndTime(Date.now() + descanso * 1000);
+            setSessionHistoryIds(prev => [...prev, finalId]);
+            // Accumulate session volume (weight × reps per set; skip bodyweight sets with 0 kg)
+            if (weight > 0) {
+                setSessionVolumeKg(prev => prev + weight * reps);
+            }
             
-            const totalSeries = currentExercise.series || 0;
-            const seriesRestantes = totalSeries - currentSetIndex - 1;
-            setCurrentRestPhrase(generateRestPhrase(seriesRestantes));
-            setIsResting(true);
+            // Track sets by index (position in workout) — avoids duplicate exercicio_id collision
+            setSetsLoggedByIndex(prev => ({
+                ...prev,
+                [currentIndex]: (prev[currentIndex] ?? 0) + 1
+            }));
+
+            // Add to local state dynamically so chart updates immediately
+            setExerciseHistory(prev => [...prev, {
+                id: finalId,
+                exercicio_id: currentExercise.exercicio_id,
+                carga_usada: weight,
+                repeticoes_feitas: reps,
+                serie_atual: currentSetIndex + 1,
+                feedback: feedback,
+                created_at: new Date().toISOString()
+            }]);
+
+            setIsLogModalOpen(false);
+            // Atualiza a carga do exercício se feedback for "ideal" ou "facil"
+            if (feedback === 'ideal' || feedback === 'facil') {
+                setExercises(prev => prev.map((ex, i) =>
+                    i === currentIndex ? { ...ex, carga: weight } : ex
+                ));
+            }
+
+            const isLastSet = currentSetIndex === currentExercise.series - 1;
+
+            // Verifica se ao concluir este exercício, todos estarão finalizados
+            const wouldFinishAll = isLastSet && exercises.every((_, idx) =>
+                idx === currentIndex || completedIndices.includes(idx)
+            );
+
+            if (wouldFinishAll) {
+                console.log('[DEBUG Timer] Todos concluídos, finalizando treino.');
+                // Todos os exercícios concluídos → finaliza direto, sem descanso
+                const newCompletedIndices = Array.from(new Set([...completedIndices, currentIndex]));
+                setCompletedIndices(newCompletedIndices);
+                handleFinishWorkout();
+            } else if (currentExercise.grupo === 'Cardio') {
+                console.log('[DEBUG Timer] Cardio finalizado, avançando.');
+                // Cardio: sem descanso, vai direto pro próximo exercício pendente
+                handleNextExercise();
+            } else if (isLastSet) {
+                console.log('[DEBUG Timer] Disparando Timer (última série do exercício)');
+                // Última série de exercício normal → descanso e avança
+                const descanso = Number(currentExercise.descanso) || 60;
+                setRestTimeRemaining(descanso);
+                setRestEndTime(Date.now() + descanso * 1000);
+                
+                const isLastExercise = exercises.every((_, i) => i === currentIndex || completedIndices.includes(i));
+                const finalMsg = isLastExercise
+                    ? 'Última série concluída — bora finalizar! 🏆'
+                    : 'Prepare-se para o próximo exercício 🔥💪';
+                setCurrentRestPhrase(finalMsg);
+                setIsResting(true);
+            } else {
+                console.log('[DEBUG Timer] Disparando Timer (série intermediária)');
+                // Série intermediária → descanso e incrementa série
+                const descanso = Number(currentExercise.descanso) || 60;
+                setRestTimeRemaining(descanso);
+                setRestEndTime(Date.now() + descanso * 1000);
+                
+                const totalSeries = currentExercise.series || 0;
+                const seriesRestantes = totalSeries - currentSetIndex - 1;
+                setCurrentRestPhrase(generateRestPhrase(seriesRestantes));
+                setIsResting(true);
+            }
+        } catch (stateErr) {
+            console.error('[DEBUG Timer] Erro crítico ao atualizar estado após série:', stateErr);
+            alert('Ops! Erro ao carregar o descanso. Clique aqui para tentar novamente.');
+            setIsResting(false);
+            setRestEndTime(null);
+            setIsLogModalOpen(false);
         }
     };
 
@@ -1195,37 +1264,51 @@ export function ActiveWorkout() {
                                             idx === currentIndex && isResting ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
                                         }`}>
                                             <TimerErrorBoundary onSkipError={() => { setIsResting(false); setRestEndTime(null); if(handleNextExerciseRef.current) handleNextExerciseRef.current(); }}>
-                                                <Clock size={48} className="text-blue-500 mb-6 animate-pulse" />
-                                                <h3 className="text-slate-400 text-[15px] font-bold uppercase tracking-widest mb-2">Tempo de Descanso</h3>
-                                                <div className="text-white text-7xl font-black tabular-nums tracking-tighter mb-4 drop-shadow-lg">
-                                                    {formatTime(restTimeRemaining)}
-                                                </div>
-                                                {/* Mensagem sutil de séries restantes */}
-                                                {(() => {
-                                                    if (!exercise) return null;
+                                                {(!exercise || currentSetIndex === undefined) ? (
+                                                    <div className="flex flex-col items-center justify-center h-full w-full">
+                                                        <AlertTriangle size={48} className="text-red-500 mb-4" />
+                                                        <h3 className="text-white font-bold mb-2 text-lg">Erro ao carregar descanso</h3>
+                                                        <p className="text-slate-400 text-sm text-center mb-6">Não foi possível carregar os dados deste exercício.</p>
+                                                        <button 
+                                                            onClick={() => { setIsResting(false); setRestEndTime(null); if(handleNextExerciseRef.current) handleNextExerciseRef.current(); }}
+                                                            className="px-6 py-3 bg-slate-800 rounded-xl text-white font-bold active:scale-95 transition-all"
+                                                        >
+                                                            Pular Descanso
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <Clock size={48} className="text-blue-500 mb-6 animate-pulse" />
+                                                        <h3 className="text-slate-400 text-[15px] font-bold uppercase tracking-widest mb-2">Tempo de Descanso</h3>
+                                                        <div className="text-white text-7xl font-black tabular-nums tracking-tighter mb-4 drop-shadow-lg">
+                                                            {formatTime(restTimeRemaining)}
+                                                        </div>
+                                                        {/* Mensagem sutil de séries restantes */}
+                                                        {(() => {
+                                                            const phraseToRender = currentRestPhrase || (
+                                                                (exercise.series || 1) === 1
+                                                                ? "É AGORA! O esforço final separa vencedores de amadores. ÚLTIMA!"
+                                                                : `Não negocie com a sua mente. Execute.`
+                                                            );
 
-                                                    const phraseToRender = currentRestPhrase || (
-                                                        (exercise.series || 1) === 1
-                                                        ? "É AGORA! O esforço final separa vencedores de amadores. ÚLTIMA!"
-                                                        : `Não negocie com a sua mente. Execute.`
-                                                    );
-
-                                                    return (
-                                                        <p className="text-slate-400/80 text-[13px] font-medium text-center mb-6 px-4 leading-relaxed animate-[fadeIn_600ms_ease-out]">
-                                                            {phraseToRender}
-                                                        </p>
-                                                    );
-                                                })()}
-                                                <button
-                                                    onClick={() => {
-                                                        setIsResting(false);
-                                                        setRestEndTime(null);
-                                                        if (handleNextExerciseRef.current) handleNextExerciseRef.current();
-                                                    }}
-                                                    className="w-full mt-auto py-4 rounded-xl bg-blue-500 text-white font-bold text-base flex items-center justify-center gap-2 hover:bg-blue-600 transition-all active:scale-[0.98] shadow-lg shadow-blue-500/25"
-                                                >
-                                                    Continuar
-                                                </button>
+                                                            return (
+                                                                <p className="text-slate-400/80 text-[13px] font-medium text-center mb-6 px-4 leading-relaxed animate-[fadeIn_600ms_ease-out]">
+                                                                    {phraseToRender}
+                                                                </p>
+                                                            );
+                                                        })()}
+                                                        <button
+                                                            onClick={() => {
+                                                                setIsResting(false);
+                                                                setRestEndTime(null);
+                                                                if (handleNextExerciseRef.current) handleNextExerciseRef.current();
+                                                            }}
+                                                            className="w-full mt-auto py-4 rounded-xl bg-blue-500 text-white font-bold text-base flex items-center justify-center gap-2 hover:bg-blue-600 transition-all active:scale-[0.98] shadow-lg shadow-blue-500/25"
+                                                        >
+                                                            Continuar
+                                                        </button>
+                                                    </>
+                                                )}
                                             </TimerErrorBoundary>
                                         </div>
 
@@ -1702,5 +1785,13 @@ export function ActiveWorkout() {
                 )}
             </div>
         </div>
+    );
+}
+
+export function ActiveWorkout() {
+    return (
+        <WorkoutErrorBoundary>
+            <ActiveWorkoutContent />
+        </WorkoutErrorBoundary>
     );
 }
