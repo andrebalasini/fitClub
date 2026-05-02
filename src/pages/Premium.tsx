@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
 import {
     Trophy, TrendingUp, Loader2, Users, Dumbbell,
     BarChart2, Star, Target, Zap,
-    Medal, Layers, Crown
+    Medal, Layers, Crown, Flame
 } from 'lucide-react';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -758,9 +758,120 @@ function ProgressoSection() {
 }
 
 
+function ArenaSection() {
+    return (
+        <div className="flex flex-col gap-6 select-none">
+            {/* Header / Intro Banner */}
+            <div className="relative w-full rounded-2xl p-5 overflow-hidden border border-amber-500/30 bg-[#131b2b] shadow-lg">
+                {/* Subtle diagonal background pattern */}
+                <div
+                    className="absolute inset-0 opacity-[0.03] pointer-events-none mix-blend-overlay"
+                    style={{
+                        backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 2px, #fff 2px, #fff 4px)',
+                        backgroundSize: '8px 8px',
+                    }}
+                />
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <Flame size={90} className="text-amber-500" />
+                </div>
+                <div className="relative z-10 flex flex-col gap-1.5">
+                    <span className="text-amber-400 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5">
+                        <Flame size={14} /> Arena de Competição
+                    </span>
+                    <h2 className="text-white font-black text-xl tracking-tight leading-tight">
+                        Desafios e Torneios
+                    </h2>
+                    <p className="text-slate-400 text-xs font-medium leading-normal max-w-[260px] mt-0.5">
+                        Entre em disputas exclusivas, suba no ranking da Arena e fature prêmios especiais.
+                    </p>
+                </div>
+            </div>
+
+            {/* Arena Items / Cards */}
+            <div className="flex flex-col gap-3">
+                {[
+                    {
+                        id: 'desafio-dos-gigantes',
+                        title: 'Desafio dos Gigantes',
+                        subtitle: 'Maior volume total em pernas na semana',
+                        points: '+500 fitPoints',
+                        status: 'Em andamento',
+                        date: 'Termina em 3 dias',
+                        icon: <Trophy size={18} className="text-yellow-400" />,
+                        bgColor: 'bg-yellow-500/10 border-yellow-500/25',
+                        textColor: 'text-yellow-400',
+                    },
+                    {
+                        id: 'batalha-de-academias',
+                        title: 'Batalha de Academias',
+                        subtitle: 'Competição entre academias parceiras',
+                        points: '+1.000 fitPoints',
+                        status: 'Inscrições abertas',
+                        date: 'Começa em 5 dias',
+                        icon: <Users size={18} className="text-blue-400" />,
+                        bgColor: 'bg-blue-500/10 border-blue-500/25',
+                        textColor: 'text-blue-400',
+                    },
+                    {
+                        id: 'torneio-smash-fit',
+                        title: 'Torneio Smash Fit',
+                        subtitle: 'Melhor tempo na conclusão de treinos HIIT',
+                        points: '+350 fitPoints',
+                        status: 'Em breve',
+                        date: 'Início no próximo mês',
+                        icon: <Zap size={18} className="text-purple-400" />,
+                        bgColor: 'bg-purple-500/10 border-purple-500/25',
+                        textColor: 'text-purple-400',
+                    }
+                ].map(item => (
+                    <div
+                        key={item.id}
+                        className={`relative w-full rounded-2xl p-4 flex flex-col gap-3.5 select-none transition-all duration-200 overflow-hidden cursor-pointer border active:scale-[0.98] bg-[#131b2b] ${item.bgColor}`}
+                    >
+                        {/* Top line highlight */}
+                        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+                        <div className="flex justify-between items-start">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-[#0f141e] border border-white/5 flex items-center justify-center shrink-0">
+                                    {item.icon}
+                                </div>
+                                <div className="flex flex-col min-w-0">
+                                    <span className="font-bold text-[15px] text-white leading-tight truncate">
+                                        {item.title}
+                                    </span>
+                                    <span className="text-slate-400 text-xs font-medium truncate mt-0.5 max-w-[190px]">
+                                        {item.subtitle}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Badge with status */}
+                            <span className={`text-[10px] font-bold px-2 py-1 rounded-md shrink-0 uppercase tracking-wide bg-[#0f141e]/60 border border-white/5 ${item.textColor}`}>
+                                {item.status}
+                            </span>
+                        </div>
+
+                        {/* Details line */}
+                        <div className="flex items-center justify-between mt-0.5 border-t border-white/5 pt-3">
+                            <span className="text-slate-400 text-xs font-medium">
+                                {item.date}
+                            </span>
+                            <span className="text-[#e2c172] font-black text-xs">
+                                {item.points}
+                            </span>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-type Tab = 'temporada' | 'progresso';
+type Tab = 'arena' | 'temporada' | 'progresso';
 
 export function Premium() {
     const [activeTab, setActiveTab] = useState<Tab>('temporada');
@@ -771,6 +882,7 @@ export function Premium() {
             <div className="px-4 pt-4 mb-4 relative z-20">
                 <div className="flex bg-[#0a0f18] rounded-2xl p-1.5 border border-white/5 shadow-[inset_0_2px_15px_rgba(0,0,0,0.8)] relative">
                     {([
+                        { key: 'arena', label: 'Arena', icon: <Flame size={16} /> },
                         { key: 'temporada', label: 'Temporada', icon: <Crown size={16} /> },
                         { key: 'progresso', label: 'Evolução', icon: <BarChart2 size={16} /> },
                     ] as { key: Tab; label: string; icon: React.ReactNode }[]).map(tab => (
@@ -788,7 +900,7 @@ export function Premium() {
 
             {/* Content */}
             <div className="flex-1 px-4 relative z-10">
-                {activeTab === 'temporada' ? <TemporadaSection /> : <ProgressoSection />}
+                {activeTab === 'arena' ? <ArenaSection /> : activeTab === 'temporada' ? <TemporadaSection /> : <ProgressoSection />}
             </div>
         </div>
     );
