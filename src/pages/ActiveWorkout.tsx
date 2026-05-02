@@ -75,7 +75,7 @@ class TimerErrorBoundary extends Component<{children: ReactNode, onSkipError: ()
                 </div>
             );
         }
-        return <>{this.props.children}</>;
+        return this.props.children;
     }
 }
 
@@ -1277,7 +1277,7 @@ function ActiveWorkoutContent() {
                                                         </button>
                                                     </div>
                                                 ) : (
-                                                    <>
+                                                    <div className="flex flex-col items-center justify-center h-full w-full">
                                                         <Clock size={48} className="text-blue-500 mb-6 animate-pulse" />
                                                         <h3 className="text-slate-400 text-[15px] font-bold uppercase tracking-widest mb-2">Tempo de Descanso</h3>
                                                         <div className="text-white text-7xl font-black tabular-nums tracking-tighter mb-4 drop-shadow-lg">
@@ -1307,7 +1307,7 @@ function ActiveWorkoutContent() {
                                                         >
                                                             Continuar
                                                         </button>
-                                                    </>
+                                                    </div>
                                                 )}
                                             </TimerErrorBoundary>
                                         </div>
