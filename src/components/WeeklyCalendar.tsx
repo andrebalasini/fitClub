@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '../lib/utils';
@@ -14,20 +14,16 @@ interface WeeklyCalendarProps {
 }
 
 export function WeeklyCalendar({ trainedDates = [], fitPointsDates = [] }: WeeklyCalendarProps) {
-  const [weekDays, setWeekDays] = useState<Date[]>([]);
-  const today = new Date();
-
-  useEffect(() => {
-    // Start of the week is Sunday (0)
-    const start = startOfWeek(today, { weekStartsOn: 0 });
-    const days = Array.from({ length: 7 }).map((_, i) => addDays(start, i));
-    setWeekDays(days);
-  }, []);
+  const [today] = useState(() => new Date());
+  const [weekDays] = useState<Date[]>(() => {
+    const start = startOfWeek(new Date(), { weekStartsOn: 0 });
+    return Array.from({ length: 7 }).map((_, i) => addDays(start, i));
+  });
 
   return (
     <div className="w-full pt-1 pb-1">
       <div className="flex justify-between items-center w-full px-2">
-        {weekDays.map((day, index) => {
+        {weekDays.map((day) => {
           const isToday = isSameDay(day, today);
           const trainedDay = trainedDates.find(tw => isSameDay(tw.date, day));
           const isTrained = !!trainedDay;
@@ -35,7 +31,7 @@ export function WeeklyCalendar({ trainedDates = [], fitPointsDates = [] }: Weekl
           
           return (
             <div
-              key={index}
+              key={day.toISOString()}
               className="flex flex-col items-center justify-center gap-2 flex-1"
             >
               <span className="text-[13px] text-[#94a3b8] font-medium lowercase">

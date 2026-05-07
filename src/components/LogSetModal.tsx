@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { X, Loader2, Minus, Plus, RefreshCw, ThumbsUp, ThumbsDown, Target, Clock } from 'lucide-react';
+import { X, Loader2, Minus, Plus, RefreshCw, ThumbsUp, ThumbsDown, Target, Clock, Edit2 } from 'lucide-react';
 
 const DEFAULT_IMAGE = 'https://fafisurbnecapdpguudb.supabase.co/storage/v1/object/public/assets/geral/exercise_default_min.png';
 
@@ -108,6 +108,7 @@ interface LogSetModalProps {
     totalSets: number;
     defaultReps: number;
     defaultWeight: number;
+    isEditing?: boolean;
     onClose: () => void;
     onSave: (reps: number, weight: number, feedback: string) => Promise<void>;
 }
@@ -120,6 +121,7 @@ export function LogSetModal({
     totalSets, 
     defaultReps, 
     defaultWeight, 
+    isEditing = false,
     onClose, 
     onSave 
 }: LogSetModalProps) {
@@ -260,12 +262,12 @@ export function LogSetModal({
                         {isSaving ? (
                             <>
                                 <Loader2 size={18} className="animate-spin" />
-                                Registrando...
+                                {isEditing ? "Editando..." : "Registrando..."}
                             </>
                         ) : (
                             <>
-                                <Clock size={18} />
-                                Descansar
+                                {isEditing ? <Edit2 size={18} /> : <Clock size={18} />}
+                                {isEditing ? "Editar" : "Descansar"}
                             </>
                         )}
                     </button>

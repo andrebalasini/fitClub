@@ -2,8 +2,9 @@ import { useState, useRef, useEffect } from 'react';
 import { X, Loader2, Plus, PenLine, ImageIcon } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { getCurrentUserId } from '../lib/auth';
-import { processWorkoutImage } from '../lib/gemini';
+import { processWorkoutImage, processWorkoutText } from '../lib/gemini';
 import { showToast } from '../components/Toast';
+import { FileText } from 'lucide-react';
 
 interface CreateFichaModalProps {
     onClose: () => void;
@@ -15,8 +16,13 @@ export function CreateFichaModal({ onClose, onCreated }: CreateFichaModalProps) 
     const [isSaving, setIsSaving] = useState(false);
     
     const [isImportingImage, setIsImportingImage] = useState(false);
+    const [isImportingText, setIsImportingText] = useState(false);
+    const [showTextInput, setShowTextInput] = useState(false);
+    const [workoutText, setWorkoutText] = useState('');
     const [importProgress, setImportProgress] = useState(0);
     const [importStatus, setImportStatus] = useState('');
+
+    const isImporting = isImportingImage || isImportingText;
     
     const fileInputRef = useRef<HTMLInputElement>(null);
     const progressIntervalRef = useRef<number | null>(null);
@@ -144,10 +150,10 @@ export function CreateFichaModal({ onClose, onCreated }: CreateFichaModalProps) 
             // Finalize
             onCreated(fichaData.id, fichaData.nome);
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
             console.error('API/Image Error:', error);
-            const msg = error.message || "Falha ao importar treino. Verifique console para detalhes.";
+            const msg = error instanceof Error ? error.message : "Falha ao importar treino. Verifique console para detalhes.";
             // If API key is missing, alert nicely
             if (msg.includes("VITE_GEMINI_API_KEY")) {
                 showToast("Chave da API Gemini não configurada em .env.local.", 'error');
@@ -158,6 +164,100 @@ export function CreateFichaModal({ onClose, onCreated }: CreateFichaModalProps) 
             setImportProgress(0);
         } finally {
             if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const handleTextImportAsync = async () => {
+        if (!nome.trim()) {
+            showToast('Informe um nome para a ficha primeiro!', 'error');
+            return;
+        }
+        if (!workoutText.trim()) {
+            showToast('Cole o texto do seu treino primeiro!', 'error');
+            return;
+        }
+
+        setIsImportingText(true);
+        setShowTextInput(false); // Hide the textarea and show loading
+        setImportProgress(10);
+        setImportStatus('Preparando para analisar texto...');
+
+        progressIntervalRef.current = window.setInterval(() => {
+            setImportProgress(prev => {
+                if (prev >= 85) {
+                    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+                    return 85;
+                }
+                return prev + (Math.random() * 5 + 2);
+            });
+        }, 300);
+
+        try {
+            const { data: exData, error: exError } = await supabase
+                .from('tbExercicios')
+                .select('id, nome');
+            
+            if (exError || !exData || exData.length === 0) {
+                throw new Error("Não foi possível carregar a base de exercícios.");
+            }
+
+            setImportStatus('Analisando treino com Inteligência Artificial...');
+            
+            const parsedExercises = await processWorkoutText(workoutText, exData);
+
+            if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+            setImportProgress(90);
+            setImportStatus('Criando a ficha no banco de dados...');
+
+            const { data: fichaData, error: fichaError } = await supabase
+                .from('tbFichas')
+                .insert({ nome: nome.trim(), user_id: getCurrentUserId() })
+                .select()
+                .single();
+
+            if (fichaError || !fichaData) throw new Error("Erro ao criar ficha no banco de dados.");
+
+            if (parsedExercises.length > 0) {
+                const insertPayload = parsedExercises.map((e, index) => ({
+                    ficha_id: fichaData.id,
+                    user_id: getCurrentUserId(),
+                    exercicio_id: e.exercicio_id,
+                    dia: e.dia,
+                    series: e.series,
+                    repeticoes: e.repeticoes,
+                    carga: e.carga,
+                    descanso: e.descanso,
+                    ordem: index
+                }));
+
+                const { error: insertError } = await supabase.from('tbTreinos').insert(insertPayload);
+                if (insertError) {
+                    console.error("Erro insert treinos", insertError);
+                    showToast("Ficha criada com alertas. Alguns exercícios não puderam ser adicionados.", 'error');
+                } else {
+                    showToast("Treino importado com sucesso via texto!", 'success');
+                }
+            } else {
+                showToast("Nenhum exercício compreendido pela IA. Ficha criada em branco.", 'error');
+            }
+
+            setImportProgress(100);
+            setImportStatus('Ficha importada com sucesso!');
+            await new Promise(r => setTimeout(r, 600));
+
+            onCreated(fichaData.id, fichaData.nome);
+
+        } catch (error: unknown) {
+            if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+            console.error('API/Text Error:', error);
+            const msg = error instanceof Error ? error.message : "Falha ao importar treino.";
+            if (msg.includes("VITE_GEMINI_API_KEY")) {
+                showToast("Chave da API Gemini não configurada em .env.local.", 'error');
+            } else {
+                showToast(msg, 'error');
+            }
+            setIsImportingText(false);
+            setImportProgress(0);
         }
     };
 
@@ -173,7 +273,7 @@ export function CreateFichaModal({ onClose, onCreated }: CreateFichaModalProps) 
             {/* Backdrop */}
             <div
                 className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-[fadeIn_200ms_ease-out]"
-                onClick={!isImportingImage ? onClose : undefined}
+                onClick={!isImporting ? onClose : undefined}
             />
 
             {/* Modal */}
@@ -186,7 +286,7 @@ export function CreateFichaModal({ onClose, onCreated }: CreateFichaModalProps) 
                 {/* Close button */}
                 <button
                     onClick={onClose}
-                    disabled={isImportingImage}
+                    disabled={isImporting}
                     className="absolute top-5 right-5 w-8 h-8 rounded-full bg-slate-700/60 flex items-center justify-center text-slate-400 hover:text-white transition-all active:scale-90 disabled:opacity-30 disabled:pointer-events-none"
                 >
                     <X size={18} />
@@ -202,7 +302,7 @@ export function CreateFichaModal({ onClose, onCreated }: CreateFichaModalProps) 
                 </div>
 
                 {/* Content */}
-                {isImportingImage ? (
+                {isImporting ? (
                     <div className="flex flex-col items-center justify-center py-6 animate-[fadeIn_300ms_ease-out]">
                         <div className="relative w-28 h-28 mb-6">
                             <svg className="w-full h-full transform -rotate-90">
@@ -228,6 +328,37 @@ export function CreateFichaModal({ onClose, onCreated }: CreateFichaModalProps) 
                         <p className="text-slate-400 text-sm text-center px-6 leading-relaxed">
                             Por favor, não feche o aplicativo enquanto estamos configurando a sua ficha completa.
                         </p>
+                    </div>
+                ) : showTextInput ? (
+                    <div className="flex flex-col gap-4 animate-[fadeIn_200ms_ease-out] mt-2">
+                        <div className="flex flex-col gap-2">
+                            <label htmlFor="workout-text" className="text-slate-300 text-[15px] font-medium ml-1">
+                                Cole o seu treino abaixo:
+                            </label>
+                            <textarea
+                                id="workout-text"
+                                autoFocus
+                                value={workoutText}
+                                onChange={(e) => setWorkoutText(e.target.value)}
+                                placeholder="Ex: Treino A: Supino 3x10, Agachamento 4x12..."
+                                className="w-full h-40 bg-[#0f141e] text-white rounded-xl px-4 py-3.5 outline-none border border-transparent focus:border-blue-500/50 transition-all placeholder:text-slate-500 text-[15px] resize-none"
+                            />
+                        </div>
+                        <div className="flex gap-3 mt-2">
+                            <button
+                                onClick={() => setShowTextInput(false)}
+                                className="flex-1 py-3.5 rounded-xl bg-slate-800 text-white font-bold hover:bg-slate-700 transition-all active:scale-95"
+                            >
+                                Voltar
+                            </button>
+                            <button
+                                onClick={handleTextImportAsync}
+                                disabled={!workoutText.trim()}
+                                className="flex-1 py-3.5 rounded-xl bg-blue-500 text-white font-bold hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
+                            >
+                                Importar
+                            </button>
+                        </div>
                     </div>
                 ) : (
                     <>
@@ -267,6 +398,16 @@ export function CreateFichaModal({ onClose, onCreated }: CreateFichaModalProps) 
                                         Criar ficha em branco
                                     </>
                                 )}
+                            </button>
+
+                            {/* Import from Text */}
+                            <button
+                                onClick={() => setShowTextInput(true)}
+                                disabled={isSaving || !nome.trim()}
+                                className="w-full py-4 rounded-xl bg-slate-800 border border-slate-700 text-white font-bold text-[15px] flex items-center justify-center gap-2 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 group relative flex-shrink-0"
+                            >
+                                <FileText size={18} className="text-blue-400" />
+                                Importar de um Texto
                             </button>
 
                             {/* Import from Image */}

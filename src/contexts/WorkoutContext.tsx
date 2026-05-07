@@ -88,6 +88,7 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useActiveWorkout() {
   const ctx = useContext(WorkoutContext);
   if (!ctx) {

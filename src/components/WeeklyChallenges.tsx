@@ -44,7 +44,7 @@ export function WeeklyChallenges() {
           
         if (progData) {
           const map: Record<string, UserProgresso> = {};
-          progData.forEach((p: any) => map[p.desafio_id] = p);
+          progData.forEach((p: Record<string, unknown>) => map[p.desafio_id as string] = p as unknown as UserProgresso);
           setProgresso(map);
         }
       } else {
@@ -60,7 +60,7 @@ export function WeeklyChallenges() {
       }
     }
     fetchDesafios();
-  }, []);
+  }, [user?.id]);
 
   return (
     <div
@@ -73,7 +73,7 @@ export function WeeklyChallenges() {
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-white font-bold text-[18px] leading-none">Desafios da Semana</h2>
         <span className="text-[#4d9fff] text-[12px] font-bold bg-[#1a4fba]/20 px-2.5 py-1 rounded-md">
-          Ganhe <span className="text-white">fit</span><span className="text-[#4d9fff]">Points</span>
+          Ganhe <span className="text-white notranslate">fit</span><span className="text-[#4d9fff] notranslate">Points</span>
         </span>
       </div>
 
@@ -95,7 +95,7 @@ export function WeeklyChallenges() {
                         {desafio.titulo}
                      </span>
                      <span className="text-slate-500 text-[11px] font-medium leading-none mt-1">
-                        Recompensa: <span className="text-[#e2c172] font-bold">+{desafio.pontos_recompensa} <span className="text-white">fit</span><span className="text-[#4d9fff]">Points</span></span>
+                        Recompensa: <span className="text-[#e2c172] font-bold">+{desafio.pontos_recompensa} <span className="text-white notranslate">fit</span><span className="text-[#4d9fff] notranslate">Points</span></span>
                      </span>
                    </div>
                  </div>

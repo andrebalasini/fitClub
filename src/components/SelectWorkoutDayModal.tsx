@@ -1,4 +1,4 @@
-import { X, Play } from 'lucide-react';
+import { X, Play, Share2, Copy, Check } from 'lucide-react';
 
 
 export interface FichaDayWorkout {
@@ -20,11 +20,18 @@ const dayOrder: Record<string, number> = {
 
 import { useNavigate } from 'react-router-dom';
 import { useActiveWorkout } from '../contexts/WorkoutContext';
+import { useState } from 'react';
+import { supabase } from '../lib/supabase';
+import { showToast } from './Toast';
 
 export function SelectWorkoutDayModal({ fichaId, fichaNome, diasTreino, onClose }: SelectWorkoutDayModalProps) {
     const { startWorkout } = useActiveWorkout();
     const navigate = useNavigate();
     
+    const [isExporting, setIsExporting] = useState(false);
+    const [exportedText, setExportedText] = useState('');
+    const [isCopied, setIsCopied] = useState(false);
+
     // Sort days correctly based on logical week order
     const sortedDias = [...diasTreino].sort((a, b) => dayOrder[a.dia] - dayOrder[b.dia]);
 
@@ -32,6 +39,73 @@ export function SelectWorkoutDayModal({ fichaId, fichaNome, diasTreino, onClose 
         startWorkout({ fichaId, dia, grupos });
         onClose();
         navigate('/treino/executar');
+    };
+
+    const handleExport = async () => {
+        setIsExporting(true);
+        try {
+            const { data, error } = await supabase
+                .from('tbTreinos')
+                .select('dia, series, repeticoes, carga, descanso, ordem, tbExercicios (nome)')
+                .eq('ficha_id', fichaId)
+                .order('dia', { ascending: true })
+                .order('ordem', { ascending: true });
+
+            if (error) throw error;
+            if (!data || data.length === 0) {
+                showToast('Nenhum exercício encontrado nesta ficha.', 'error');
+                setIsExporting(false);
+                return;
+            }
+
+            // Group by day
+            const grouped: Record<string, any[]> = {};
+            data.forEach(item => {
+                if (!grouped[item.dia]) grouped[item.dia] = [];
+                grouped[item.dia].push(item);
+            });
+
+            // Format to text
+            let text = `Ficha: ${fichaNome}\n\n`;
+            
+            // Sort keys using the dayOrder
+            const sortedKeys = Object.keys(grouped).sort((a, b) => dayOrder[a] - dayOrder[b]);
+
+            for (const day of sortedKeys) {
+                text += `Treino ${day}:\n`;
+                grouped[day].forEach((ex) => {
+                    const nome = ex.tbExercicios?.nome || 'Exercício Desconhecido';
+                    text += `- ${nome}: ${ex.series}x${ex.repeticoes}`;
+                    if (ex.carga) text += ` (${ex.carga}kg)`;
+                    if (ex.descanso) text += ` - Descanso: ${ex.descanso}s`;
+                    text += `\n`;
+                });
+                text += `\n`;
+            }
+
+            setExportedText(text.trim());
+        } catch (error: any) {
+            console.error('Error exporting workout:', error);
+            if (error.code === 'PGRST303' || error.message === 'JWT expired') {
+                showToast('Sua sessão expirou. Por favor, atualize a página.', 'error');
+            } else {
+                showToast('Erro ao exportar o treino.', 'error');
+            }
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    const handleCopy = async () => {
+        try {
+            await navigator.clipboard.writeText(exportedText);
+            setIsCopied(true);
+            showToast('Treino copiado com sucesso!', 'success');
+            setTimeout(() => setIsCopied(false), 2000);
+        } catch (err) {
+            console.error('Failed to copy text: ', err);
+            showToast('Falha ao copiar. Tente selecionar o texto e copiar manualmente.', 'error');
+        }
     };
 
     return (
@@ -58,19 +132,55 @@ export function SelectWorkoutDayModal({ fichaId, fichaNome, diasTreino, onClose 
                 </button>
 
                 {/* Header */}
-                <div className="flex items-center gap-3 mb-6">
-                    <div className="w-10 h-10 bg-blue-500/15 rounded-xl flex flex-shrink-0 items-center justify-center text-blue-400">
-                        <Play fill="currentColor" size={20} className="ml-1" />
-                    </div>
+                <div className="flex items-center justify-between mb-6">
                     <div className="flex flex-col">
                         <h2 className="text-white font-bold text-xl leading-tight">Iniciar Treino</h2>
                         <span className="text-slate-400 text-[13px] font-medium mt-0.5 leading-tight">{fichaNome}</span>
                     </div>
+                    
+                    {!exportedText && (
+                        <button
+                            onClick={handleExport}
+                            disabled={isExporting}
+                            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-all active:scale-95 disabled:opacity-50"
+                        >
+                            <Share2 size={16} />
+                            <span className="text-sm font-bold">Compartilhe seu treino</span>
+                        </button>
+                    )}
                 </div>
 
-                {/* Days List */}
+                {/* Days List or Export View */}
                 <div className="mt-2 text-left">
-                    {sortedDias.length === 0 ? (
+                    {exportedText ? (
+                        <div className="flex flex-col gap-4 animate-[fadeIn_200ms_ease-out]">
+                            <div className="flex flex-col gap-2">
+                                <label className="text-slate-300 text-[15px] font-medium ml-1">
+                                    Texto do Treino:
+                                </label>
+                                <textarea
+                                    readOnly
+                                    value={exportedText}
+                                    className="w-full h-48 bg-[#0f141e] text-white rounded-xl px-4 py-3.5 outline-none border border-slate-700/50 text-[14px] resize-none font-mono"
+                                />
+                            </div>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setExportedText('')}
+                                    className="flex-1 py-3.5 rounded-xl bg-slate-800 text-white font-bold hover:bg-slate-700 transition-all active:scale-95"
+                                >
+                                    Voltar
+                                </button>
+                                <button
+                                    onClick={handleCopy}
+                                    className="flex-1 py-3.5 rounded-xl bg-blue-500 text-white font-bold hover:bg-blue-600 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                >
+                                    {isCopied ? <Check size={18} /> : <Copy size={18} />}
+                                    {isCopied ? 'Copiado!' : 'Copiar Texto'}
+                                </button>
+                            </div>
+                        </div>
+                    ) : sortedDias.length === 0 ? (
                         <div className="text-center py-8">
                             <p className="text-slate-400 text-sm">Esta ficha ainda não possui dias configurados para treinar.</p>
                             <p className="text-slate-500 text-xs mt-2">Clique no botão editar para incluir exercícios.</p>

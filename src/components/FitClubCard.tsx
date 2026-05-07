@@ -151,8 +151,8 @@ export function FitClubCard({
             {displayPoints.toLocaleString('pt-BR')}
           </span>
           <div className="text-[13.5px] font-bold tracking-[-0.03em] mt-0.5" style={{ fontFamily: 'ui-sans-serif, system-ui, -apple-system, sans-serif' }}>
-            <span className="text-white">fit</span>
-            <span style={{ color: accentColor }}>Points</span>
+            <span className="text-white notranslate">fit</span>
+            <span className="notranslate" style={{ color: accentColor }}>Points</span>
           </div>
         </div>
       </div>

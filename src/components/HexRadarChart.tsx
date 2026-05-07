@@ -76,11 +76,11 @@ export function HexRadarChart({ attributes, communityAttributes, size = 240 }: H
       className="overflow-visible"
     >
       {/* Background rings */}
-      {rings.map((scale, ri) => {
+      {rings.map((scale) => {
         const pts = buildPolygonPoints(cx, cy, maxR * scale, n);
         return (
           <polygon
-            key={ri}
+            key={scale}
             points={pts.map(p => `${p.x},${p.y}`).join(' ')}
             fill="none"
             stroke="rgba(255,255,255,0.07)"
@@ -92,7 +92,7 @@ export function HexRadarChart({ attributes, communityAttributes, size = 240 }: H
       {/* Axis lines */}
       {axisPoints.map((pt, i) => (
         <line
-          key={i}
+          key={attributes[i].key}
           x1={cx} y1={cy}
           x2={pt.x} y2={pt.y}
           stroke="rgba(255,255,255,0.1)"
@@ -124,7 +124,7 @@ export function HexRadarChart({ attributes, communityAttributes, size = 240 }: H
       {/* Data point dots */}
       {dataPoints.map((pt, i) => (
         <circle
-          key={i}
+          key={attributes[i].key}
           cx={pt.x}
           cy={pt.y}
           r={3.5}

@@ -8,6 +8,7 @@ import {
     BarChart2, Star, Target, Zap,
     Medal, Layers, Crown, Flame
 } from 'lucide-react';
+import { ArenaSection } from '../components/ArenaSection';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface LeaderboardEntry {
@@ -103,7 +104,7 @@ function MiniLineChart({ data, isWeightBased }: { data: HistoryPoint[]; isWeight
                     const isHov = hovered === i;
                     return (
                         <div
-                            key={i}
+                            key={d.date}
                             className="absolute w-8 h-8 -ml-4 -mt-4 flex items-center justify-center cursor-pointer z-10"
                             style={{ left: `${x}%`, top: `${y}%` }}
                             onMouseEnter={() => setHovered(i)}
@@ -151,6 +152,7 @@ function TemporadaSection() {
         async function load() {
             setLoading(true);
             try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const res = await supabase.rpc('leaderboard_temporada' as any);
                 const data = res.data;
                 const error = res.error;
@@ -391,8 +393,8 @@ function TemporadaSection() {
                                         {entry.total_pontos.toLocaleString('pt-BR')}
                                     </span>
                                     <div className="text-[12px] font-bold tracking-[-0.03em] mt-0.5" style={{ fontFamily: 'ui-sans-serif, system-ui, -apple-system, sans-serif' }}>
-                                        <span className="text-white">fit</span>
-                                        <span style={{ color: '#4d9fff' }}>Points</span>
+                                        <span className="text-white notranslate">fit</span>
+                                        <span className="notranslate" style={{ color: '#4d9fff' }}>Points</span>
                                     </div>
                                 </div>
                             </Link>
@@ -465,7 +467,7 @@ function ProgressoSection() {
             setLoadingExercises(false);
         }
         load();
-    }, []);
+    }, [myUserId]);
 
     const filteredExercises = useMemo(
         () => workoutExercises.filter(e => e.grupo === activeGroup),
@@ -506,6 +508,7 @@ function ProgressoSection() {
             setHistory(points);
         }
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: commData } = await supabase.rpc('community_exercise_stats' as any, {
             p_exercicio_id: ex.exercicio_id,
             p_user_id: myUserId,
@@ -758,115 +761,6 @@ function ProgressoSection() {
 }
 
 
-function ArenaSection() {
-    return (
-        <div className="flex flex-col gap-6 select-none">
-            {/* Header / Intro Banner */}
-            <div className="relative w-full rounded-2xl p-5 overflow-hidden border border-amber-500/30 bg-[#131b2b] shadow-lg">
-                {/* Subtle diagonal background pattern */}
-                <div
-                    className="absolute inset-0 opacity-[0.03] pointer-events-none mix-blend-overlay"
-                    style={{
-                        backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 2px, #fff 2px, #fff 4px)',
-                        backgroundSize: '8px 8px',
-                    }}
-                />
-                <div className="absolute top-0 right-0 p-4 opacity-10">
-                    <Flame size={90} className="text-amber-500" />
-                </div>
-                <div className="relative z-10 flex flex-col gap-1.5">
-                    <span className="text-amber-400 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5">
-                        <Flame size={14} /> Arena de Competição
-                    </span>
-                    <h2 className="text-white font-black text-xl tracking-tight leading-tight">
-                        Desafios e Torneios
-                    </h2>
-                    <p className="text-slate-400 text-xs font-medium leading-normal max-w-[260px] mt-0.5">
-                        Entre em disputas exclusivas, suba no ranking da Arena e fature prêmios especiais.
-                    </p>
-                </div>
-            </div>
-
-            {/* Arena Items / Cards */}
-            <div className="flex flex-col gap-3">
-                {[
-                    {
-                        id: 'desafio-dos-gigantes',
-                        title: 'Desafio dos Gigantes',
-                        subtitle: 'Maior volume total em pernas na semana',
-                        points: '+500 fitPoints',
-                        status: 'Em andamento',
-                        date: 'Termina em 3 dias',
-                        icon: <Trophy size={18} className="text-yellow-400" />,
-                        bgColor: 'bg-yellow-500/10 border-yellow-500/25',
-                        textColor: 'text-yellow-400',
-                    },
-                    {
-                        id: 'batalha-de-academias',
-                        title: 'Batalha de Academias',
-                        subtitle: 'Competição entre academias parceiras',
-                        points: '+1.000 fitPoints',
-                        status: 'Inscrições abertas',
-                        date: 'Começa em 5 dias',
-                        icon: <Users size={18} className="text-blue-400" />,
-                        bgColor: 'bg-blue-500/10 border-blue-500/25',
-                        textColor: 'text-blue-400',
-                    },
-                    {
-                        id: 'torneio-smash-fit',
-                        title: 'Torneio Smash Fit',
-                        subtitle: 'Melhor tempo na conclusão de treinos HIIT',
-                        points: '+350 fitPoints',
-                        status: 'Em breve',
-                        date: 'Início no próximo mês',
-                        icon: <Zap size={18} className="text-purple-400" />,
-                        bgColor: 'bg-purple-500/10 border-purple-500/25',
-                        textColor: 'text-purple-400',
-                    }
-                ].map(item => (
-                    <div
-                        key={item.id}
-                        className={`relative w-full rounded-2xl p-4 flex flex-col gap-3.5 select-none transition-all duration-200 overflow-hidden cursor-pointer border active:scale-[0.98] bg-[#131b2b] ${item.bgColor}`}
-                    >
-                        {/* Top line highlight */}
-                        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-
-                        <div className="flex justify-between items-start">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-[#0f141e] border border-white/5 flex items-center justify-center shrink-0">
-                                    {item.icon}
-                                </div>
-                                <div className="flex flex-col min-w-0">
-                                    <span className="font-bold text-[15px] text-white leading-tight truncate">
-                                        {item.title}
-                                    </span>
-                                    <span className="text-slate-400 text-xs font-medium truncate mt-0.5 max-w-[190px]">
-                                        {item.subtitle}
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* Badge with status */}
-                            <span className={`text-[10px] font-bold px-2 py-1 rounded-md shrink-0 uppercase tracking-wide bg-[#0f141e]/60 border border-white/5 ${item.textColor}`}>
-                                {item.status}
-                            </span>
-                        </div>
-
-                        {/* Details line */}
-                        <div className="flex items-center justify-between mt-0.5 border-t border-white/5 pt-3">
-                            <span className="text-slate-400 text-xs font-medium">
-                                {item.date}
-                            </span>
-                            <span className="text-[#e2c172] font-black text-xs">
-                                {item.points}
-                            </span>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-}
 
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
@@ -879,7 +773,7 @@ export function Premium() {
     return (
         <div className="w-full flex-1 flex flex-col font-sans bg-[#0f141e] min-h-full pb-24">
             {/* Tabs (Cockpit Style) */}
-            <div className="px-4 pt-4 mb-4 relative z-20">
+            <div className="px-4 pt-4 mb-4 relative z-10">
                 <div className="flex bg-[#0a0f18] rounded-2xl p-1.5 border border-white/5 shadow-[inset_0_2px_15px_rgba(0,0,0,0.8)] relative">
                     {([
                         { key: 'arena', label: 'Arena', icon: <Flame size={16} /> },
@@ -899,7 +793,7 @@ export function Premium() {
             </div>
 
             {/* Content */}
-            <div className="flex-1 px-4 relative z-10">
+            <div className="flex-1 px-4 relative">
                 {activeTab === 'arena' ? <ArenaSection /> : activeTab === 'temporada' ? <TemporadaSection /> : <ProgressoSection />}
             </div>
         </div>
