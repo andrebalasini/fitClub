@@ -48,6 +48,7 @@ export function TopBar({
                 src="https://fafisurbnecapdpguudb.supabase.co/storage/v1/object/public/assets/geral/logo_fitclub_500kb%20(1).png"
                 alt="fitClub Logo"
                 className="h-[34px] w-auto object-contain"
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 style={{ imageRendering: '-webkit-optimize-contrast' as any }}
             />
         </Link>

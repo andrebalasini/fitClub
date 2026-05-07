@@ -41,7 +41,7 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
       // Load fitPoints
       const { data: ptData } = await supabase.from('tbFitPoints').select('pontos').eq('user_id', uid);
       if (ptData) {
-        setFitPoints(ptData.reduce((acc: number, curr: any) => acc + curr.pontos, 0));
+        setFitPoints(ptData.reduce((acc: number, curr: { pontos?: number }) => acc + (curr.pontos || 0), 0));
       }
       
       // Load Profile
@@ -178,7 +178,7 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
     navigate('/login', { replace: true });
   };
 
-  const MenuItem = ({ icon: Icon, label, onClick }: { icon: any, label: string, onClick: () => void }) => (
+  const MenuItem = ({ icon: Icon, label, onClick }: { icon: React.ElementType, label: string, onClick: () => void }) => (
     <button
       onClick={onClick}
       className="flex items-center justify-between w-full p-4 rounded-xl hover:bg-zinc-800/60 active:bg-zinc-800 active:scale-95 transition-all group"

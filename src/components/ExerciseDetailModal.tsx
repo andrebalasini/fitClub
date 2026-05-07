@@ -16,8 +16,16 @@ interface ExerciseDetailModalProps {
     combinedExercises?: CatalogExercise[];
     selectedDay: DayKey;
     currentLength: number;
+    initialValues?: {
+        series: number;
+        repeticoes: number;
+        carga: number;
+        descanso: number;
+    };
+    isEditing?: boolean;
     onClose: () => void;
-    onAdded: (data: any) => void;
+    onAdded?: (data: Record<string, unknown>) => void;
+    onEdited?: (data: Record<string, unknown>) => void;
     onRequestCombine?: (currentExercises: CatalogExercise[]) => void;
 }
 
@@ -147,14 +155,14 @@ function getCombineLabel(count: number): string {
     return `${count}x SET`;
 }
 
-export function ExerciseDetailModal({ exercise, combinedExercises = [], selectedDay, currentLength, onClose, onAdded, onRequestCombine }: ExerciseDetailModalProps) {
+export function ExerciseDetailModal({ exercise, combinedExercises = [], selectedDay, currentLength, initialValues, isEditing, onClose, onAdded, onEdited, onRequestCombine }: ExerciseDetailModalProps) {
     const allExercises = combinedExercises.length > 0 ? combinedExercises : [exercise];
     const isCombineMode = allExercises.length > 1;
 
-    const [series, setSeries] = useState(3);
-    const [repeticoes, setRepeticoes] = useState(10);
-    const [carga, setCarga] = useState(0);
-    const [descanso, setDescanso] = useState(60);
+    const [series, setSeries] = useState(initialValues?.series ?? 3);
+    const [repeticoes, setRepeticoes] = useState(initialValues?.repeticoes ?? 10);
+    const [carga, setCarga] = useState(initialValues?.carga ?? 0);
+    const [descanso, setDescanso] = useState(initialValues?.descanso ?? 60);
 
     const [isPyramidMode, setIsPyramidMode] = useState(false);
     const [pyramidSeries, setPyramidSeries] = useState<{reps: number, kg: number}[]>([
@@ -164,6 +172,7 @@ export function ExerciseDetailModal({ exercise, combinedExercises = [], selected
     ]);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setPyramidSeries(prev => {
             if (prev.length === series) return prev;
             const newArr = [...prev];
@@ -228,21 +237,26 @@ export function ExerciseDetailModal({ exercise, combinedExercises = [], selected
         }
     };
 
-    const handleAdd = () => {
+    const handleAction = () => {
         const nome = allExercises.map(ex => ex.nome).join(' + ');
-        onAdded({
-            id: `temp_${Date.now()}_${Math.random()}`,
+        const data = {
             exercicio_id: exercise.id,
             dia: selectedDay,
             series: exercise.grupo === 'Cardio' ? 1 : series,
             repeticoes: isPyramidMode ? pyramidSeries[0].reps : repeticoes,
             carga: isPyramidMode ? pyramidSeries[0].kg : carga,
             descanso: exercise.grupo === 'Cardio' ? 0 : descanso,
-            ordem: currentLength,
             nome,
             imagem_url: exercise.imagem_url,
-            grupo: exercise.grupo
-        });
+            grupo: exercise.grupo,
+            ...(isEditing ? {} : { ordem: currentLength, id: `temp_${Date.now()}_${Math.random()}` })
+        };
+
+        if (isEditing && onEdited) {
+            onEdited(data);
+        } else if (onAdded) {
+            onAdded(data);
+        }
     };
 
     const renderExerciseInfo = (ex: CatalogExercise, compact = false) => (
@@ -404,7 +418,7 @@ export function ExerciseDetailModal({ exercise, combinedExercises = [], selected
                         {isPyramidMode && (
                             <div className="flex flex-col gap-2 mt-1 mb-1 bg-[#0f141e] rounded-xl p-3 shadow-inner shadow-black/20">
                                 {pyramidSeries.map((s, idx) => (
-                                    <div key={idx} className={`flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors ${idx % 2 === 0 ? 'bg-slate-800' : 'bg-transparent'}`}>
+                                    <div key={`pyramid-${idx}`} className={`flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors ${idx % 2 === 0 ? 'bg-slate-800' : 'bg-transparent'}`}>
                                         <span className="text-slate-300 font-bold text-[13px] uppercase tracking-wider">Série {idx + 1}</span>
                                         <div className="flex gap-3">
                                             {/* Reps */}
@@ -469,13 +483,22 @@ export function ExerciseDetailModal({ exercise, combinedExercises = [], selected
                     </div>
                 </div>
 
-                {/* Add button */}
+                {/* Add/Edit button */}
                 <button
-                    onClick={handleAdd}
+                    onClick={handleAction}
                     className="w-full mt-4 py-3.5 rounded-xl bg-[#1d70f5] text-white font-bold text-base flex items-center justify-center gap-2 hover:opacity-90 transition-all active:scale-[0.98] shadow-lg shadow-blue-500/25 flex-shrink-0"
                 >
-                    <Plus size={18} />
-                    Adicionar {DAY_PREFIX[selectedDay]} {DAY_LABELS[selectedDay]}
+                    {isEditing ? (
+                        <>
+                            <RefreshCw size={18} />
+                            Salvar Alterações
+                        </>
+                    ) : (
+                        <>
+                            <Plus size={18} />
+                            Adicionar {DAY_PREFIX[selectedDay]} {DAY_LABELS[selectedDay]}
+                        </>
+                    )}
                 </button>
             </div>
         </div>

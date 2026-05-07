@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Layers, RefreshCw, Clock, Loader2, Trash2, ChevronUp, ChevronDown, Save, Edit2, ImageIcon } from 'lucide-react';
+import { Layers, RefreshCw, Clock, Loader2, Trash2, ChevronUp, ChevronDown, Save, Edit2, ImageIcon, Search } from 'lucide-react';
 import { TopBar } from '../components/layout/TopBar';
 import { BottomNav } from '../components/layout/BottomNav';
 import { ExerciseDetailModal } from '../components/ExerciseDetailModal';
@@ -61,9 +61,11 @@ export function NewWorkout() {
     const [isSavingPage, setIsSavingPage] = useState(false);
     const [showDiscardModal, setShowDiscardModal] = useState(false);
     const [pendingNavPath, setPendingNavPath] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
 
     const [isLoadingDay, setIsLoadingDay] = useState(false);
     const [selectedExercise, setSelectedExercise] = useState<CatalogExercise | null>(null);
+    const [editingExercise, setEditingExercise] = useState<DayExercise | null>(null);
     const [combiningExercises, setCombiningExercises] = useState<CatalogExercise[]>([]);
     const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
     const [showDeleteDayModal, setShowDeleteDayModal] = useState(false);
@@ -86,50 +88,49 @@ export function NewWorkout() {
         .filter(ex => ex.dia === selectedDay && !deletedIds.has(ex.id))
         .sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
 
-    // Fetch distinct muscle groups on mount
+    const searchTrimmed = searchQuery.trim().toLowerCase();
+    const isSearching = searchTrimmed.length > 0;
+
+    const searchMatchedExercises = isSearching 
+        ? catalogExercises.filter(ex => 
+            ex.nome.toLowerCase().includes(searchTrimmed)
+        )
+        : catalogExercises;
+
+    const matchedGroups = new Set(searchMatchedExercises.map(ex => ex.grupo));
+
+    const displayedCatalogExercises = activeGroup 
+        ? searchMatchedExercises.filter(ex => ex.grupo === activeGroup)
+        : searchMatchedExercises;
+
+    // Fetch distinct muscle groups and catalog exercises on mount
     useEffect(() => {
-        async function fetchMuscleGroups() {
+        async function fetchInitialData() {
             setIsLoadingGroups(true);
-            const { data, error } = await supabase
-                .from('tbExercicios')
-                .select('grupo')
-                .not('grupo', 'is', null);
-
-            if (!error && data) {
-                const uniqueGroups = [...new Set(data.map((row) => row.grupo as string))].sort();
-                setMuscleGroups(uniqueGroups);
-                if (uniqueGroups.length > 0) {
-                    setActiveGroup(uniqueGroups[0]);
-                }
-            }
-            setIsLoadingGroups(false);
-        }
-
-        fetchMuscleGroups();
-    }, []);
-
-    // Fetch exercises when active group changes
-    useEffect(() => {
-        if (!activeGroup) return;
-
-        async function fetchExercisesByGroup() {
             setIsLoadingExercises(true);
-            const { data, error } = await supabase
+            
+            const { data: exercisesData, error } = await supabase
                 .from('tbExercicios')
                 .select('id, nome, grupo, subgrupo, imagem_url')
-                .eq('grupo', activeGroup)
                 .order('grupo', { ascending: true })
                 .order('subgrupo', { ascending: true })
                 .order('nome', { ascending: true });
 
-            if (!error && data) {
-                setCatalogExercises(data as CatalogExercise[]);
+            if (!error && exercisesData) {
+                setCatalogExercises(exercisesData as CatalogExercise[]);
+                
+                const uniqueGroups = [...new Set((exercisesData as CatalogExercise[]).map((row) => row.grupo).filter(Boolean))].sort();
+                setMuscleGroups(uniqueGroups as string[]);
+                if (uniqueGroups.length > 0) {
+                    setActiveGroup(uniqueGroups[0] as string);
+                }
             }
+            setIsLoadingGroups(false);
             setIsLoadingExercises(false);
         }
 
-        fetchExercisesByGroup();
-    }, [activeGroup]);
+        fetchInitialData();
+    }, []);
 
     // Fetch ALL exercises for the ficha
     const fetchAllExercises = useCallback(async () => {
@@ -193,6 +194,28 @@ export function NewWorkout() {
         setDeleteTargetId(id);
     };
 
+    const handleEditClick = (exercise: DayExercise) => {
+        setEditingExercise(exercise);
+    };
+
+    const handleExerciseEdited = (editedData: Record<string, unknown>) => {
+        if (!editingExercise) return;
+        setAllExercises(prev => prev.map(ex => {
+            if (ex.id === editingExercise.id) {
+                return {
+                    ...ex,
+                    series: editedData.series as number,
+                    repeticoes: editedData.repeticoes as number,
+                    carga: editedData.carga as number,
+                    descanso: editedData.descanso as number,
+                };
+            }
+            return ex;
+        }));
+        setHasUnsavedChanges(true);
+        setEditingExercise(null);
+    };
+
     const confirmDeleteExercise = () => {
         if (!deleteTargetId) return;
         
@@ -234,8 +257,8 @@ export function NewWorkout() {
         }
     };
 
-    const handleExerciseAdded = (newEx: any) => {
-        setAllExercises(prev => [...prev, newEx]);
+    const handleExerciseAdded = (newEx: Record<string, unknown>) => {
+        setAllExercises(prev => [...prev, newEx as unknown as DayExercise]);
         setHasUnsavedChanges(true);
         setSelectedExercise(null);
         setCombiningExercises([]);
@@ -326,10 +349,10 @@ export function NewWorkout() {
 
             await new Promise(r => setTimeout(r, 600));
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
             console.error('API/Image Error:', error);
-            const msg = error.message || "Falha ao importar treino. Verifique console para detalhes.";
+            const msg = error instanceof Error ? error.message : "Falha ao importar treino. Verifique console para detalhes.";
             showToast(msg, 'error');
         } finally {
             if (fileInputRef.current) fileInputRef.current.value = '';
@@ -484,19 +507,22 @@ export function NewWorkout() {
                             <span>Carregando grupos...</span>
                         </div>
                     ) : (
-                        muscleGroups.map((group) => (
-                            <button
-                                key={group}
-                                onClick={() => setActiveGroup(group)}
-                                className={`whitespace-nowrap rounded-full px-4 py-1.5 text-[14px] transition-all active:scale-95 ${
-                                    activeGroup === group 
-                                        ? 'bg-[#185cf2] text-white font-bold' 
-                                        : 'bg-[#212b3b] text-[#8e95a3] font-normal'
-                                }`}
-                            >
-                                {group}
-                            </button>
-                        ))
+                        muscleGroups.map((group) => {
+                            const isActive = activeGroup === group || (isSearching && !activeGroup && matchedGroups.has(group));
+                            return (
+                                <button
+                                    key={group}
+                                    onClick={() => setActiveGroup(group)}
+                                    className={`whitespace-nowrap rounded-full px-4 py-1.5 text-[14px] transition-all active:scale-95 ${
+                                        isActive 
+                                            ? 'bg-[#185cf2] text-white font-bold' 
+                                            : 'bg-[#212b3b] text-[#8e95a3] font-normal'
+                                    }`}
+                                >
+                                    {group}
+                                </button>
+                            );
+                        })
                     )}
                 </div>
 
@@ -518,6 +544,30 @@ export function NewWorkout() {
                     </div>
                 )}
 
+                {/* Search Bar */}
+                <div className="mt-3 px-1">
+                    <div className="relative">
+                        <input
+                            type="text"
+                            placeholder="Buscar exercício..."
+                            value={searchQuery}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                setSearchQuery(val);
+                                if (val.trim().length > 0) {
+                                    setActiveGroup(null);
+                                } else {
+                                    if (!activeGroup && muscleGroups.length > 0) {
+                                        setActiveGroup(muscleGroups[0]);
+                                    }
+                                }
+                            }}
+                            className="w-full bg-[#1a2333] border-none rounded-xl text-white text-[15px] px-4 py-2.5 pl-10 focus:outline-none transition-colors placeholder:text-slate-500"
+                        />
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                    </div>
+                </div>
+
                 {/* Exercises Catalog Row */}
                 <div ref={catalogScrollRef} className="flex overflow-x-auto gap-4 mt-3 pb-2 scrollbar-none min-h-[160px]">
                     {isLoadingExercises ? (
@@ -525,8 +575,8 @@ export function NewWorkout() {
                             <Loader2 size={18} className="animate-spin" />
                             <span>Carregando exercícios...</span>
                         </div>
-                    ) : catalogExercises.length > 0 ? (
-                        catalogExercises.map((exercise) => (
+                    ) : displayedCatalogExercises.length > 0 ? (
+                        displayedCatalogExercises.map((exercise) => (
                             <div
                                 key={exercise.id}
                                 onClick={() => handleExerciseClick(exercise)}
@@ -542,15 +592,14 @@ export function NewWorkout() {
                                         }}
                                     />
                                 </div>
-                                <span className="text-white text-sm text-center leading-tight">{exercise.nome}</span>
-                                {exercise.subgrupo && (
-                                    <span className="text-slate-500 text-xs text-center mt-0.5">{exercise.subgrupo}</span>
-                                )}
+                                <span className="text-white text-sm text-center leading-tight line-clamp-2 px-1 w-full">{exercise.nome}</span>
                             </div>
                         ))
                     ) : (
-                        <div className="flex items-center justify-center w-full text-slate-500 text-sm">
-                            Nenhum exercício encontrado para este grupo
+                        <div className="flex items-center justify-center w-full text-slate-500 text-sm px-4 text-center">
+                            {isSearching 
+                                ? `Não foram encontrados exercícios com "${searchQuery}"${activeGroup ? ` no grupo ${activeGroup}` : ''}`
+                                : "Nenhum exercício encontrado"}
                         </div>
                     )}
                 </div>
@@ -652,80 +701,90 @@ export function NewWorkout() {
                                             <AnimatePresence>
                                                 {dayExercises.map((exercise, index) => (
                                                     <motion.div 
-                                                        key={`${exercise.id}-${index}`}
+                                                        key={exercise.id}
                                                         layout
                                                         initial={{ opacity: 0, y: 10 }}
                                                         animate={{ opacity: 1, y: 0 }}
                                                         exit={{ opacity: 0, scale: 0.95 }}
                                                         transition={{ type: "spring", stiffness: 350, damping: 25 }}
-                                                        className="bg-[#0f141e] rounded-xl flex overflow-hidden shadow-md shadow-black/30 relative"
+                                                        className="bg-[#0f141e] rounded-xl flex overflow-hidden shadow-md shadow-black/30 relative items-center"
                                                     >
-                                                        {/* Actions vertical container */}
-                                                        <div className="absolute right-0 top-0 bottom-0 py-2 w-16 flex flex-col justify-between items-center z-10 border-l border-white/5 bg-[#0f141e]/50 backdrop-blur-sm">
+                                                        {/* Actions right container */}
+                                                        <div className="absolute right-0 top-0 bottom-0 py-2 w-16 flex flex-col justify-center gap-4 items-center z-10 border-l border-white/5 bg-[#0f141e]/50 backdrop-blur-sm">
+                                                            <button
+                                                                onClick={() => handleEditClick(exercise)}
+                                                                className="w-10 h-10 rounded-full bg-slate-700/50 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-600 transition-all active:scale-90"
+                                                            >
+                                                                <Edit2 size={18} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDeleteClick(exercise.id)}
+                                                                className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 hover:bg-red-500/20 transition-all active:scale-90"
+                                                            >
+                                                                <Trash2 size={18} />
+                                                            </button>
+                                                        </div>
+
+                                                        {/* Image section */}
+                                                        <div className="w-[100px] h-[100px] bg-white m-3 rounded-lg flex items-center justify-center p-1 flex-shrink-0 self-center">
+                                                            <img 
+                                                                src={exercise.imagem_url || DEFAULT_EXERCISE_IMAGE} 
+                                                                alt={exercise.nome} 
+                                                                className="w-full h-full object-cover rounded-md"
+                                                                onError={(e) => {
+                                                                    (e.target as HTMLImageElement).src = DEFAULT_EXERCISE_IMAGE;
+                                                                }}
+                                                            />
+                                                        </div>
+                                                        
+                                                        {/* Details section with arrows */}
+                                                        <div className="py-2 pr-[72px] flex-1 min-w-0 flex flex-col justify-center items-start">
                                                             <button 
                                                                 onClick={() => handleMoveExercise(index, -1)} 
                                                                 disabled={index === 0}
-                                            className="text-slate-400 p-1 hover:text-white transition-colors disabled:opacity-30 disabled:hover:text-slate-400 active:scale-95"
-                                        >
-                                            <ChevronUp size={22} />
-                                        </button>
-                                        <button
-                                            onClick={() => handleDeleteClick(exercise.id)}
-                                            className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 hover:bg-red-500/20 transition-all active:scale-90"
-                                        >
-                                            <Trash2 size={18} />
-                                        </button>
-                                        <button 
-                                            onClick={() => handleMoveExercise(index, 1)} 
-                                            disabled={index === dayExercises.length - 1}
-                                            className="text-slate-400 p-1 hover:text-white transition-colors disabled:opacity-30 disabled:hover:text-slate-400 active:scale-95"
-                                        >
-                                            <ChevronDown size={22} />
-                                        </button>
-                                    </div>
+                                                                className="text-slate-500 hover:text-white transition-colors disabled:opacity-30 disabled:hover:text-slate-400 active:scale-95 pb-1 w-full flex justify-center"
+                                                            >
+                                                                <ChevronUp size={22} />
+                                                            </button>
 
-                                    {/* Image section */}
-                                    <div className="w-[100px] h-[100px] bg-white m-3 rounded-lg flex items-center justify-center p-1 flex-shrink-0">
-                                        <img 
-                                            src={exercise.imagem_url || DEFAULT_EXERCISE_IMAGE} 
-                                            alt={exercise.nome} 
-                                            className="w-full h-full object-cover rounded-md"
-                                            onError={(e) => {
-                                                (e.target as HTMLImageElement).src = DEFAULT_EXERCISE_IMAGE;
-                                            }}
-                                        />
-                                    </div>
-                                    
-                                    {/* Details section */}
-                                    <div className="pt-4 pr-[72px] pb-4 flex-1 min-w-0 flex flex-col justify-center overflow-hidden">
-                                        <h3 className="text-white font-bold text-base mb-2 truncate">{exercise.nome}</h3>
-                                        
-                                        <div className="grid grid-cols-2 gap-y-1.5 gap-x-3 max-w-[210px]">
-                                            {exercise.grupo !== 'Cardio' && (
-                                            <div className="flex items-center text-blue-400 gap-1.5">
-                                                <Layers size={14} className="flex-shrink-0" />
-                                                <span className="text-xs font-bold text-white whitespace-nowrap">{exercise.series} séries</span>
-                                            </div>
-                                            )}
-                                            <div className="flex items-center text-blue-400 gap-1.5">
-                                                {exercise.grupo === 'Cardio' ? <Clock size={14} className="flex-shrink-0" /> : <RefreshCw size={14} className="flex-shrink-0" />}
-                                                <span className="text-xs font-bold text-white whitespace-nowrap">{exercise.repeticoes} {exercise.grupo === 'Cardio' ? "min" : "reps"}</span>
-                                            </div>
-                                            {exercise.grupo !== 'Cardio' && (
-                                            <div className="flex items-center text-blue-400 gap-1.5">
-                                                <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 flex-shrink-0 text-blue-400"><path d="M20.57 14.86L22 13.43 20.57 12 17 15.57 8.43 7 12 3.43 10.57 2 9.14 3.43 7.71 2 5.57 4.14 4.14 2.71 2.71 4.14l1.43 1.43L2 7.71l1.43 1.43L2 10.57 3.43 12 7 8.43 15.57 17 12 20.57 13.43 22l1.43-1.43L16.29 22l2.14-2.14 1.43 1.43 1.43-1.43-1.43-1.43L22 16.29z" /></svg>
-                                                <span className="text-xs font-bold text-white whitespace-nowrap">{exercise.carga} kg</span>
-                                            </div>
-                                            )}
-                                            {exercise.grupo !== 'Cardio' && (
-                                            <div className="flex items-center text-blue-400 gap-1.5">
-                                                <Clock size={14} className="flex-shrink-0" />
-                                                <span className="text-xs font-bold text-white whitespace-nowrap">{exercise.descanso} seg</span>
-                                            </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </motion.div>
+                                                            <div className="w-full">
+                                                                <h3 className="text-white font-bold text-base mb-1.5 truncate">{exercise.nome}</h3>
+                                                                
+                                                                <div className="grid grid-cols-2 gap-y-1.5 gap-x-3 w-full max-w-[210px] place-items-start">
+                                                                    {exercise.grupo !== 'Cardio' && (
+                                                                    <div className="flex items-center text-blue-400 gap-1.5">
+                                                                        <Layers size={14} className="flex-shrink-0" />
+                                                                        <span className="text-xs font-bold text-white whitespace-nowrap">{exercise.series} séries</span>
+                                                                    </div>
+                                                                    )}
+                                                                    <div className="flex items-center text-blue-400 gap-1.5">
+                                                                        {exercise.grupo === 'Cardio' ? <Clock size={14} className="flex-shrink-0" /> : <RefreshCw size={14} className="flex-shrink-0" />}
+                                                                        <span className="text-xs font-bold text-white whitespace-nowrap">{exercise.repeticoes} {exercise.grupo === 'Cardio' ? "min" : "reps"}</span>
+                                                                    </div>
+                                                                    {exercise.grupo !== 'Cardio' && (
+                                                                    <div className="flex items-center text-blue-400 gap-1.5">
+                                                                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 flex-shrink-0 text-blue-400"><path d="M20.57 14.86L22 13.43 20.57 12 17 15.57 8.43 7 12 3.43 10.57 2 9.14 3.43 7.71 2 5.57 4.14 4.14 2.71 2.71 4.14l1.43 1.43L2 7.71l1.43 1.43L2 10.57 3.43 12 7 8.43 15.57 17 12 20.57 13.43 22l1.43-1.43L16.29 22l2.14-2.14 1.43 1.43 1.43-1.43-1.43-1.43L22 16.29z" /></svg>
+                                                                        <span className="text-xs font-bold text-white whitespace-nowrap">{exercise.carga} kg</span>
+                                                                    </div>
+                                                                    )}
+                                                                    {exercise.grupo !== 'Cardio' && (
+                                                                    <div className="flex items-center text-blue-400 gap-1.5">
+                                                                        <Clock size={14} className="flex-shrink-0" />
+                                                                        <span className="text-xs font-bold text-white whitespace-nowrap">{exercise.descanso} seg</span>
+                                                                    </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+
+                                                            <button 
+                                                                onClick={() => handleMoveExercise(index, 1)} 
+                                                                disabled={index === dayExercises.length - 1}
+                                                                className="text-slate-500 hover:text-white transition-colors disabled:opacity-30 disabled:hover:text-slate-400 active:scale-95 pt-1 w-full flex justify-center"
+                                                            >
+                                                                <ChevronDown size={22} />
+                                                            </button>
+                                                        </div>
+                                                    </motion.div>
                             ))}
                                             </AnimatePresence>
                                         </div>
@@ -797,6 +856,30 @@ export function NewWorkout() {
                     onClose={() => { setSelectedExercise(null); setCombiningExercises([]); }}
                     onAdded={handleExerciseAdded}
                     onRequestCombine={handleRequestCombine}
+                />
+            )}
+
+            {/* Edit Exercise Detail Modal */}
+            {editingExercise && (
+                <ExerciseDetailModal
+                    exercise={{
+                        id: editingExercise.exercicio_id,
+                        nome: editingExercise.nome,
+                        grupo: editingExercise.grupo || '',
+                        subgrupo: null,
+                        imagem_url: editingExercise.imagem_url
+                    }}
+                    selectedDay={selectedDay}
+                    currentLength={dayExercises.length}
+                    initialValues={{
+                        series: editingExercise.series,
+                        repeticoes: editingExercise.repeticoes,
+                        carga: editingExercise.carga,
+                        descanso: editingExercise.descanso
+                    }}
+                    isEditing={true}
+                    onClose={() => setEditingExercise(null)}
+                    onEdited={handleExerciseEdited}
                 />
             )}
             {deleteTargetId && (

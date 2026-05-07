@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Download, ImagePlus, Loader2, Camera, AlertTriangle } from 'lucide-react';
+import { Download, ImagePlus, Loader2, AlertTriangle } from 'lucide-react';
 import { showToast } from './Toast';
 import { TopBar } from './layout/TopBar';
 import { BottomNav } from './layout/BottomNav';
@@ -15,6 +15,7 @@ interface FitCheckCameraProps {
     totalVolumeKg: number;
     onClose: () => void;
     onShare: () => void;
+    initialImageSrc?: string;
 }
 
 const FITCHECK_BONUS = 50;
@@ -44,14 +45,14 @@ function formatVolume(kg: number): string {
 function loadCanvasImage(url: string, timeoutMs = 3000): Promise<HTMLImageElement> {
     return new Promise((resolve, reject) => {
         const img = new Image();
-        let timeoutId: ReturnType<typeof setTimeout>;
+
 
         const handleLoad = () => {
             clearTimeout(timeoutId);
             resolve(img);
         };
 
-        const handleError = (e: any) => {
+        const handleError = (e: unknown) => {
             clearTimeout(timeoutId);
             reject(e);
         };
@@ -60,7 +61,7 @@ function loadCanvasImage(url: string, timeoutMs = 3000): Promise<HTMLImageElemen
         img.onload = handleLoad;
         img.onerror = handleError;
 
-        timeoutId = setTimeout(() => {
+        const timeoutId = setTimeout(() => {
             img.onload = null;
             img.onerror = null;
             reject(new Error("Image load timeout"));
@@ -265,7 +266,7 @@ async function drawSignatureOnCanvas(
         const logoY = bottomCY - logoH / 2;
         
         ctx.drawImage(logoImg, logoX, logoY, logoW, logoH);
-    } catch (e) {
+    } catch {
         // Fallback if logo fails
         ctx.font = `800 ${bottomFontSize}px 'Inter', sans-serif`;
         ctx.fillStyle = '#ffffff';
@@ -284,8 +285,9 @@ export function FitCheckCamera({
     totalVolumeKg,
     onClose,
     onShare,
+    initialImageSrc,
 }: FitCheckCameraProps) {
-    const [selectedImage, setSelectedImage] = useState<string | null>(null);
+    const [selectedImage, setSelectedImage] = useState<string | null>(initialImageSrc || null);
     const [processedImage, setProcessedImage] = useState<string | null>(null);
     const [position, setPosition] = useState<SignaturePosition>('bottom-right');
     const [isProcessing, setIsProcessing] = useState(false);
@@ -309,15 +311,29 @@ export function FitCheckCamera({
         const img = new Image();
         img.onload = async () => {
             try {
-                canvas.width  = img.naturalWidth;
-                canvas.height = img.naturalHeight;
+                const MAX_DIMENSION = 1920;
+                let width = img.naturalWidth;
+                let height = img.naturalHeight;
+
+                if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+                    if (width > height) {
+                        height = Math.round((height * MAX_DIMENSION) / width);
+                        width = MAX_DIMENSION;
+                    } else {
+                        width = Math.round((width * MAX_DIMENSION) / height);
+                        height = MAX_DIMENSION;
+                    }
+                }
+
+                canvas.width  = width;
+                canvas.height = height;
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(img, 0, 0);
+                ctx.drawImage(img, 0, 0, width, height);
                 await drawSignatureOnCanvas(
                     canvas, ctx, pos,
                     workoutDivision, elapsedSeconds, totalVolumeKg, totalFitPoints
                 );
-                setProcessedImage(canvas.toDataURL('image/jpeg', 0.93));
+                setProcessedImage(canvas.toDataURL('image/jpeg', 0.85));
             } catch (err) {
                 console.error("FitCheck Camera Error:", err);
                 // Fallback to original image if signature fails to render or export
@@ -330,6 +346,14 @@ export function FitCheckCamera({
         };
         img.src = imageSrc;
     }, [workoutDivision, elapsedSeconds, totalVolumeKg, totalFitPoints]);
+
+    // Initial render if initialImageSrc is passed
+    useEffect(() => {
+        if (initialImageSrc) {
+            renderPreview(initialImageSrc, 'bottom-right');
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [initialImageSrc]);
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -403,57 +427,8 @@ export function FitCheckCamera({
 
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto w-full">
-
-            {!selectedImage ? (
-                /* ── Step 1: No image selected yet ── */
-                <div className="min-h-full flex flex-col items-center justify-center px-6 gap-6 py-[40px] pb-[120px]">
-                    <div className="w-20 h-20 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
-                        <Camera size={40} className="text-blue-400" />
-                    </div>
-
-                    <div className="text-center max-w-xs">
-                        <h2 className="text-white font-bold text-2xl mb-3 leading-tight">
-                            Ganhe mais <span className="text-white">fit</span><span className="text-[#4d9fff]">Points</span>!
-                        </h2>
-                        <p className="text-slate-400 text-[15px] leading-relaxed">
-                            Compartilhe sua conquista nas redes sociais e ganhe{' '}
-                            <span className="font-bold"><span className="text-[#e2c172]">+{FITCHECK_BONUS} </span><span className="text-white">fit</span><span className="text-[#4d9fff]">Points</span></span>{' '}
-                            extras pelo FitCheck do dia.
-                        </p>
-                    </div>
-
-                    {/* FitPoints breakdown */}
-                    <div 
-                        className="w-full max-w-xs bg-[#151c2c] rounded-2xl p-4 flex flex-col gap-2"
-                        style={{ WebkitFontSmoothing: 'antialiased', textRendering: 'optimizeLegibility' }}
-                    >
-                        <div className="flex items-center justify-between">
-                            <span className="text-slate-400 text-sm">Treino concluído</span>
-                            <span className="text-xs font-bold"><span className="text-[#e2c172]">+{fitPoints} </span><span className="text-white">fit</span><span className="text-[#4d9fff]">Points</span></span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-slate-400 text-sm">FitCheck</span>
-                            <span className="text-xs font-bold"><span className="text-[#e2c172]">+{FITCHECK_BONUS} </span><span className="text-white">fit</span><span className="text-[#4d9fff]">Points</span></span>
-                        </div>
-                        <div className="h-px bg-white/5 my-1" />
-                        <div className="flex items-center justify-between">
-                            <span className="text-white font-bold text-sm">Total</span>
-                            <span className="font-black text-base"><span className="text-[#e2c172]">+{totalFitPoints} </span><span className="text-white">fit</span><span className="text-[#4d9fff]">Points</span></span>
-                        </div>
-                    </div>
-
-                    {/* CTA button */}
-                    <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="w-full max-w-xs py-4 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold text-base flex items-center justify-center gap-3 transition-all active:scale-95 shadow-lg shadow-blue-500/30"
-                    >
-                        <ImagePlus size={22} />
-                        Selecione uma imagem do seu treino
-                    </button>
-                </div>
-            ) : (
-                /* ── Step 2: Image selected — show preview + position picker ── */
                 <div className="min-h-full flex flex-col gap-5 px-5 pt-4 pb-[120px]">
+                    {/* ── Image selected — show preview + position picker ── */}
 
                     {/* Preview */}
                     <div className="relative w-full rounded-2xl overflow-hidden bg-black shadow-2xl" style={{ maxHeight: '55vh' }}>
@@ -520,7 +495,6 @@ export function FitCheckCamera({
                         </button>
                     </div>
                 </div>
-            )}
             </div>
 
             {/* Exit confirmation modal */}

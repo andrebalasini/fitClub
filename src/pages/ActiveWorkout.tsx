@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { TopBar } from '../components/layout/TopBar';
 import { BottomNav } from '../components/layout/BottomNav';
 import { supabase } from '../lib/supabase';
-import { CheckCircle, Clock, Loader2, Layers, RefreshCw, Info, Zap, TrendingUp, AlertTriangle, SkipForward, MessageCircle, Camera, Award, Play, Pause, Square } from 'lucide-react';
+import { CheckCircle, Clock, Loader2, Layers, RefreshCw, Info, Zap, TrendingUp, AlertTriangle, SkipForward, MessageCircle, Award, Play, Pause, Square, Edit2 } from 'lucide-react';
 import { useDragScroll } from '../hooks/useDragScroll';
 import { LogSetModal } from '../components/LogSetModal';
 import { getCurrentUserId } from '../lib/auth';
@@ -13,6 +13,7 @@ import { useActiveWorkout } from '../contexts/WorkoutContext';
 
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { FitCheckCamera } from '../components/FitCheckCamera';
+import confetti from 'canvas-confetti';
 
 const DEFAULT_EXERCISE_IMAGE = 'https://fafisurbnecapdpguudb.supabase.co/storage/v1/object/public/assets/geral/exercise_default_min.png';
 
@@ -169,6 +170,7 @@ const PerformanceChart = ({
             p += ` C ${p0x + (p1x - p0x) / 2} ${p0y}, ${p0x + (p1x - p0x) / 2} ${p1y}, ${p1x} ${p1y}`;
         }
         return p;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [filteredData, isWeightBased, chartMax]);
 
     const prY = getYPct(bestValOverall);
@@ -254,7 +256,7 @@ const PerformanceChart = ({
         
                                return (
                                    <div 
-                                       key={i} 
+                                       key={d.date} 
                                        className="absolute w-8 h-8 -ml-4 -mt-4 flex items-center justify-center cursor-pointer group z-10"
                                        style={{ left: `${x}%`, top: `${y}%` }}
                                        onMouseEnter={() => setHovered(i)}
@@ -506,6 +508,41 @@ function ActiveWorkoutContent() {
     const [showFitCheckCamera, setShowFitCheckCamera] = useState(false);
     const [earnedFitPoints, setEarnedFitPoints] = useState(0);
     const [sessionVolumeKg, setSessionVolumeKg] = useState(0);
+    const [fitCheckInitialImage, setFitCheckInitialImage] = useState<string | null>(null);
+    const fitCheckFileInputRef = useRef<HTMLInputElement>(null);
+
+    const [editingSet, setEditingSet] = useState<{
+        id: string;
+        weight: number;
+        reps: number;
+        setNumber: number;
+        exerciseName: string;
+        exerciseGroup: string;
+        exerciseImage?: string;
+        totalSets: number;
+    } | null>(null);
+
+    useEffect(() => {
+        if (showWorkoutCompletedModal) {
+            const duration = 3000;
+            const animationEnd = Date.now() + duration;
+            const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 10000 };
+
+            const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
+
+            const interval: any = setInterval(function() {
+                const timeLeft = animationEnd - Date.now();
+
+                if (timeLeft <= 0) {
+                    return clearInterval(interval);
+                }
+
+                const particleCount = 50 * (timeLeft / duration);
+                confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } }));
+                confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } }));
+            }, 250);
+        }
+    }, [showWorkoutCompletedModal]);
 
     const [cardioState, setCardioState] = useState<'idle' | 'running' | 'paused'>(() => {
         return (localStorage.getItem('@fw:cardioState') as 'idle' | 'running' | 'paused') || 'idle';
@@ -586,7 +623,6 @@ function ActiveWorkoutContent() {
         setCardioState('idle');
         setCardioEndTime(null);
         setCardioRemainingDuration(0);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentIndex]);
 
     useEffect(() => {
@@ -632,7 +668,7 @@ function ActiveWorkoutContent() {
                     ordem: row.ordem,
                     grupo: row.tbExercicios?.grupo
                 }));
-                setExercises(mapped);
+                setExercises(mapped as any);
 
                 const expIds = mapped.map((m: any) => m.exercicio_id);
                 if (expIds.length > 0) {
@@ -680,7 +716,7 @@ function ActiveWorkoutContent() {
         setFocusedIndex(index);
         container.scrollTo({ left: scrollOffset, behavior: 'smooth' });
         setTimeout(() => { isScrollingProgrammatically.current = false; }, 500);
-    }, []);
+    }, [carouselRef]);
 
     const initialScrollDone = useRef(false);
     useEffect(() => {
@@ -691,6 +727,22 @@ function ActiveWorkoutContent() {
             }, 100);
         }
     }, [isLoading, exercises.length, scrollToCard, focusedIndex]);
+
+    const handleEditSessionRecord = (recordId: string, currentWeight: number, currentReps: number, _isCardio: boolean, setNumber: number) => {
+        const currentEx = exercises[focusedIndex] as any;
+        if (!currentEx) return;
+
+        setEditingSet({
+            id: recordId,
+            weight: currentWeight,
+            reps: currentReps,
+            setNumber: setNumber,
+            exerciseName: currentEx.nome || "Exercício",
+            exerciseGroup: currentEx.grupo || "Musculação",
+            exerciseImage: currentEx.imagem_url || undefined,
+            totalSets: currentEx.series || 1
+        });
+    };
 
     const handleSaveSetLog = async (reps: number, weight: number, feedback: string) => {
         const currentExercise = exercises[currentIndex];
@@ -836,19 +888,40 @@ function ActiveWorkoutContent() {
 
     const handleSavePartialWorkout = async () => {
         setIsSavingExit(true);
-        const points = 50;
+        let points = 50;
         try {
+            const uid = getCurrentUserId();
+            
+            // Verifica se já treinou hoje
+            const { data: lastWorkout } = await supabase
+                .from('tbTreinosCompletos')
+                .select('concluido_em')
+                .eq('user_id', uid)
+                .order('concluido_em', { ascending: false })
+                .limit(1);
+
+            if (lastWorkout && lastWorkout.length > 0) {
+                const lastDate = new Date(lastWorkout[0].concluido_em).toDateString();
+                const today = new Date().toDateString();
+                if (lastDate === today) {
+                    points = 0; // Ganha pontos apenas no primeiro treino do dia
+                }
+            }
+
             await supabase.from('tbTreinosCompletos').insert({
-                user_id: getCurrentUserId(),
+                user_id: uid,
                 ficha_id: fichaId,
                 dia: dia,
                 duracao_segundos: elapsedSeconds
             });
-            await supabase.from('tbFitPoints').insert({
-                user_id: getCurrentUserId(),
-                pontos: points,
-                motivo: 'treino_parcial'
-            });
+            
+            if (points > 0) {
+                await supabase.from('tbFitPoints').insert({
+                    user_id: uid,
+                    pontos: points,
+                    motivo: 'treino_parcial'
+                });
+            }
         } catch (err) {
             console.error('Erro ao registrar treino parcial:', err);
         }
@@ -882,19 +955,40 @@ function ActiveWorkoutContent() {
         setCardioEndTime(null);
         setCardioRemainingDuration(0);
 
-        const points = 100;
+        let points = 100;
         try {
+            const uid = getCurrentUserId();
+            
+            // Verifica se já treinou hoje
+            const { data: lastWorkout } = await supabase
+                .from('tbTreinosCompletos')
+                .select('concluido_em')
+                .eq('user_id', uid)
+                .order('concluido_em', { ascending: false })
+                .limit(1);
+
+            if (lastWorkout && lastWorkout.length > 0) {
+                const lastDate = new Date(lastWorkout[0].concluido_em).toDateString();
+                const today = new Date().toDateString();
+                if (lastDate === today) {
+                    points = 0; // Ganha pontos apenas no primeiro treino do dia
+                }
+            }
+
             await supabase.from('tbTreinosCompletos').insert({
-                user_id: getCurrentUserId(),
+                user_id: uid,
                 ficha_id: fichaId,
                 dia: dia,
                 duracao_segundos: elapsedSeconds
             });
-            await supabase.from('tbFitPoints').insert({
-                user_id: getCurrentUserId(),
-                pontos: points,
-                motivo: 'treino_concluido'
-            });
+            
+            if (points > 0) {
+                await supabase.from('tbFitPoints').insert({
+                    user_id: uid,
+                    pontos: points,
+                    motivo: 'treino_concluido'
+                });
+            }
         } catch (err) {
             console.error('Erro ao registrar conclusão:', err);
         }
@@ -914,9 +1008,21 @@ function ActiveWorkoutContent() {
         navigate('/treino', { replace: true });
     };
 
-    const handleOpenFitCheck = () => {
-        setShowWorkoutCompletedModal(false);
-        setShowFitCheckCamera(true);
+    const handleOpenFitCheckFilePicker = () => {
+        fitCheckFileInputRef.current?.click();
+    };
+
+    const handleFitCheckFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const src = ev.target?.result as string;
+            setFitCheckInitialImage(src);
+            setShowWorkoutCompletedModal(false);
+            setShowFitCheckCamera(true);
+        };
+        reader.readAsDataURL(file);
     };
 
     const handleFitCheckShare = async () => {
@@ -934,7 +1040,7 @@ function ActiveWorkoutContent() {
         handleCloseWorkoutCompleted();
     };
 
-    const handleNextExercise = () => {
+    const handleNextExercise = useCallback(() => {
         const currentExercise = exercises[currentIndex];
         
         // Se ainda tem séries no exercício atual, apenas incrementa a série
@@ -964,7 +1070,8 @@ function ActiveWorkoutContent() {
                 }
             }
         }
-    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [exercises, currentIndex, currentSetIndex, completedIndices]);
 
     const handleSkipExercise = () => {
         // Só finaliza se todos os outros exercícios também estiverem concluídos
@@ -1002,6 +1109,7 @@ function ActiveWorkoutContent() {
 
     const playAlarmSound = useCallback(() => {
         try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
             if (!AudioContext) return;
             const ctx = new AudioContext();
@@ -1116,7 +1224,7 @@ function ActiveWorkoutContent() {
             }
         });
         setFocusedIndex(closestIndex);
-    }, []);
+    }, [carouselRef]);
 
 
 
@@ -1245,11 +1353,12 @@ function ActiveWorkoutContent() {
                     <div className={`flex flex-col gap-4 ${isLoading || exercises.length === 0 ? 'hidden' : 'flex-1'}`}>
 
                         {/* Carrossel de Exercícios */}
-                        <div
-                            ref={carouselRef}
-                            className="flex gap-4 -mx-4 px-[7.5vw] sm:px-[calc(50%-190px)] pb-8 h-full scrollbar-none overflow-x-auto snap-x"
-                            onScroll={handleCarouselScroll}
-                        >
+                        <div className="notranslate" translate="no">
+                            <div
+                                ref={carouselRef}
+                                className="flex gap-4 -mx-4 px-[7.5vw] sm:px-[calc(50%-190px)] pb-8 h-full scrollbar-none overflow-x-auto snap-x"
+                                onScroll={handleCarouselScroll}
+                            >
                                 {exercises.map((exercise, idx) => (
                                     <div
                                         key={exercise.id}
@@ -1517,12 +1626,58 @@ function ActiveWorkoutContent() {
                                     </div>
                                 ))}
                             </div>
+                        </div>
 
                             {/* Nova seção de histórico abaixo do card */}
                             {exercises.length > 0 && exercises[focusedIndex] && (
                                 <div className="-mt-8 flex flex-col w-full gap-4 pb-8">
                                     <h2 className="text-[#f8fafc] font-bold text-[24px] px-1 tracking-[-0.5px]">Sua performance neste exercício</h2>
                                     
+                                    {/* Séries Registradas Hoje */}
+                                    {(() => {
+                                        const currentEx = exercises[focusedIndex];
+                                        if (!currentEx) return null;
+                                        const currentExHistory = exerciseHistory
+                                            .filter(h => h.exercicio_id === currentEx.exercicio_id && sessionHistoryIds.includes(h.id))
+                                            .sort((a, b) => a.serie_atual - b.serie_atual);
+                                        
+                                        if (currentExHistory.length === 0) return null;
+                                        
+                                        const isCardio = currentEx.grupo === 'Cardio';
+
+                                        return (
+                                            <div className="bg-[#242e42]/30 rounded-[20px] p-5 flex flex-col gap-3 shadow-xl w-full">
+                                                <span className="text-slate-400 text-xs sm:text-sm font-bold uppercase tracking-wider drop-shadow-sm">Séries Hoje</span>
+                                                <div className="flex flex-col gap-2">
+                                                    {currentExHistory.map((record) => (
+                                                        <div key={record.id} className="flex items-center justify-between bg-[#0f141e]/50 px-4 py-3 rounded-xl border border-white/5">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center">
+                                                                    <span className="text-blue-400 font-bold text-xs">{record.serie_atual}</span>
+                                                                </div>
+                                                                <span className="text-slate-300 font-bold text-sm">Série {record.serie_atual}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-3">
+                                                                {!isCardio && (
+                                                                    <>
+                                                                        <span className="text-blue-400 font-bold text-[15px]">{record.carga_usada}kg</span>
+                                                                        <span className="text-slate-600 font-medium text-xs">×</span>
+                                                                    </>
+                                                                )}
+                                                                <span className="text-white font-bold text-[15px]">{record.repeticoes_feitas} <span className="text-slate-500 text-xs font-medium ml-0.5">{isCardio ? 'min' : 'reps'}</span></span>
+                                                                <button
+                                                                    onClick={() => handleEditSessionRecord(record.id, record.carga_usada, record.repeticoes_feitas, isCardio, record.serie_atual)}
+                                                                    className="w-10 h-10 rounded-full bg-slate-700/50 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-600 transition-all active:scale-90 ml-2"
+                                                                >
+                                                                    <Edit2 size={18} />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                     {/* Stats Cards */}
                                     <div className="flex gap-3 w-full">
                                         <div className="flex-1 bg-[#242e42]/30 rounded-[20px] p-6 flex flex-col justify-between shadow-xl relative min-h-[120px]">
@@ -1593,7 +1748,7 @@ function ActiveWorkoutContent() {
                             {/* Exercícios Feitos */}
                             <div className="flex flex-col flex-1 items-start gap-1">
                                 <span className="text-slate-400 text-[10px] uppercase font-bold tracking-widest leading-none">Exercícios</span>
-                                <span className="text-white font-black text-lg leading-none tabular-nums tracking-tight">{currentIndex}/{exercises.length}</span>
+                                <span className="text-white font-black text-lg leading-none tabular-nums tracking-tight">{completedIndices.length}/{exercises.length}</span>
                             </div>
 
                             <div className="w-[1px] h-8 bg-white/10 mx-2" />
@@ -1635,6 +1790,38 @@ function ActiveWorkoutContent() {
                     />
                 )}
 
+                {/* Edit Log Set Modal */}
+                {editingSet && (
+                    <LogSetModal
+                        exerciseName={editingSet.exerciseName}
+                        exerciseGroup={editingSet.exerciseGroup}
+                        exerciseImage={editingSet.exerciseImage}
+                        setNumber={editingSet.setNumber}
+                        totalSets={editingSet.totalSets}
+                        defaultReps={editingSet.reps}
+                        defaultWeight={editingSet.weight}
+                        isEditing={true}
+                        onClose={() => setEditingSet(null)}
+                        onSave={async (reps, weight, feedback) => {
+                            const { error } = await supabase
+                                .from('tbHistorico')
+                                .update({ carga_usada: weight, repeticoes_feitas: reps, feedback })
+                                .eq('id', editingSet.id);
+
+                            if (error) {
+                                console.error("Erro ao atualizar histórico:", error);
+                                alert("Erro ao atualizar a série. Tente novamente.");
+                                return;
+                            }
+
+                            setExerciseHistory(prev => prev.map(h => 
+                                h.id === editingSet.id ? { ...h, carga_usada: weight, repeticoes_feitas: reps, feedback } : h
+                            ));
+                            setEditingSet(null);
+                        }}
+                    />
+                )}
+
                 {/* ── Exit Workout Modal ── */}
                 {showExitModal && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
@@ -1651,7 +1838,7 @@ function ActiveWorkoutContent() {
                             </h2>
                             
                             <p className="text-[#8e95a3] text-[15px] font-medium leading-relaxed mb-6">
-                                Você concluiu {currentIndex}/{exercises.length} exercícios. O que deseja fazer com o progresso atual?
+                                Você concluiu {completedIndices.length}/{exercises.length} exercícios. O que deseja fazer com o progresso atual?
                             </p>
 
                             <div className="flex flex-col gap-3 w-full">
@@ -1716,24 +1903,39 @@ function ActiveWorkoutContent() {
                             </h2>
 
                             <p className="text-[#8e95a3] text-[15px] font-medium leading-relaxed mb-4">
-                                Excelente trabalho! Seu progresso foi salvo com sucesso. Faça o FitCheck do dia, compartilhe nas redes sociais e ganhe <span className="font-bold"><span className="text-yellow-400">+50 </span><span className="text-white">fit</span><span className="text-[#4d9fff]">Points</span></span> extras.
+                                Excelente trabalho! Seu progresso foi salvo com sucesso. Faça o FitCheck do dia, compartilhe nas redes sociais e ganhe <span className="font-bold"><span className="text-yellow-400">+50 </span><span className="text-white notranslate">fit</span><span className="text-[#4d9fff] notranslate">Points</span></span> extras.
                             </p>
 
-                            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4 w-full flex items-center justify-center gap-3 mb-6">
-                                <Award className="text-yellow-500" size={24} />
-                                <div className="text-left">
-                                    <div className="font-black text-xl leading-none"><span className="text-yellow-400">+{earnedFitPoints} </span><span className="text-white">fit</span><span className="text-[#4d9fff]">Points</span></div>
-                                    <div className="text-yellow-500/70 text-xs font-bold uppercase tracking-wider mt-1">Conquistados hoje</div>
+                            {earnedFitPoints > 0 ? (
+                                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4 w-full flex items-center justify-center gap-3 mb-6">
+                                    <Award className="text-yellow-500" size={24} />
+                                    <div className="text-left">
+                                        <div className="font-black text-xl leading-none animate-[pulse_1.5s_ease-in-out_infinite] drop-shadow-[0_0_15px_rgba(250,204,21,0.6)]"><span className="text-yellow-400">+{earnedFitPoints} </span><span className="text-white notranslate">fit</span><span className="text-[#4d9fff] notranslate">Points</span></div>
+                                        <div className="text-yellow-500/70 text-xs font-bold uppercase tracking-wider mt-1">Conquistados hoje</div>
+                                    </div>
                                 </div>
-                            </div>
+                            ) : (
+                                <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-3 w-full flex items-center justify-center gap-3 mb-6">
+                                    <Award className="text-blue-500 shrink-0" size={20} />
+                                    <div className="text-left">
+                                        <div className="font-bold text-[13px] text-slate-300 leading-tight">Os pontos diários de treino já foram coletados hoje!</div>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="flex flex-col gap-3 w-full">
+                                <input
+                                    ref={fitCheckFileInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={handleFitCheckFileSelect}
+                                />
                                 <button
-                                    onClick={handleOpenFitCheck}
-                                    className="w-full py-4 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold text-base flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-lg shadow-blue-500/25"
+                                    onClick={handleOpenFitCheckFilePicker}
+                                    className="w-full py-4 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold text-base flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-[0_0_20px_rgba(59,130,246,0.4)]"
                                 >
-                                    <Camera size={20} />
-                                    <span>Selecione uma imagem do seu treino</span>
+                                    <span>📸 Registrar meu fitCheck</span>
                                 </button>
                                 
                                 <button
@@ -1774,8 +1976,10 @@ function ActiveWorkoutContent() {
                         workoutDivision={dia ? `${dia}. ${gruposList.join(' + ')}` : gruposList.join(' + ')}
                         elapsedSeconds={elapsedSeconds}
                         totalVolumeKg={sessionVolumeKg}
+                        initialImageSrc={fitCheckInitialImage || undefined}
                         onClose={() => {
                             setShowFitCheckCamera(false);
+                            setFitCheckInitialImage(null);
                             endWorkout();
                             navigate('/', { replace: true });
                         }}

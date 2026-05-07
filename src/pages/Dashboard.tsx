@@ -52,7 +52,7 @@ export function Dashboard() {
               </div>
               <div className="h-[40%] bg-[#1a4fba] p-3.5 w-full flex flex-col justify-center items-center pointer-events-none">
                 <p className="text-white font-bold text-[15px] leading-tight text-center mb-1">A temporada 1 já começou!</p>
-                <p className="text-[#b0cffd] text-[13px] font-medium leading-snug text-center max-w-[90%]">Participe, complete desafios e<br/>ganhe <span className="text-white">fit</span><span className="text-[#4d9fff]">Points</span> 🏆</p>
+                <p className="text-[#b0cffd] text-[13px] font-medium leading-snug text-center max-w-[90%]">Participe, complete desafios e<br/>ganhe <span className="text-white notranslate">fit</span><span className="text-[#4d9fff] notranslate">Points</span> 🏆</p>
               </div>
             </div>
             {/* Card 2 — Whey */}
@@ -80,7 +80,7 @@ export function Dashboard() {
               </div>
               <div className="h-[40%] bg-[#1a4fba] p-3.5 w-full flex flex-col justify-center items-center pointer-events-none">
                 <p className="text-white font-bold text-[15px] leading-tight text-center mb-1">Camiseta Oficial fitClub</p>
-                <p className="text-[#b0cffd] text-[13px] font-medium leading-snug text-center max-w-[95%]">Troque seus <span className="text-white">fit</span><span className="text-[#4d9fff]">Points</span><br/>por este item exclusivo 👕</p>
+                <p className="text-[#b0cffd] text-[13px] font-medium leading-snug text-center max-w-[95%]">Troque seus <span className="text-white notranslate">fit</span><span className="text-[#4d9fff] notranslate">Points</span><br/>por este item exclusivo 👕</p>
               </div>
             </div>
           </div>

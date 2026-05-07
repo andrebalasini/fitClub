@@ -8,6 +8,7 @@ import { supabase } from './supabase';
 export function getCurrentUserId(): string {
     // Synchronous check using the cached session from Supabase's auth store.
     // supabase-js stores the session in memory after the first getSession() call.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const session = (supabase.auth as any)._getSession?.() ?? null;
     
     // Fallback: try the synchronous internal store

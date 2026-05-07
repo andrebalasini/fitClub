@@ -35,7 +35,7 @@ export function WorkoutPlan() {
 
     const fetchFichas = useCallback(async () => {
         setIsLoading(true);
-        const { data, error } = await supabase
+        const { data } = await supabase
             .from('tbFichas')
             .select(`
                 id, 
@@ -46,7 +46,7 @@ export function WorkoutPlan() {
             .order('created_at', { ascending: false })
             .eq('user_id', getCurrentUserId());
 
-        if (!error && data) {
+        if (data) {
             const parsedFichas = data.map((ficha: any) => {
                 const treinos = ficha.tbTreinos || [];
                 
@@ -59,8 +59,9 @@ export function WorkoutPlan() {
                     if (!dayGroups.has(t.dia)) {
                         dayGroups.set(t.dia, new Set());
                     }
-                    if (t.tbExercicios?.grupo) {
-                        dayGroups.get(t.dia)!.add(t.tbExercicios.grupo);
+                    const ex = t.tbExercicios as { grupo: string } | undefined;
+                    if (ex?.grupo) {
+                        dayGroups.get(t.dia as string)!.add(ex.grupo);
                     }
                 });
                 
@@ -106,6 +107,7 @@ export function WorkoutPlan() {
     }, []);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         fetchFichas();
         fetchTrainedDates();
     }, [fetchFichas, fetchTrainedDates]);

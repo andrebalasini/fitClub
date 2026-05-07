@@ -13,6 +13,7 @@ export function SwipeableCard({ children, onDelete }: SwipeableCardProps) {
     const [offsetX, setOffsetX] = useState(0);
     const [isDeleting, setIsDeleting] = useState(false);
     const [isRevealed, setIsRevealed] = useState(false);
+    const [isDraggingState, setIsDraggingState] = useState(false);
     const isDragging = useRef(false);
     const startX = useRef(0);
     const currentOffset = useRef(0); // Offset at the start of the drag
@@ -21,6 +22,7 @@ export function SwipeableCard({ children, onDelete }: SwipeableCardProps) {
 
     const startDrag = useCallback((clientX: number) => {
         isDragging.current = true;
+        setIsDraggingState(true);
         startX.current = clientX;
         currentOffset.current = isRevealed ? -DELETE_ZONE_WIDTH : 0;
         currentOffsetValue.current = currentOffset.current;
@@ -41,6 +43,7 @@ export function SwipeableCard({ children, onDelete }: SwipeableCardProps) {
     const endDrag = useCallback(() => {
         if (!isDragging.current) return;
         isDragging.current = false;
+        setIsDraggingState(false);
 
         if (currentOffsetValue.current < -SWIPE_THRESHOLD) {
             currentOffsetValue.current = -DELETE_ZONE_WIDTH;
@@ -116,7 +119,7 @@ export function SwipeableCard({ children, onDelete }: SwipeableCardProps) {
                 className="relative z-10 select-none"
                 style={{
                     transform: `translateX(${offsetX}px)`,
-                    transition: isDragging.current ? 'none' : 'transform 250ms ease-out',
+                    transition: isDraggingState ? 'none' : 'transform 250ms ease-out',
                 }}
                 onMouseDown={handleMouseDown}
                 onTouchStart={handleTouchStart}
