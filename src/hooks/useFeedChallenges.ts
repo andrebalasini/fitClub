@@ -27,6 +27,7 @@ interface FeedChallengesResult {
   challenges: FeedChallenge[];
   loading: boolean;
   myAvatarUrl: string;
+  hasWorkouts: boolean;
 }
 
 /**
@@ -44,6 +45,7 @@ export function useFeedChallenges(): FeedChallengesResult {
   const [challenges, setChallenges] = useState<FeedChallenge[]>([]);
   const [loading, setLoading] = useState(true);
   const [myAvatarUrl, setMyAvatarUrl] = useState('');
+  const [hasWorkouts, setHasWorkouts] = useState(true); // assume true until proven false
 
   useEffect(() => {
     if (!user?.id) return;
@@ -66,7 +68,7 @@ export function useFeedChallenges(): FeedChallengesResult {
             } else {
               console.warn('[useFeedChallenges] Session refresh failed:', refreshError?.message);
               supabase.auth.signOut();
-              setChallenges(getMockChallenges());
+              setChallenges([]);
               return;
             }
           }
@@ -74,18 +76,23 @@ export function useFeedChallenges(): FeedChallengesResult {
 
         if (!session) {
           console.warn('[useFeedChallenges] No active session');
-          setChallenges(getMockChallenges());
+          setChallenges([]);
           return;
         }
         const userId = session.user.id;
 
-        // ── Fetch own profile (avatar) ────────────────────────────────────
-        const { data: myProfile } = await supabase
-          .from('profiles')
-          .select('avatar_url')
-          .eq('id', userId)
-          .maybeSingle();
-        setMyAvatarUrl(myProfile?.avatar_url || '');
+        // ── Fetch leaderboard (SECURITY DEFINER — bypasses RLS) ──────────
+        // This single call gives us avatar_url + nome for every user,
+        // covering both the current user and all rivals.
+        const { data: lbRaw } = await supabase.rpc('leaderboard_temporada' as any);
+        const leaderboard: Array<{ user_id: string; nome: string; avatar_url: string }> =
+          Array.isArray(lbRaw) ? lbRaw : [];
+
+        const lbAvatarMap = new Map<string, string>();
+        leaderboard.forEach((entry) => lbAvatarMap.set(entry.user_id, entry.avatar_url || ''));
+
+        // Own avatar from leaderboard
+        setMyAvatarUrl(lbAvatarMap.get(userId) || '');
 
         // ── Step 1: User's ficha IDs ──────────────────────────────────────
         const { data: fichasData, error: fichasError } = await supabase
@@ -102,9 +109,12 @@ export function useFeedChallenges(): FeedChallengesResult {
             return;
           }
           console.warn('[useFeedChallenges] No fichas:', fichasError?.message);
-          setChallenges(getMockChallenges());
+          setHasWorkouts(false);
+          setChallenges([]);
           return;
         }
+        
+        setHasWorkouts(true);
         const fichaIds = fichasData.map((f) => f.id);
 
         // ── Step 2: All exercises from user's fichas (deduplicated) ───────
@@ -115,7 +125,7 @@ export function useFeedChallenges(): FeedChallengesResult {
 
         if (treinosError || !treinosData || treinosData.length === 0) {
           console.warn('[useFeedChallenges] No exercises in fichas:', treinosError?.message);
-          setChallenges(getMockChallenges());
+          setChallenges([]);
           return;
         }
 
@@ -237,37 +247,17 @@ export function useFeedChallenges(): FeedChallengesResult {
 
         if (resolvedChallenges.length === 0) {
           console.warn('[useFeedChallenges] No challenges found — user may be the community leader in all exercises, or no other users have data.');
-          setChallenges(getMockChallenges());
+          setChallenges([]);
           return;
         }
 
-        // ── Step 6: Batch fetch rival avatars ────────────────────────────
-        const rivalUserIds = resolvedChallenges
-          .map((ch) => ch.rivalUserId)
-          .filter((id): id is string => !!id);
-
-        if (rivalUserIds.length > 0) {
-          const { data: profilesData, error: profilesError } = await supabase
-            .from('profiles')
-            .select('id, avatar_url')
-            .in('id', rivalUserIds);
-
-          if (profilesError) {
-            console.error('[useFeedChallenges] profiles error:', profilesError);
+        // ── Step 6: Resolve rival avatars from leaderboard map ───────────
+        // lbAvatarMap already contains avatar_url for all users (no RLS).
+        resolvedChallenges.forEach((challenge) => {
+          if (challenge.rivalUserId) {
+            challenge.rivalAvatarUrl = lbAvatarMap.get(challenge.rivalUserId) || '';
           }
-
-          const avatarMap = new Map<string, string>();
-          (profilesData || []).forEach((p: any) => {
-            avatarMap.set(p.id, p.avatar_url || '');
-          });
-
-          // Match rival avatars using the direct rivalUserId mapping
-          resolvedChallenges.forEach((challenge) => {
-            if (challenge.rivalUserId) {
-              challenge.rivalAvatarUrl = avatarMap.get(challenge.rivalUserId) || '';
-            }
-          });
-        }
+        });
 
         // ── Step 7: Sort by gap ascending, cap at 10 ─────────────────────
         const finalChallenges = resolvedChallenges
@@ -279,7 +269,7 @@ export function useFeedChallenges(): FeedChallengesResult {
 
       } catch (err) {
         console.error('[useFeedChallenges] Unexpected error:', err);
-        setChallenges(getMockChallenges());
+        setChallenges([]);
       } finally {
         setLoading(false);
       }
@@ -288,49 +278,5 @@ export function useFeedChallenges(): FeedChallengesResult {
     fetchChallenges();
   }, [user?.id]);
 
-  return { challenges, loading, myAvatarUrl };
-}
-
-function getMockChallenges(): FeedChallenge[] {
-  return [
-    {
-      exercicioId: 'mock-1',
-      exercicioNome: 'Supino Reto',
-      fichaId: '',
-      dia: 'A',
-      grupos: ['Peito'],
-      myBestCarga: 42,
-      rivalCarga: 48,
-      gapKg: 6,
-      progressPercent: 87,
-      rivalName: 'João Lima',
-      rivalAvatarUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=150&auto=format&fit=crop&q=60',
-    },
-    {
-      exercicioId: 'mock-2',
-      exercicioNome: 'Agachamento Livre',
-      fichaId: '',
-      dia: 'B',
-      grupos: ['Pernas'],
-      myBestCarga: 80,
-      rivalCarga: 90,
-      gapKg: 10,
-      progressPercent: 88,
-      rivalName: 'Mariana Silva',
-      rivalAvatarUrl: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=150&auto=format&fit=crop&q=60',
-    },
-    {
-      exercicioId: 'mock-3',
-      exercicioNome: 'Levantamento Terra',
-      fichaId: '',
-      dia: 'C',
-      grupos: ['Costas'],
-      myBestCarga: 100,
-      rivalCarga: 115,
-      gapKg: 15,
-      progressPercent: 87,
-      rivalName: 'Carlos Eduardo',
-      rivalAvatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=60',
-    },
-  ];
+  return { challenges, loading, myAvatarUrl, hasWorkouts };
 }

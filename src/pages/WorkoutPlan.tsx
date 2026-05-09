@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { WeeklyCalendar } from '../components/WeeklyCalendar';
-import { ClipboardList, Loader2, Edit2, Trash2 } from 'lucide-react';
+import { ClipboardList, Loader2, Edit2, Trash2, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { CreateFichaModal } from '../components/CreateFichaModal';
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { SelectWorkoutDayModal, type FichaDayWorkout } from '../components/SelectWorkoutDayModal';
+import { WorkoutCreationDecisionModal } from '../components/WorkoutCreationDecisionModal';
 import { supabase } from '../lib/supabase';
 import { getCurrentUserId } from '../lib/auth';
 
@@ -25,6 +26,7 @@ const NavbarDumbbellIcon = ({ className, size = 24 }: { className?: string; size
 
 export function WorkoutPlan() {
     const navigate = useNavigate();
+    const [isDecisionModalOpen, setIsDecisionModalOpen] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<Ficha | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -140,7 +142,11 @@ export function WorkoutPlan() {
     };
 
     const openCreateModal = () => {
-        setIsModalOpen(true);
+        if (fichas.length > 0) {
+            setIsDecisionModalOpen(true);
+        } else {
+            setIsModalOpen(true);
+        }
     };
 
     const formatDate = (dateString: string) => {
@@ -149,53 +155,97 @@ export function WorkoutPlan() {
 
     return (
         <div className="w-full flex-col flex justify-start pb-20 pt-1 relative min-h-screen bg-[#0f141e] font-sans">
-            <div className="w-full -mt-2 mb-1">
+            <div className="w-full mt-2 mb-1">
                 <WeeklyCalendar trainedDates={trainedDates} />
             </div>
             <div className="px-4 w-full mt-4 flex flex-col space-y-4">
-                <h2 className="text-[#f8fafc] font-bold text-[24px] px-1 tracking-[-0.5px]">Suas fichas de treino</h2>
+                <h2 className="text-[#f8fafc] font-bold text-[24px] px-1 tracking-[-0.5px]">Planos de Treino</h2>
                 
                 {isLoading ? (
                     <div className="w-full p-8 flex justify-center text-blue-500">
                         <Loader2 size={32} className="animate-spin" />
                     </div>
                 ) : fichas.length > 0 ? (
-                    <div className="flex flex-col gap-3">
-                        {fichas.map((ficha) => (
+                    <div className="flex flex-col">
+                        {/* ── PLANO ATIVO (DESTAQUE) ── */}
+                        <div className="flex flex-col space-y-3">
                             <div 
-                                key={ficha.id}
-                                onClick={() => handleCardClick(ficha)}
-                                className="w-full bg-[#131b2b] rounded-[24px] p-5 flex items-center justify-between active:scale-[0.98] transition-all shadow-lg border border-transparent hover:border-blue-500/20 cursor-pointer"
+                                onClick={() => handleCardClick(fichas[0])}
+                                className="w-full bg-gradient-to-br from-[#131b2b] to-[#0f141e] rounded-[24px] p-6 flex items-center justify-between active:scale-[0.98] transition-all shadow-xl border border-transparent cursor-pointer relative overflow-hidden group"
                             >
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 bg-blue-500/10 rounded-[14px] flex items-center justify-center text-blue-500 flex-shrink-0">
-                                        <NavbarDumbbellIcon size={24} />
+                                <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500"></div>
+                                <div className="flex items-center gap-5 pl-1">
+                                    <div className="w-14 h-14 bg-blue-500 rounded-[16px] flex items-center justify-center text-white flex-shrink-0 shadow-[0_4px_12px_rgba(59,130,246,0.3)] group-hover:scale-105 transition-transform">
+                                        <Play size={24} fill="currentColor" className="ml-1" />
                                     </div>
-                                    <div className="flex flex-col mr-2">
-                                        <h3 className="text-white font-bold text-[18px] leading-tight mb-0.5">{ficha.nome}</h3>
-                                        <span className="text-[#8e95a3] text-[12px] font-medium leading-[1.3] mt-0.5 max-w-[160px]">
-                                            {ficha.qtd_dias} {ficha.qtd_dias === 1 ? 'dia' : 'dias'} • {ficha.qtd_exercicios} {ficha.qtd_exercicios === 1 ? 'exerc.' : 'exerc.'}
-                                            <br/>
-                                            Criado em {formatDate(ficha.created_at)}
+                                    <div className="flex flex-col">
+                                        <span className="text-blue-400 text-[11px] font-black uppercase tracking-widest mb-0.5">Plano Ativo</span>
+                                        <h3 className="text-white font-bold text-[20px] leading-tight mb-1">{fichas[0].nome}</h3>
+                                        <span className="text-[#8e95a3] text-[13px] font-medium leading-none flex items-center gap-1.5">
+                                            {fichas[0].qtd_dias} {fichas[0].qtd_dias === 1 ? 'dia' : 'dias'} • {fichas[0].qtd_exercicios} exerc.
                                         </span>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <button 
-                                        onClick={(e) => handleEdit(e, ficha)}
-                                        className="w-11 h-11 rounded-full bg-slate-700/50 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-600 transition-all active:scale-90"
+                                        onClick={(e) => handleEdit(e, fichas[0])}
+                                        className="w-11 h-11 rounded-full bg-slate-800 flex items-center justify-center text-slate-300 hover:text-white transition-all active:scale-90"
                                     >
-                                        <Edit2 size={20} />
+                                        <Edit2 size={19} />
                                     </button>
                                     <button 
-                                        onClick={(e) => handleDeleteClick(e, ficha)}
-                                        className="w-11 h-11 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 hover:bg-red-500/20 transition-all active:scale-90"
+                                        onClick={(e) => handleDeleteClick(e, fichas[0])}
+                                        className="w-11 h-11 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 transition-all active:scale-90"
                                     >
-                                        <Trash2 size={20} />
+                                        <Trash2 size={19} />
                                     </button>
                                 </div>
                             </div>
-                        ))}
+                        </div>
+
+                        {/* ── MEU HISTÓRICO / ANTERIORES ── */}
+                        {fichas.length > 1 && (
+                            <div className="flex flex-col mt-8">
+                                <h3 className="text-[#64748b] font-bold text-[13px] uppercase tracking-widest px-1 mb-3">
+                                    Planos Anteriores
+                                </h3>
+                                <div className="flex flex-col gap-2.5">
+                                    {fichas.slice(1).map((ficha) => (
+                                        <div 
+                                            key={ficha.id}
+                                            onClick={() => handleCardClick(ficha)}
+                                            className="w-full bg-[#131b2b]/40 rounded-[20px] p-4 flex items-center justify-between active:scale-[0.98] transition-all border border-transparent hover:border-slate-800 cursor-pointer"
+                                        >
+                                            <div className="flex items-center gap-3.5">
+                                                <div className="w-10 h-10 bg-slate-800/50 rounded-[12px] flex items-center justify-center text-slate-500 flex-shrink-0">
+                                                    <NavbarDumbbellIcon size={18} />
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <h3 className="text-slate-300 font-bold text-[15px] leading-tight">{ficha.nome}</h3>
+                                                    <span className="text-slate-500 text-[11px] font-medium leading-none mt-1">
+                                                        Criado em {formatDate(ficha.created_at)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
+                                                <button 
+                                                    onClick={(e) => handleEdit(e, ficha)}
+                                                    className="w-9 h-9 rounded-full flex items-center justify-center text-slate-500 hover:text-white transition-all"
+                                                >
+                                                    <Edit2 size={16} />
+                                                </button>
+                                                <button 
+                                                    onClick={(e) => handleDeleteClick(e, ficha)}
+                                                    className="w-9 h-9 rounded-full flex items-center justify-center text-slate-500 hover:text-red-400 transition-all"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ) : (
                     <div className="p-4 rounded-[24px] bg-[#131b2b] shadow-lg text-center text-[#8e95a3] font-medium border border-transparent">
@@ -211,7 +261,7 @@ export function WorkoutPlan() {
                     className="w-full h-[58px] bg-[#1d70f5] rounded-[18px] flex items-center justify-center gap-2.5 text-white font-bold text-[17px] shadow-[0_8px_24px_rgba(29,112,245,0.35)] transition-all active:scale-[0.98] focus:outline-none pointer-events-auto"
                 >
                     <ClipboardList size={20} strokeWidth={2.5} />
-                    Nova ficha
+                    Novo Plano de Treino
                 </button>
             </div>
 
@@ -239,11 +289,25 @@ export function WorkoutPlan() {
 
             {deleteTarget && (
                 <ConfirmDeleteModal
-                    title="Excluir ficha de treino?"
-                    description={`Tem certeza que deseja apagar a ficha "${deleteTarget.nome}"? Todos os exercícios incluídos nela serão perdidos. Essa ação não pode ser desfeita.`}
+                    title="Excluir plano de treino?"
+                    description={`Tem certeza que deseja apagar o plano "${deleteTarget.nome}"? Todos os exercícios incluídos nele serão perdidos. Essa ação não pode ser desfeita.`}
                     onConfirm={confirmDeleteFicha}
                     onCancel={() => setDeleteTarget(null)}
                     isDeleting={isDeleting}
+                />
+            )}
+
+            {isDecisionModalOpen && fichas.length > 0 && (
+                <WorkoutCreationDecisionModal
+                    onClose={() => setIsDecisionModalOpen(false)}
+                    onAddDayToCurrent={() => {
+                        setIsDecisionModalOpen(false);
+                        navigate('/treino/novo', { state: { fichaId: fichas[0].id, fichaNome: fichas[0].nome } });
+                    }}
+                    onCreateNew={() => {
+                        setIsDecisionModalOpen(false);
+                        setIsModalOpen(true);
+                    }}
                 />
             )}
         </div>

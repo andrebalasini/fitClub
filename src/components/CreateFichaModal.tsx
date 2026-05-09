@@ -47,13 +47,13 @@ export function CreateFichaModal({ onClose, onCreated }: CreateFichaModalProps) 
         if (!error && data) {
             onCreated(data.id, data.nome);
         } else {
-            showToast('Erro ao criar a ficha.', 'error');
+            showToast('Erro ao criar o plano de treino.', 'error');
         }
     };
 
     const handleImageUploadAsync = async (file: File) => {
         if (!nome.trim()) {
-            showToast('Informe um nome para a ficha primeiro!', 'error');
+            showToast('Informe um nome para o plano primeiro!', 'error');
             return;
         }
 
@@ -105,7 +105,7 @@ export function CreateFichaModal({ onClose, onCreated }: CreateFichaModalProps) 
             // Jump to 90% once AI answers
             if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
             setImportProgress(90);
-            setImportStatus('Criando a ficha no banco de dados...');
+            setImportStatus('Criando o plano de treino...');
 
             // 4. Create Ficha
             const { data: fichaData, error: fichaError } = await supabase
@@ -138,11 +138,11 @@ export function CreateFichaModal({ onClose, onCreated }: CreateFichaModalProps) 
                     showToast("Treino importado com sucesso via foto!", 'success');
                 }
             } else {
-                showToast("Nenhum exercício compreendido pela IA. Ficha criada em branco.", 'error');
+                showToast("Nenhum exercício compreendido pela IA. Plano criado em branco.", 'error');
             }
 
             setImportProgress(100);
-            setImportStatus('Ficha importada com sucesso!');
+            setImportStatus('Plano importado com sucesso!');
 
             // Tiny delay to let user see 100% completion bar
             await new Promise(r => setTimeout(r, 600));
@@ -169,7 +169,7 @@ export function CreateFichaModal({ onClose, onCreated }: CreateFichaModalProps) 
 
     const handleTextImportAsync = async () => {
         if (!nome.trim()) {
-            showToast('Informe um nome para a ficha primeiro!', 'error');
+            showToast('Informe um nome para o plano primeiro!', 'error');
             return;
         }
         if (!workoutText.trim()) {
@@ -207,7 +207,7 @@ export function CreateFichaModal({ onClose, onCreated }: CreateFichaModalProps) 
 
             if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
             setImportProgress(90);
-            setImportStatus('Criando a ficha no banco de dados...');
+            setImportStatus('Criando o plano de treino...');
 
             const { data: fichaData, error: fichaError } = await supabase
                 .from('tbFichas')
@@ -238,11 +238,11 @@ export function CreateFichaModal({ onClose, onCreated }: CreateFichaModalProps) 
                     showToast("Treino importado com sucesso via texto!", 'success');
                 }
             } else {
-                showToast("Nenhum exercício compreendido pela IA. Ficha criada em branco.", 'error');
+                showToast("Nenhum exercício compreendido pela IA. Plano criado em branco.", 'error');
             }
 
             setImportProgress(100);
-            setImportStatus('Ficha importada com sucesso!');
+            setImportStatus('Plano importado com sucesso!');
             await new Promise(r => setTimeout(r, 600));
 
             onCreated(fichaData.id, fichaData.nome);
@@ -297,7 +297,7 @@ export function CreateFichaModal({ onClose, onCreated }: CreateFichaModalProps) 
                         <PenLine size={20} />
                     </div>
                     <h2 className="text-white font-bold text-xl leading-tight">
-                        Nova Ficha de Treino
+                        Novo Plano de Treino
                     </h2>
                 </div>
 
@@ -326,7 +326,7 @@ export function CreateFichaModal({ onClose, onCreated }: CreateFichaModalProps) 
                         </div>
                         <h3 className="text-white font-bold text-[17px] mb-2 text-center px-4">{importStatus}</h3>
                         <p className="text-slate-400 text-sm text-center px-6 leading-relaxed">
-                            Por favor, não feche o aplicativo enquanto estamos configurando a sua ficha completa.
+                            Por favor, não feche o aplicativo enquanto estamos configurando o seu plano completo.
                         </p>
                     </div>
                 ) : showTextInput ? (
@@ -365,7 +365,7 @@ export function CreateFichaModal({ onClose, onCreated }: CreateFichaModalProps) 
                         {/* Input Field */}
                         <div className="flex flex-col gap-2.5 mt-2 mb-6">
                             <label htmlFor="ficha-name" className="text-slate-300 text-[15px] font-medium ml-1">
-                                Nome da ficha <span className="text-red-400">*</span>
+                                Nome do plano <span className="text-red-400">*</span>
                             </label>
                             <input
                                 id="ficha-name"
@@ -390,12 +390,12 @@ export function CreateFichaModal({ onClose, onCreated }: CreateFichaModalProps) 
                                 {isSaving ? (
                                     <>
                                         <Loader2 size={18} className="animate-spin" />
-                                        Criando ficha...
+                                        Criando plano...
                                     </>
                                 ) : (
                                     <>
                                         <Plus size={18} className="group-hover:scale-110 transition-transform" />
-                                        Criar ficha em branco
+                                        Criar plano em branco
                                     </>
                                 )}
                             </button>
@@ -407,7 +407,7 @@ export function CreateFichaModal({ onClose, onCreated }: CreateFichaModalProps) 
                                 className="w-full py-4 rounded-xl bg-slate-800 border border-slate-700 text-white font-bold text-[15px] flex items-center justify-center gap-2 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 group relative flex-shrink-0"
                             >
                                 <FileText size={18} className="text-blue-400" />
-                                Importar de um Texto
+                                Importar de um texto
                             </button>
 
                             {/* Import from Image */}
@@ -417,7 +417,7 @@ export function CreateFichaModal({ onClose, onCreated }: CreateFichaModalProps) 
                                 className="w-full py-4 rounded-xl bg-slate-800 border border-slate-700 text-white font-bold text-[15px] flex items-center justify-center gap-2 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 group relative flex-shrink-0"
                             >
                                 <ImageIcon size={18} className="text-blue-400" />
-                                Importar Ficha de uma Imagem
+                                Importar de uma imagem
                             </button>
                             <input 
                                 type="file" 

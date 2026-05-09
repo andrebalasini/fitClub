@@ -287,19 +287,35 @@ export function ChallengesCarousel() {
     );
   }
 
-  if (challenges.length === 0) {
+    if (challenges.length === 0) {
     return (
       <div
-        className="w-full rounded-[20px] flex flex-col items-center justify-center gap-3 py-10 text-center"
-        style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.06)' }}
+        className="w-full rounded-[24px] flex flex-col items-center justify-center gap-4 py-8 px-6 text-center shadow-xl mx-auto select-none"
+        style={{ 
+          background: 'linear-gradient(145deg, #131b2b, #0a0f1a)', 
+          border: '1px solid rgba(29, 112, 245, 0.15)',
+          maxWidth: '360px'
+        }}
       >
-        <Zap size={24} style={{ color: '#1d70f5' }} />
-        <p className="text-slate-400 text-sm font-bold">
-          Você está no topo em todos os exercícios! 🏆
-        </p>
-        <p className="text-slate-600 text-xs">
-          Continue treinando para aparecerem novos desafios.
-        </p>
+        <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shadow-[0_0_30px_rgba(29, 112, 245, 0.15)]">
+          <Zap size={28} className="fill-current" />
+        </div>
+        
+        <div className="flex flex-col gap-1.5">
+          <p className="text-white font-black text-[16px] leading-tight tracking-tight">
+            Desafios Exclusivos
+          </p>
+          <p className="text-slate-400 text-[13px] font-medium px-4 leading-relaxed">
+            Cadastre e execute seus planos de treino para desbloquear desafios personalizados e competir no ranking! ⚔️
+          </p>
+        </div>
+
+        <button
+          onClick={() => navigate('/treino')}
+          className="mt-1 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-[13px] tracking-wide transition-all active:scale-95 shadow-[0_4px_15px_rgba(29, 112, 245, 0.3)] uppercase border-none outline-none w-full max-w-[220px]"
+        >
+          Criar Meu Plano
+        </button>
       </div>
     );
   }
