@@ -262,12 +262,12 @@ export function LogSetModal({
                         {isSaving ? (
                             <>
                                 <Loader2 size={18} className="animate-spin" />
-                                {isEditing ? "Editando..." : "Registrando..."}
+                                {isEditing ? "Salvando..." : "Registrando..."}
                             </>
                         ) : (
                             <>
                                 {isEditing ? <Edit2 size={18} /> : <Clock size={18} />}
-                                {isEditing ? "Editar" : "Descansar"}
+                                {isEditing ? "Salvar" : "Descansar"}
                             </>
                         )}
                     </button>

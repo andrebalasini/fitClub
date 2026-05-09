@@ -527,13 +527,19 @@ function ProgressoSection() {
         setLoading(false);
     }, [myUserId]);
 
-    const isWeightBased = history.some(h => h.bestSetCarga > 0);
-    const myBest = history.length > 0 ? Math.max(...history.map(h => isWeightBased ? h.bestSetCarga : h.bestSetReps)) : 0;
-    const myLast = history.length > 0 ? (isWeightBased ? history[history.length - 1].bestSetCarga : history[history.length - 1].bestSetReps) : 0;
-    const commVal = communityStats ? (isWeightBased ? communityStats.avg_carga : communityStats.avg_reps) : null;
-    const compareMax = commVal ? Math.max(myBest, commVal) * 1.1 : myBest * 1.1;
-    const myPct = compareMax > 0 ? (myBest / compareMax) * 100 : 0;
-    const commPct = commVal && compareMax > 0 ? (commVal / compareMax) * 100 : 0;
+    // Always display carga (kg) as the primary performance metric.
+    // Fall back to reps only if the exercise truly has no load data at all.
+    const isWeightBased = history.some(h => h.bestSetCarga > 0) || (communityStats !== null && communityStats.avg_carga > 0);
+    const myBest    = history.length > 0 ? Math.max(...history.map(h => isWeightBased ? h.bestSetCarga : h.bestSetReps)) : 0;
+    const myLast    = history.length > 0 ? (isWeightBased ? history[history.length - 1].bestSetCarga : history[history.length - 1].bestSetReps) : 0;
+    // Community comparison always uses avg_carga when available
+    const commVal   = communityStats ? (communityStats.avg_carga > 0 ? communityStats.avg_carga : communityStats.avg_reps) : null;
+    const compareMax = commVal ? Math.max(myBest, commVal) * 1.1 : myBest > 0 ? myBest * 1.1 : 1;
+    const myPct     = compareMax > 0 ? (myBest  / compareMax) * 100 : 0;
+    const commPct   = commVal && compareMax > 0 ? (commVal / compareMax) * 100 : 0;
+    // Helper: format a value with the right unit
+    const fmtVal = (v: number) => isWeightBased ? `${v}kg` : `${v} reps`;
+    const fmtComm = (v: number) => communityStats && communityStats.avg_carga > 0 ? `${v.toFixed(1)}kg` : `${v.toFixed(0)} reps`;
 
     return (
         <div className="flex flex-col gap-4">
@@ -639,8 +645,8 @@ function ProgressoSection() {
                     {/* Stats Cards */}
                     <div className="grid grid-cols-3 gap-2">
                         {[
-                            { label: 'Melhor', value: isWeightBased ? `${myBest}kg` : `${myBest} reps`, icon: <Trophy size={14} className="text-white" /> },
-                            { label: 'Última', value: isWeightBased ? `${myLast}kg` : `${myLast} reps`, icon: <Zap size={14} className="text-blue-400" /> },
+                            { label: 'Melhor', value: fmtVal(myBest), icon: <Trophy size={14} className="text-white" /> },
+                            { label: 'Última', value: fmtVal(myLast), icon: <Zap size={14} className="text-blue-400" /> },
                             { label: 'Sessões', value: `${history.length}`, icon: <Target size={14} className="text-purple-400" /> },
                         ].map(stat => (
                             <div key={stat.label} className="bg-[#1a2235] border border-slate-700/30 rounded-xl p-3 flex flex-col items-center gap-1.5">
@@ -683,7 +689,7 @@ function ProgressoSection() {
                             <div className="flex flex-col gap-3">
                                 <div className="flex flex-col gap-1.5">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-white text-xs font-black">{isWeightBased ? `${myBest}kg` : `${myBest} reps`}</span>
+                                        <span className="text-white text-xs font-black">{fmtVal(myBest)}</span>
                                     </div>
                                     <div className="h-2.5 bg-[#0f141e] rounded-full overflow-hidden">
                                         <div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-blue-400 transition-all duration-700" style={{ width: `${myPct}%` }} />
@@ -693,7 +699,7 @@ function ProgressoSection() {
                                 <div className="flex flex-col gap-1.5">
                                     <div className="flex items-center justify-between">
                                         <span className="text-slate-400 text-xs font-bold">Média da comunidade</span>
-                                        <span className="text-slate-300 text-xs font-black">{isWeightBased ? `${communityStats.avg_carga.toFixed(1)}kg` : `${communityStats.avg_reps.toFixed(0)} reps`}</span>
+                                        <span className="text-slate-300 text-xs font-black">{commVal !== null ? fmtComm(commVal) : '—'}</span>
                                     </div>
                                     <div className="h-2.5 bg-[#0f141e] rounded-full overflow-hidden">
                                         <div className="h-full rounded-full bg-gradient-to-r from-slate-600 to-slate-400 transition-all duration-700" style={{ width: `${commPct}%` }} />
@@ -705,7 +711,7 @@ function ProgressoSection() {
                                         {myBest >= commVal ? (
                                             <><Star size={14} className="text-emerald-400" /> Desempenho de Elite! {((myBest / commVal - 1) * 100).toFixed(0)}% acima da média!</>
                                         ) : (
-                                            <><TrendingUp size={14} className="text-blue-400" /> Falta pouco para dominar! Suba apenas {((commVal / myBest - 1) * 100).toFixed(0)}% para superar a média!</>
+                                            <><TrendingUp size={14} className="text-blue-400" /> Falta pouco! Suba {isWeightBased ? `${(commVal - myBest).toFixed(1)}kg` : `${Math.ceil(commVal - myBest)} reps`} para superar a média!</>
                                         )}
                                     </div>
                                 )}

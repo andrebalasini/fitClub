@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { TopBar } from '../components/layout/TopBar';
 import { BottomNav } from '../components/layout/BottomNav';
 import { supabase } from '../lib/supabase';
-import { CheckCircle, Clock, Loader2, Layers, RefreshCw, Info, Zap, TrendingUp, AlertTriangle, SkipForward, MessageCircle, Award, Play, Pause, Square, Edit2 } from 'lucide-react';
+import { CheckCircle, Clock, Loader2, Layers, RefreshCw, Info, Zap, TrendingUp, AlertTriangle, SkipForward, MessageCircle, Award, Play, Pause, Square, Edit2, ThumbsUp, ThumbsDown, Target } from 'lucide-react';
 import { useDragScroll } from '../hooks/useDragScroll';
 import { LogSetModal } from '../components/LogSetModal';
 import { getCurrentUserId } from '../lib/auth';
@@ -150,41 +150,17 @@ const PerformanceChart = ({
     }, [data, period]);
 
     const chartMax = Math.max(bestValOverall * 1.1, 10);
-    const getYPct = (val: number) => 100 - (val / chartMax) * 100;
-    const getXPct = (idx: number) => filteredData.length > 1 ? (idx / (filteredData.length - 1)) * 100 : 50;
-
-    const svgPath = useMemo(() => {
-        if (filteredData.length === 0) return '';
-        if (filteredData.length === 1) {
-            const y = getYPct(isWeightBased ? filteredData[0].bestSetCarga : filteredData[0].bestSetReps);
-            return `M 0 ${y} L 100 ${y}`;
-        }
-        
-        let p = `M 0 ${getYPct(isWeightBased ? filteredData[0].bestSetCarga : filteredData[0].bestSetReps)}`;
-        for(let i = 0; i < filteredData.length - 1; i++){
-            const p0x = getXPct(i);
-            const p0y = getYPct(isWeightBased ? filteredData[i].bestSetCarga : filteredData[i].bestSetReps);
-            const p1x = getXPct(i+1);
-            const p1y = getYPct(isWeightBased ? filteredData[i+1].bestSetCarga : filteredData[i+1].bestSetReps);
-            
-            p += ` C ${p0x + (p1x - p0x) / 2} ${p0y}, ${p0x + (p1x - p0x) / 2} ${p1y}, ${p1x} ${p1y}`;
-        }
-        return p;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [filteredData, isWeightBased, chartMax]);
-
-    const prY = getYPct(bestValOverall);
 
     return (
-        <div className="bg-[#242e42]/30 rounded-[20px] p-6 shadow-xl flex flex-col gap-8 w-full">
+        <div className="bg-[#242e42]/30 rounded-[20px] p-6 shadow-xl flex flex-col gap-6 w-full">
             <div className="flex items-center justify-between w-full">
-                <span className="text-slate-400 text-xs sm:text-sm font-bold uppercase tracking-wider drop-shadow-sm truncate pr-2">Evolução ({label})</span>
+                <span className="text-slate-400 text-xs sm:text-sm font-bold uppercase tracking-wider drop-shadow-sm truncate pr-2">Evolução</span>
                 <div className="flex bg-[#0f141e]/80 rounded-lg p-1 shadow-inner shrink-0">
                     {(['1S', '1M', '3M', 'Todos'] as ChartPeriod[]).map(p => (
                         <button 
                             key={p} 
                             onClick={() => setPeriod(p)}
-                            className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${period === p ? 'bg-slate-700/80 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
+                            className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all active:scale-95 ${period === p ? 'bg-slate-700/80 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
                         >
                             {p}
                         </button>
@@ -192,18 +168,13 @@ const PerformanceChart = ({
                 </div>
             </div>
             
-            {filteredData.length <= 1 && period !== 'Todos' ? (
-                <div className="h-44 flex flex-col items-center justify-center text-slate-500 text-center px-4">
-                    <TrendingUp size={24} className="mb-2 opacity-50" />
-                    <span className="text-sm font-medium leading-tight">Poucos dados neste período.<br/>Alterne o filtro para "Todos".</span>
-                </div>
-            ) : filteredData.length === 0 ? (
+            {filteredData.length === 0 ? (
                 <div className="h-44 flex flex-col items-center justify-center text-slate-500 text-center px-4">
                     <TrendingUp size={24} className="mb-2 opacity-50" />
                     <span className="text-sm font-medium leading-tight">Realize mais um treino para ver o gráfico.</span>
                 </div>
             ) : (
-                <div className="relative w-full h-[200px] flex pb-8 pl-10 pr-10 select-none touch-none">
+                <div className="relative w-full h-[220px] flex pl-10 pr-4 select-none touch-none">
                      {/* Y Axis Labels */}
                      <div className="absolute left-0 top-0 bottom-8 w-10 flex flex-col justify-between text-slate-500 text-xs font-medium text-right pr-3">
                           <span>{Math.round(chartMax)}</span>
@@ -211,82 +182,72 @@ const PerformanceChart = ({
                           <span>0</span>
                      </div>
         
-                     {/* Chart content area */}
-                     <div className="relative w-full h-full border-l border-b border-slate-700/50">
-                          {/* PR Line */}
-                          {bestValOverall > 0 && (
-                              <div 
-                                 className="absolute left-0 right-0 border-t border-dashed border-slate-500/50 pointer-events-none z-0" 
-                                 style={{ top: `${prY}%` }}
-                              >
-                                   <span className="absolute -top-[16px] left-1 text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1.5 py-0.5 bg-[#1a2133] rounded">PR</span>
-                              </div>
-                          )}
-        
-                          {/* SVG Area & Line */}
-                          <svg className="absolute inset-0 overflow-visible pointer-events-none z-0" preserveAspectRatio="none" viewBox="0 0 100 100" width="100%" height="100%">
-                               <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                                   <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3" />
-                                   <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
-                               </linearGradient>
-                               
-                               <path 
-                                   d={`${svgPath} L 100 100 L 0 100 Z`} 
-                                   fill="url(#areaGrad)" 
-                                   vectorEffect="non-scaling-stroke"
-                               />
-                               <path 
-                                   d={svgPath}
-                                   fill="none"
-                                   stroke="#3b82f6"
-                                   strokeWidth="3"
-                                   vectorEffect="non-scaling-stroke"
-                                   strokeLinecap="round"
-                                   strokeLinejoin="round"
-                               />
-                          </svg>
-        
-                          {/* Dots & Tooltips */}
-                          {filteredData.map((d, i) => {
-                               const x = getXPct(i);
-                               const val = isWeightBased ? d.bestSetCarga : d.bestSetReps;
-                               const y = getYPct(val);
-                               const isPR = val === bestValOverall;
-                               const isHovered = hovered === i;
-        
-                               return (
+                     {/* Chart Content and X-axis labels area */}
+                     <div className="relative flex-1 h-full flex flex-col">
+                          {/* Grid and Bars Area */}
+                          <div className="relative flex-1 border-l border-b border-slate-700/50 flex items-end justify-around px-2 pb-[1px]">
+                               {/* PR Line */}
+                               {bestValOverall > 0 && (
                                    <div 
-                                       key={d.date} 
-                                       className="absolute w-8 h-8 -ml-4 -mt-4 flex items-center justify-center cursor-pointer group z-10"
-                                       style={{ left: `${x}%`, top: `${y}%` }}
-                                       onMouseEnter={() => setHovered(i)}
-                                       onMouseLeave={() => setHovered(null)}
-                                       onTouchStart={() => setHovered(i)}
+                                      className="absolute left-0 right-0 border-t border-dashed border-slate-500/30 pointer-events-none z-0" 
+                                      style={{ bottom: `${(bestValOverall / chartMax) * 100}%` }}
                                    >
-                                       <div className={`w-[9px] h-[9px] rounded-full bg-[#121825] border-[2.5px] transition-all duration-300 ${isPR ? 'border-blue-400 shadow-[0_0_12px_rgba(59,130,246,0.9)] scale-125' : 'border-blue-500 group-hover:bg-blue-400 group-hover:scale-110'}`} />
-                                       
-                                       {/* Tooltip */}
-                                       <div className={`absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-[#0f141e] text-white text-xs font-bold py-2.5 px-3.5 rounded-lg border border-white/10 shadow-xl whitespace-nowrap transition-all duration-200 pointer-events-none flex gap-[0.4rem] items-center ${isHovered ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-2 scale-[0.90]'}`}>
-                                           <span className="text-slate-400 tracking-wider text-[11px]">{d.dateLabel}</span>
-                                           {isWeightBased && (
-                                               <>
-                                                   <span className="w-px h-3.5 bg-white/10" />
-                                                   <span className="text-blue-400">{d.bestSetCarga}kg</span>
-                                               </>
-                                           )}
-                                           <span className="w-px h-3.5 bg-white/10" />
-                                           <span className="text-slate-300">{d.bestSetReps} {label === 'Tempo (min)' ? 'min' : 'reps'}</span>
-                                       </div>
+                                        <span className="absolute -top-[16px] left-1 text-[9px] font-bold text-slate-400/70 uppercase tracking-widest px-1.5 py-0.5 bg-[#1a2133] rounded">PR</span>
                                    </div>
-                               )
-                          })}
-                     </div>
-        
-                     {/* X Axis Labels */}
-                     <div className="absolute left-10 right-10 bottom-1 flex justify-between pointer-events-none">
-                           {filteredData.length > 0 && <span className="text-slate-500 text-[13px] font-medium">{filteredData[0].dateLabel}</span>}
-                           {filteredData.length > 2 && <span className="text-slate-500 text-[13px] font-medium absolute left-1/2 -translate-x-1/2">{filteredData[Math.floor(filteredData.length/2)].dateLabel}</span>}
-                           {filteredData.length > 1 && <span className="text-slate-500 text-[13px] font-medium">{filteredData[filteredData.length-1].dateLabel}</span>}
+                               )}
+
+                               {filteredData.map((d, i) => {
+                                    const val = isWeightBased ? d.bestSetCarga : d.bestSetReps;
+                                    const heightPct = Math.max((val / chartMax) * 100, 3);
+                                    const isPR = val === bestValOverall;
+                                    const isHovered = hovered === i;
+
+                                    return (
+                                        <div 
+                                            key={d.date} 
+                                            className="flex-1 max-w-[44px] mx-1 h-full flex flex-col justify-end cursor-pointer group z-10 relative"
+                                            onMouseEnter={() => setHovered(i)}
+                                            onMouseLeave={() => setHovered(null)}
+                                            onTouchStart={() => setHovered(i)}
+                                        >
+                                            {/* Tooltip */}
+                                            <div className={`absolute bottom-full mb-3 left-1/2 -translate-x-1/2 bg-[#0f141e] text-white text-xs font-bold py-2.5 px-3.5 rounded-lg border border-white/10 shadow-xl whitespace-nowrap transition-all duration-200 pointer-events-none flex gap-[0.4rem] items-center z-20 ${isHovered ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-2 scale-[0.90]'}`}>
+                                                <span className="text-slate-400 tracking-wider text-[11px]">{d.dateLabel}</span>
+                                                {isWeightBased && (
+                                                    <>
+                                                        <span className="w-px h-3.5 bg-white/10" />
+                                                        <span className="text-blue-400">{d.bestSetCarga}kg</span>
+                                                    </>
+                                                )}
+                                                <span className="w-px h-3.5 bg-white/10" />
+                                                <span className="text-slate-300">{d.bestSetReps} {label === 'Tempo (min)' ? 'min' : 'reps'}</span>
+                                            </div>
+
+                                            <div 
+                                                className={`w-full rounded-t-md transition-all duration-300 relative flex flex-col justify-end items-center pb-1 ${
+                                                    isPR 
+                                                        ? 'bg-gradient-to-t from-blue-600/40 via-blue-500 to-blue-400 shadow-[0_0_12px_rgba(59,130,246,0.5)]' 
+                                                        : 'bg-gradient-to-t from-slate-700/40 via-slate-600/80 to-slate-500 group-hover:from-blue-500/30 group-hover:to-blue-400 group-hover:scale-y-[1.02] origin-bottom'
+                                                }`}
+                                                style={{ height: `${heightPct}%` }}
+                                            >
+                                                <span className={`text-[11px] font-black tracking-tight ${isPR ? 'text-white' : 'text-slate-200'} select-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]`}>
+                                                    {val}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )
+                               })}
+                          </div>
+
+                          {/* X Axis Labels perfectly aligned with columns! */}
+                          <div className="h-8 flex justify-around items-center px-2 pt-1">
+                               {filteredData.map((d) => (
+                                   <div key={d.date} className="flex-1 max-w-[44px] mx-1 text-center">
+                                       <span className="text-slate-500 text-[11px] font-semibold">{d.dateLabel}</span>
+                                   </div>
+                               ))}
+                          </div>
                      </div>
                 </div>
             )}
@@ -513,6 +474,7 @@ function ActiveWorkoutContent() {
 
     const [editingSet, setEditingSet] = useState<{
         id: string;
+        exercicio_id: string;
         weight: number;
         reps: number;
         setNumber: number;
@@ -734,6 +696,7 @@ function ActiveWorkoutContent() {
 
         setEditingSet({
             id: recordId,
+            exercicio_id: currentEx.exercicio_id,
             weight: currentWeight,
             reps: currentReps,
             setNumber: setNumber,
@@ -1622,9 +1585,9 @@ function ActiveWorkoutContent() {
                                                 ) : null}
                                             </div>
                                         </div>
-                                        </div>
                                     </div>
-                                ))}
+                                </div>
+                            ))}
                             </div>
                         </div>
 
@@ -1633,7 +1596,6 @@ function ActiveWorkoutContent() {
                                 <div className="-mt-8 flex flex-col w-full gap-4 pb-8">
                                     <h2 className="text-[#f8fafc] font-bold text-[24px] px-1 tracking-[-0.5px]">Sua performance neste exercício</h2>
                                     
-                                    {/* Séries Registradas Hoje */}
                                     {(() => {
                                         const currentEx = exercises[focusedIndex];
                                         if (!currentEx) return null;
@@ -1641,39 +1603,91 @@ function ActiveWorkoutContent() {
                                             .filter(h => h.exercicio_id === currentEx.exercicio_id && sessionHistoryIds.includes(h.id))
                                             .sort((a, b) => a.serie_atual - b.serie_atual);
                                         
-                                        if (currentExHistory.length === 0) return null;
-                                        
+                                        const totalSeriesPlanned = currentEx.series || 3;
                                         const isCardio = currentEx.grupo === 'Cardio';
+
+                                        const maxCompletedSerie = currentExHistory.reduce((max, r) => Math.max(max, r.serie_atual), 0);
+                                        const displayCount = Math.max(totalSeriesPlanned, maxCompletedSerie);
+                                        const seriesList = Array.from({ length: displayCount }, (_, i) => i + 1);
 
                                         return (
                                             <div className="bg-[#242e42]/30 rounded-[20px] p-5 flex flex-col gap-3 shadow-xl w-full">
                                                 <span className="text-slate-400 text-xs sm:text-sm font-bold uppercase tracking-wider drop-shadow-sm">Séries Hoje</span>
                                                 <div className="flex flex-col gap-2">
-                                                    {currentExHistory.map((record) => (
-                                                        <div key={record.id} className="flex items-center justify-between bg-[#0f141e]/50 px-4 py-3 rounded-xl border border-white/5">
-                                                            <div className="flex items-center gap-3">
-                                                                <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center">
-                                                                    <span className="text-blue-400 font-bold text-xs">{record.serie_atual}</span>
+                                                    {seriesList.map((s) => {
+                                                        const record = currentExHistory.find(r => r.serie_atual === s);
+                                                        const isCompleted = !!record;
+
+                                                        if (isCompleted) {
+                                                            return (
+                                                                <div key={`series-${s}`} className="flex items-center justify-between bg-[#0f141e]/50 px-4 py-3 rounded-xl border border-white/5 transition-all duration-300">
+                                                                    <div className="flex items-center gap-3">
+                                                                        {(() => {
+                                                                            const fb = record.feedback || 'ideal';
+                                                                            if (fb === 'facil') {
+                                                                                return (
+                                                                                    <div title="Feedback: Fácil" className="w-[26px] h-[26px] rounded-full bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center transition-all">
+                                                                                        <ThumbsUp size={12} className="text-emerald-400" />
+                                                                                    </div>
+                                                                                );
+                                                                            } else if (fb === 'dificil') {
+                                                                                return (
+                                                                                    <div title="Feedback: Difícil" className="w-[26px] h-[26px] rounded-full bg-rose-500/15 border border-rose-500/20 flex items-center justify-center transition-all">
+                                                                                        <ThumbsDown size={12} className="text-rose-400" />
+                                                                                    </div>
+                                                                                );
+                                                                            } else {
+                                                                                return (
+                                                                                    <div title="Feedback: Ideal" className="w-[26px] h-[26px] rounded-full bg-blue-500/15 border border-blue-500/20 flex items-center justify-center transition-all">
+                                                                                        <Target size={12} className="text-blue-400 animate-pulse" />
+                                                                                    </div>
+                                                                                );
+                                                                            }
+                                                                        })()}
+                                                                        <span className="text-slate-300 font-bold text-sm">Série {s}</span>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-3">
+                                                                        {!isCardio && (
+                                                                            <>
+                                                                                <span className="text-blue-400 font-bold text-[15px]">{record.carga_usada}kg</span>
+                                                                                <span className="text-slate-600 font-medium text-xs">×</span>
+                                                                            </>
+                                                                        )}
+                                                                        <span className="text-white font-bold text-[15px]">{record.repeticoes_feitas} <span className="text-slate-500 text-xs font-medium ml-0.5">{isCardio ? 'min' : 'reps'}</span></span>
+                                                                        <button
+                                                                            onClick={() => handleEditSessionRecord(record.id, record.carga_usada, record.repeticoes_feitas, isCardio, record.serie_atual)}
+                                                                            className="w-10 h-10 rounded-full bg-slate-700/50 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-600 transition-all active:scale-90 ml-2"
+                                                                        >
+                                                                            <Edit2 size={18} />
+                                                                        </button>
+                                                                    </div>
                                                                 </div>
-                                                                <span className="text-slate-300 font-bold text-sm">Série {record.serie_atual}</span>
-                                                            </div>
-                                                            <div className="flex items-center gap-3">
-                                                                {!isCardio && (
-                                                                    <>
-                                                                        <span className="text-blue-400 font-bold text-[15px]">{record.carga_usada}kg</span>
-                                                                        <span className="text-slate-600 font-medium text-xs">×</span>
-                                                                    </>
-                                                                )}
-                                                                <span className="text-white font-bold text-[15px]">{record.repeticoes_feitas} <span className="text-slate-500 text-xs font-medium ml-0.5">{isCardio ? 'min' : 'reps'}</span></span>
-                                                                <button
-                                                                    onClick={() => handleEditSessionRecord(record.id, record.carga_usada, record.repeticoes_feitas, isCardio, record.serie_atual)}
-                                                                    className="w-10 h-10 rounded-full bg-slate-700/50 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-600 transition-all active:scale-90 ml-2"
-                                                                >
-                                                                    <Edit2 size={18} />
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    ))}
+                                                            );
+                                                        } else {
+                                                            return (
+                                                                <div key={`series-${s}`} className="flex items-center justify-between bg-[#0f141e]/15 px-4 py-3 rounded-xl border border-white/[0.02] opacity-40 select-none transition-all duration-300">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="w-[26px] h-[26px] rounded-full bg-slate-700/20 border border-white/5 flex items-center justify-center">
+                                                                            <span className="text-slate-500 font-bold text-xs">{s}</span>
+                                                                        </div>
+                                                                        <span className="text-slate-500 font-bold text-sm">Série {s}</span>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-3">
+                                                                        {!isCardio && (
+                                                                            <>
+                                                                                <span className="text-slate-500 font-bold text-[14px]">{currentEx.carga || 0}kg</span>
+                                                                                <span className="text-slate-700 font-medium text-xs">×</span>
+                                                                            </>
+                                                                        )}
+                                                                        <span className="text-slate-500 font-bold text-[14px]">{currentEx.repeticoes || 0} <span className="text-slate-600 text-xs font-medium ml-0.5">{isCardio ? 'min' : 'reps'}</span></span>
+                                                                        <div className="w-10 h-10 rounded-full bg-slate-800/10 flex items-center justify-center text-slate-600 ml-2 border border-white/5 cursor-not-allowed">
+                                                                            <Edit2 size={16} />
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        }
+                                                    })}
                                                 </div>
                                             </div>
                                         );
@@ -1817,6 +1831,14 @@ function ActiveWorkoutContent() {
                             setExerciseHistory(prev => prev.map(h => 
                                 h.id === editingSet.id ? { ...h, carga_usada: weight, repeticoes_feitas: reps, feedback } : h
                             ));
+
+                            // Atualiza a carga do exercício para as próximas séries se feedback for "ideal" ou "facil"
+                            if (feedback === 'ideal' || feedback === 'facil') {
+                                setExercises(prev => prev.map((ex) =>
+                                    ex.exercicio_id === editingSet.exercicio_id ? { ...ex, carga: weight } : ex
+                                ));
+                            }
+
                             setEditingSet(null);
                         }}
                     />
