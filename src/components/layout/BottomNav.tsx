@@ -47,7 +47,7 @@ export function BottomNav({ onNavClick }: BottomNavProps = {}) {
             ) 
         },
         { 
-            label: 'Premium', 
+            label: 'Temporada', 
             path: '/premium', 
             isPremium: true,
             icon: (props: React.SVGProps<SVGSVGElement>) => (
@@ -59,7 +59,7 @@ export function BottomNav({ onNavClick }: BottomNavProps = {}) {
     ];
 
     return (
-        <nav className="fixed bottom-0 left-0 right-0 max-w-[1024px] mx-auto bg-[#131b2b] rounded-t-[20px] z-50 pb-safe shadow-lg">
+        <nav className="fixed bottom-0 left-0 right-0 max-w-[1024px] mx-auto bg-[#0D1117] rounded-t-[20px] z-50 pb-safe shadow-lg">
             <div className="flex justify-around items-center h-[76px] px-1 pb-1 pt-2">
                 {navItems.map((item) => {
                     const Icon = item.icon;

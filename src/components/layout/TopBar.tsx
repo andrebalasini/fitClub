@@ -15,7 +15,10 @@ export function TopBar({
     backIconType = 'arrow'
 }: TopBarProps) {
     return (
-        <header className="sticky top-0 z-50 bg-gradient-to-b from-[#161d2d] to-[#0f141e] h-[72px] flex items-center justify-between px-5 pt-3 pb-1 shadow-sm">
+        <header 
+            className="sticky top-0 z-50 h-[72px] flex items-center justify-between px-5 pt-3 pb-1 shadow-[0_4px_12px_rgba(0,0,0,0.35)]"
+            style={{ background: 'linear-gradient(180deg, #0D1117 0%, #0E121A 75%, #0f141e 100%)' }}
+        >
             {/* Left: Menu Hamburger or Back Button */}
             <div className="flex items-center">
                 {showBackButton ? (
