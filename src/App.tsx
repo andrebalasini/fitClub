@@ -3,7 +3,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { WorkoutProvider } from './contexts/WorkoutContext';
 import { ToastContainer } from './components/Toast';
 import { MainLayout } from './components/layout/MainLayout';
-import { Dashboard } from './pages/Dashboard';
+import { Feed } from './pages/Feed';
 import { Shop } from './pages/Shop';
 import { WorkoutPlan } from './pages/WorkoutPlan';
 import { NewWorkout } from './pages/NewWorkout';
@@ -72,7 +72,7 @@ function AppRoutes() {
         <ProtectedRoute>
           <MainLayout>
             <Routes>
-              <Route path="/" element={<Dashboard />} />
+              <Route path="/" element={<Feed />} />
               <Route path="/perfil" element={<Profile />} />
               <Route path="/perfil/:userId" element={<Profile />} />
               <Route path="/loja" element={<Shop />} />

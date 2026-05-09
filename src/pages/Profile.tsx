@@ -4,7 +4,7 @@ import { PerformanceCards } from '../components/PerformanceCards';
 import { Activity, Camera, TrendingUp, CalendarDays, Award } from 'lucide-react';
 import { useParams, useLocation } from 'react-router-dom';
 import { useDashboardData } from '../hooks/useDashboardData';
-import { computeAttributes } from '../pages/Dashboard';
+import { computeAttributes } from '../pages/Feed';
 import { useProfileTimeline } from '../hooks/useProfileTimeline';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
