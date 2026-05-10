@@ -442,7 +442,7 @@ function generateRestPhrase(seriesRestantes: number): string {
 
 function ActiveWorkoutContent() {
     const navigate = useNavigate();
-    const { workoutConfig, endWorkout } = useActiveWorkout();
+    const { workoutConfig, endWorkout, recordAction } = useActiveWorkout();
     
     // Get state passed from context
     const { fichaId, dia, grupos } = workoutConfig || {};
@@ -655,6 +655,7 @@ function ActiveWorkoutContent() {
     const handleStartWorkout = () => {
         setWorkoutStarted(true);
         setWorkoutStartTime(Date.now());
+        recordAction();
     };
 
     const formatTime = (totalSeconds: number) => {
@@ -781,6 +782,7 @@ function ActiveWorkoutContent() {
             }]);
 
             setIsLogModalOpen(false);
+            recordAction();
             // Atualiza a carga do exercício se feedback for "ideal" ou "facil"
             if (feedback === 'ideal' || feedback === 'facil') {
                 setExercises(prev => prev.map((ex, i) =>
@@ -1470,6 +1472,7 @@ function ActiveWorkoutContent() {
                                                                 const durationInSeconds = exercise.repeticoes * 60;
                                                                 setCardioRemainingDuration(durationInSeconds);
                                                                 setCardioEndTime(Date.now() + durationInSeconds * 1000);
+                                                                recordAction();
                                                             }}
                                                             className="w-full font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all bg-green-500 hover:bg-green-600 text-white active:scale-[0.98] shadow-lg shadow-green-500/25"
                                                         >
@@ -1493,6 +1496,7 @@ function ActiveWorkoutContent() {
                                                                             setCardioState('running');
                                                                             setCardioEndTime(Date.now() + cardioRemainingDuration * 1000);
                                                                         }
+                                                                        recordAction();
                                                                     }}
                                                                     className={`flex-1 font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-lg ${cardioState === 'running' ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/25' : 'bg-green-500 hover:bg-green-600 text-white shadow-green-500/25'}`}
                                                                 >
@@ -1551,24 +1555,30 @@ function ActiveWorkoutContent() {
                                                         disabled={!workoutStarted || isResting || idx !== currentIndex}
                                                         className={`w-full font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all ${
                                                             workoutStarted && !isResting && idx === currentIndex
-                                                                ? 'bg-blue-500 hover:bg-blue-600 text-white active:scale-[0.98] shadow-lg shadow-blue-500/25' 
+                                                                ? (
+                                                                    (exercise.grupo === 'Cardio' ? currentIndex === exercises.length - 1 : (currentIndex === exercises.length - 1 && currentSetIndex === exercise.series - 1))
+                                                                    ? 'galactic-btn text-white' 
+                                                                    : 'bg-blue-500 hover:bg-blue-600 text-white active:scale-[0.98] shadow-lg shadow-blue-500/25'
+                                                                  )
                                                                 : isResting
                                                                 ? 'opacity-0 pointer-events-none'
                                                                 : 'bg-slate-700/50 text-slate-400 cursor-not-allowed'
                                                         }`}
                                                     >
-                                                        <CheckCircle size={18} />
-                                                        <span className="text-[15px]">
-                                                            {!workoutStarted
-                                                                ? 'Aguarde'
-                                                                : exercise.grupo === 'Cardio'
-                                                                ? (currentIndex === exercises.length - 1 ? 'Finalizar Treino' : 'Concluir exercício')
-                                                                : currentIndex === exercises.length - 1 && currentSetIndex === exercise.series - 1
-                                                                ? 'Finalizar Treino' 
-                                                                : currentSetIndex === exercise.series - 1 
-                                                                ? 'Concluir exercício'
-                                                                : `Concluir série (${currentSetIndex + 1}/${exercise.series})`}
-                                                        </span>
+                                                        <div className="relative z-10 flex items-center justify-center gap-2">
+                                                            <CheckCircle size={18} />
+                                                            <span className={`text-[15px] ${(workoutStarted && !isResting && idx === currentIndex && (exercise.grupo === 'Cardio' ? currentIndex === exercises.length - 1 : (currentIndex === exercises.length - 1 && currentSetIndex === exercise.series - 1))) ? 'font-black tracking-wide galactic-text-glow uppercase' : ''}`}>
+                                                                {!workoutStarted
+                                                                    ? 'Aguarde'
+                                                                    : exercise.grupo === 'Cardio'
+                                                                    ? (currentIndex === exercises.length - 1 ? 'Finalizar Treino' : 'Concluir exercício')
+                                                                    : currentIndex === exercises.length - 1 && currentSetIndex === exercise.series - 1
+                                                                    ? 'Finalizar Treino' 
+                                                                    : currentSetIndex === exercise.series - 1 
+                                                                    ? 'Concluir exercício'
+                                                                    : `Concluir série (${currentSetIndex + 1}/${exercise.series})`}
+                                                            </span>
+                                                        </div>
                                                     </button>
                                                 )}
                                                 
