@@ -299,6 +299,7 @@ export function WorkoutPlan() {
 
             {isDecisionModalOpen && fichas.length > 0 && (
                 <WorkoutCreationDecisionModal
+                    activePlanName={fichas[0].nome}
                     onClose={() => setIsDecisionModalOpen(false)}
                     onAddDayToCurrent={() => {
                         setIsDecisionModalOpen(false);

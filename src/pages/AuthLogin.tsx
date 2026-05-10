@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Loader2, Eye, EyeOff, Mail, Lock, Facebook } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { showToast } from '../components/Toast';
 import { supabase } from '../lib/supabase';
@@ -72,22 +72,7 @@ export function AuthLogin() {
     }
   };
 
-  const handleSocialLogin = async (provider: 'facebook' | 'google') => {
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: provider,
-        options: {
-          redirectTo: window.location.origin,
-        },
-      });
 
-      if (error) throw error;
-    } catch (error) {
-      console.error('Social login error:', error);
-      const providerName = provider === 'facebook' ? 'Facebook' : 'Google';
-      showToast(`Ops! Ocorreu um problema ao conectar com o ${providerName}. Tente novamente!`, 'error');
-    }
-  };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12 font-sans" style={{ background: '#121212' }}>
@@ -182,24 +167,14 @@ export function AuthLogin() {
           <div className="flex-1 h-px bg-zinc-800"></div>
         </div>
 
-        {/* Social Login Buttons Container */}
-        <div className="flex w-full items-center gap-3">
-          {/* Facebook Button */}
-          <button
-            type="button"
-            onClick={() => handleSocialLogin('facebook')}
-            className="flex-1 py-3.5 rounded-xl text-zinc-900 font-bold text-[14px] tracking-wide flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(255,255,255,0.1)] active:scale-95 border border-zinc-200 bg-white hover:bg-zinc-50 relative overflow-hidden group"
-          >
-            <Facebook size={18} className="relative z-10 text-[#1877F2] transition-colors" />
-            <span className="relative z-10 text-zinc-900 transition-colors">FACEBOOK</span>
-          </button>
-
+        {/* Social Login Button Container */}
+        <div className="w-full">
           {/* Google Button */}
           <button
             type="button"
             onClick={handleGoogleLogin}
             disabled={isGoogleLoading}
-            className="flex-1 py-3.5 rounded-xl text-zinc-900 font-bold text-[14px] tracking-wide flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(255,255,255,0.1)] active:scale-95 border border-zinc-200 bg-white hover:bg-zinc-50 relative overflow-hidden group disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full py-3.5 rounded-xl text-zinc-900 font-bold text-[14px] tracking-wide flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(255,255,255,0.1)] active:scale-95 border border-zinc-200 bg-white hover:bg-zinc-50 relative overflow-hidden group disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {isGoogleLoading ? (
               <Loader2 size={18} className="animate-spin text-zinc-500" />
@@ -211,8 +186,8 @@ export function AuthLogin() {
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
               </svg>
             )}
-            <span className="relative z-10 text-zinc-900 transition-colors">
-              {isGoogleLoading ? 'CONECTANDO...' : 'GOOGLE'}
+            <span className="relative z-10 text-zinc-900 transition-colors uppercase tracking-wide">
+              {isGoogleLoading ? 'CONECTANDO...' : 'ENTRAR COM GOOGLE'}
             </span>
           </button>
         </div>

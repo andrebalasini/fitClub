@@ -1,10 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { X, Loader2, Plus, PenLine, ImageIcon } from 'lucide-react';
+import { X, Loader2, PenLine, FileText, Camera, Pencil, Sparkles } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { getCurrentUserId } from '../lib/auth';
 import { processWorkoutImage, processWorkoutText } from '../lib/gemini';
 import { showToast } from '../components/Toast';
-import { FileText } from 'lucide-react';
 
 interface CreateFichaModalProps {
     onClose: () => void;
@@ -363,9 +362,9 @@ export function CreateFichaModal({ onClose, onCreated }: CreateFichaModalProps) 
                 ) : (
                     <>
                         {/* Input Field */}
-                        <div className="flex flex-col gap-2.5 mt-2 mb-6">
-                            <label htmlFor="ficha-name" className="text-slate-300 text-[15px] font-medium ml-1">
-                                Nome do plano <span className="text-red-400">*</span>
+                        <div className="flex flex-col gap-2 mb-8">
+                            <label htmlFor="ficha-name" className="text-slate-400 text-[13px] font-bold uppercase tracking-wider ml-1">
+                                Nome do plano <span className="text-red-500">*</span>
                             </label>
                             <input
                                 id="ficha-name"
@@ -374,51 +373,64 @@ export function CreateFichaModal({ onClose, onCreated }: CreateFichaModalProps) 
                                 value={nome}
                                 onChange={(e) => setNome(e.target.value)}
                                 placeholder="Ex: Treino de Hipertrofia 1"
-                                className="w-full bg-[#0f141e] text-white rounded-xl px-4 py-3.5 outline-none border border-transparent focus:border-blue-500/50 transition-all placeholder:text-slate-500 text-[16px]"
+                                className="w-full bg-[#0f141e]/50 text-white rounded-xl px-4 py-3.5 outline-none border border-slate-800 focus:border-blue-500/50 transition-all placeholder:text-slate-600 text-[16px] shadow-inner font-medium"
                             />
                         </div>
 
-                        <div className="flex flex-col gap-3">
-                            <span className="text-slate-400 text-xs font-bold uppercase tracking-widest pl-1 mb-1">Como deseja criar?</span>
-                            
-                            {/* Create Blank */}
+                        <div className="flex flex-col gap-5">
+                            {/* ── CAMINHO PRINCIPAL: MANUAL ── */}
                             <button
                                 onClick={handleCreateBlank}
                                 disabled={isSaving || !nome.trim()}
-                                className="w-full py-4 rounded-xl bg-[#1d70f5] text-white font-bold text-[15px] flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 shadow-[0_0_20px_rgba(29,112,245,0.15)] group relative overflow-hidden flex-shrink-0"
+                                className="w-full group text-left flex items-center gap-4 p-4.5 rounded-2xl bg-blue-600/10 border border-blue-500/40 hover:bg-blue-600/20 hover:border-blue-500 transition-all active:scale-[0.98] shadow-lg shadow-blue-500/5 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {isSaving ? (
-                                    <>
-                                        <Loader2 size={18} className="animate-spin" />
-                                        Criando plano...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Plus size={18} className="group-hover:scale-110 transition-transform" />
-                                        Criar plano em branco
-                                    </>
-                                )}
+                                <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/30 flex-shrink-0 group-hover:scale-105 transition-transform">
+                                    {isSaving ? <Loader2 size={22} className="animate-spin" /> : <Pencil size={22} />}
+                                </div>
+                                <div className="flex flex-col pr-2">
+                                    <h3 className="text-white font-bold text-[16px] leading-tight">
+                                        {isSaving ? 'Criando...' : 'Começar do Zero'}
+                                    </h3>
+                                    <p className="text-blue-200/70 text-[13px] font-medium leading-snug mt-1">
+                                        Monte seu plano manualmente escolhendo cada exercício.
+                                    </p>
+                                </div>
                             </button>
 
-                            {/* Import from Text */}
-                            <button
-                                onClick={() => setShowTextInput(true)}
-                                disabled={isSaving || !nome.trim()}
-                                className="w-full py-4 rounded-xl bg-slate-800 border border-slate-700 text-white font-bold text-[15px] flex items-center justify-center gap-2 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 group relative flex-shrink-0"
-                            >
-                                <FileText size={18} className="text-blue-400" />
-                                Importar de um texto
-                            </button>
+                            {/* ── SEÇÃO IA ── */}
+                            <div className="flex flex-col gap-3">
+                                <div className="flex items-center gap-2 pl-1">
+                                    <Sparkles size={14} className="text-amber-400" />
+                                    <span className="text-slate-400 text-[12px] font-bold uppercase tracking-widest">Importar com Inteligência Artificial</span>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-3 w-full">
+                                    {/* Grid Item A: Photo */}
+                                    <button
+                                        onClick={() => fileInputRef.current?.click()}
+                                        disabled={isSaving || !nome.trim()}
+                                        className="flex flex-col items-center justify-center gap-2.5 p-4 rounded-2xl bg-[#131b2b]/60 border border-white/5 hover:border-white/10 hover:bg-[#131b2b]/90 transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed text-center group"
+                                    >
+                                        <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-slate-300 group-hover:text-white transition-colors shadow-md">
+                                            <Camera size={20} />
+                                        </div>
+                                        <span className="text-slate-200 font-bold text-[14px]">Foto da Ficha</span>
+                                    </button>
 
-                            {/* Import from Image */}
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={isSaving || !nome.trim()}
-                                className="w-full py-4 rounded-xl bg-slate-800 border border-slate-700 text-white font-bold text-[15px] flex items-center justify-center gap-2 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 group relative flex-shrink-0"
-                            >
-                                <ImageIcon size={18} className="text-blue-400" />
-                                Importar de uma imagem
-                            </button>
+                                    {/* Grid Item B: Text */}
+                                    <button
+                                        onClick={() => setShowTextInput(true)}
+                                        disabled={isSaving || !nome.trim()}
+                                        className="flex flex-col items-center justify-center gap-2.5 p-4 rounded-2xl bg-[#131b2b]/60 border border-white/5 hover:border-white/10 hover:bg-[#131b2b]/90 transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed text-center group"
+                                    >
+                                        <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-slate-300 group-hover:text-white transition-colors shadow-md">
+                                            <FileText size={20} />
+                                        </div>
+                                        <span className="text-slate-200 font-bold text-[14px]">Colar Texto</span>
+                                    </button>
+                                </div>
+                            </div>
+
                             <input 
                                 type="file" 
                                 ref={fileInputRef} 
