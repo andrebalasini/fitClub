@@ -23,6 +23,7 @@ interface TreinoCompleto {
   dia: string;
   concluido_em: string;
   duracao_segundos: number;
+  musculos: string;
 }
 
 interface FeedCard {
@@ -56,21 +57,11 @@ function formatActivityDate(dateString: string): string {
   return `${diffD} dias atrás`;
 }
 
-const DIA_TO_MUSCULOS: Record<string, string> = {
-  A: 'Peito, Ombros e Tríceps',
-  B: 'Costas e Bíceps',
-  C: 'Pernas',
-  D: 'Ombros e Abdômen',
-  E: 'Membros Inferiores',
-  F: 'Corpo Inteiro',
-};
-
-function getDiaLabel(dia: string): string {
-  return `Treino ${dia}`;
-}
-
-function getMusculosLabel(dia: string): string {
-  return DIA_TO_MUSCULOS[dia?.toUpperCase()] ?? 'Treino Livre';
+function getDiaLabel(diaRaw: string): string {
+  if (!diaRaw) return 'Treino Livre';
+  const val = diaRaw.toUpperCase();
+  if (val === 'LIVRE') return 'Treino Livre';
+  return diaRaw.length <= 2 ? `Treino ${val}` : diaRaw;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -130,19 +121,11 @@ export function Feed() {
           lbMap.set(entry.user_id, { ...entry, rank: idx + 1 });
         });
 
-        // 2. Fetch recent completed workouts (public – no RLS restriction)
-        const { data: treinos, error } = await supabase
-          .from('tbTreinosCompletos')
-          .select('id, user_id, ficha_id, dia, concluido_em, duracao_segundos')
-          .order('concluido_em', { ascending: false })
-          .limit(15);
+        // 2. Fetch recent completed workouts dynamically aggregated from DB RPC (Security Definer bypasses individual RLS)
+        const { data: treinos, error } = await supabase.rpc('get_public_feed', { p_limit: 15 } as any);
 
         if (error) throw error;
-
-        // 3. Filter out treinos with duracao < 60s (test/incomplete) and build cards
-        const validTreinos = (treinos ?? []).filter(
-          (t: TreinoCompleto) => t.duracao_segundos >= 60
-        );
+        const validTreinos: TreinoCompleto[] = treinos ?? [];
 
         // 4. Build FitPoints map from tbFitPoints (pontos por treino)
         const { data: fpData } = await supabase
@@ -168,7 +151,7 @@ export function Feed() {
             workout_day: getDiaLabel(t.dia),
             concluido_em: formatActivityDate(t.concluido_em),
             duracao_min: duracaoMin,
-            musculos: getMusculosLabel(t.dia),
+            musculos: t.musculos || 'Treino Livre',
             fitPointsEarned: 100,
             ranking_pos: lb?.rank ?? 99,
             total_treinos: lb?.total_treinos ?? 0,
@@ -186,6 +169,7 @@ export function Feed() {
     }
     loadFeed();
   }, []);
+
 
   return (
     <div
@@ -339,15 +323,15 @@ export function Feed() {
 
                   {/* Social row */}
                   <div className="mt-3.5 pt-3.5 border-t border-white/[0.04] flex items-center justify-between text-slate-500">
-                    <button className="flex items-center gap-1.5 hover:text-blue-400 active:scale-90 transition-all text-[12px] font-bold tracking-tight bg-transparent border-none outline-none">
+                    <button className="flex items-center gap-1.5 hover:text-blue-400 active:scale-95 transition-all text-[12px] font-bold tracking-tight bg-transparent border-none outline-none">
                       <ThumbsUp size={14} />
                       <span>0</span>
                     </button>
-                    <button className="flex items-center gap-1.5 hover:text-emerald-400 active:scale-90 transition-all text-[12px] font-bold tracking-tight bg-transparent border-none outline-none">
+                    <button className="flex items-center gap-1.5 hover:text-emerald-400 active:scale-95 transition-all text-[12px] font-bold tracking-tight bg-transparent border-none outline-none">
                       <MessageSquare size={14} />
                       <span>0</span>
                     </button>
-                    <button className="flex items-center gap-1.5 hover:text-yellow-400 active:scale-90 transition-all text-[12px] font-bold tracking-tight bg-transparent border-none outline-none">
+                    <button className="flex items-center gap-1.5 hover:text-yellow-400 active:scale-95 transition-all text-[12px] font-bold tracking-tight bg-transparent border-none outline-none">
                       <Share2 size={14} />
                       <span>0</span>
                     </button>

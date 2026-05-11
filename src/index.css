@@ -150,7 +150,6 @@
   background: #18181b !important; /* Zinc 900 fallback background */
   animation: galactic-breath 3s infinite ease-in-out;
   transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s ease !important;
-  isolation: isolate; /* Creates new stacking context for child z-indexes */
 }
 
 .galactic-btn::before {
@@ -171,7 +170,7 @@
     transparent 360deg
   );
   animation: galactic-spin 3s linear infinite;
-  z-index: -2;
+  z-index: 1;
 }
 
 .galactic-btn::after {
@@ -180,7 +179,7 @@
   inset: 2px; /* Espessura da borda */
   background: linear-gradient(135deg, #27272a 0%, #09090b 100%); /* Slate/Zinc gradient */
   border-radius: calc(var(--radius-xl) - 1px); /* Usando variável ou valor relativo ao container */
-  z-index: -1;
+  z-index: 2;
   transition: background 0.3s ease;
 }
 
