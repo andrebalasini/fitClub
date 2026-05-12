@@ -1193,8 +1193,6 @@ function ActiveWorkoutContent() {
 
 
 
-    // Estimativa de ~6 kcal por minuto de treino
-    const kcalBurned = Math.floor((elapsedSeconds / 60) * 6);
 
     // Chart Data Computation for Current Exercise
     const currentHist = exerciseHistory.filter(h => h.exercicio_id === exercises[focusedIndex]?.exercicio_id);
@@ -1273,15 +1271,16 @@ function ActiveWorkoutContent() {
     // Removed old chartData slice since component renders it.
 
     return (
-        <div className="min-h-screen bg-[#0f141e]">
-            <div className="w-full flex-col flex min-h-screen bg-[#0f141e] font-sans pb-32 max-w-[1024px] mx-auto relative shadow-2xl shadow-black/50">
+        <div className="min-h-screen bg-[#0f141e] overflow-x-hidden">
+            <div className="w-full flex-col flex min-h-screen bg-[#0f141e] font-sans max-w-[1024px] mx-auto relative shadow-2xl shadow-black/50">
                 <TopBar 
                   showBackButton 
                   onBackClick={handleEarlyExitRequest} 
-                  backIconType={workoutStarted ? 'stop' : 'arrow'} 
+                  backIconType={workoutStarted ? 'stop' : 'arrow'}
+                  timerLabel={workoutStarted ? formatTime(elapsedSeconds) : undefined}
                 />
                 
-                <div className="px-4 w-full pt-2 flex flex-col flex-1 pb-10">
+                <div className="px-4 w-full pt-2 flex flex-col flex-1">
                     {/* Cabeçalho */}
                     <div className="w-full mb-4">
                         <div className="flex items-center justify-between">
@@ -1315,7 +1314,7 @@ function ActiveWorkoutContent() {
                         </div>
                     )}
 
-                    <div className={`flex flex-col gap-4 ${isLoading || exercises.length === 0 ? 'hidden' : 'flex-1'}`}>
+                    <div className={`flex flex-col gap-4 pb-[80px] ${isLoading || exercises.length === 0 ? 'hidden' : 'flex-1'}`}>
 
                         {/* Carrossel de Exercícios */}
                         <div className="notranslate" translate="no">
@@ -1703,8 +1702,8 @@ function ActiveWorkoutContent() {
                                         );
                                     })()}
                                     {/* Stats Cards */}
-                                    <div className="flex gap-3 w-full">
-                                        <div className="flex-1 bg-[#242e42]/30 rounded-[20px] p-6 flex flex-col justify-between shadow-xl relative min-h-[120px]">
+                                    <div className="grid grid-cols-2 gap-3 w-full">
+                                        <div className="w-full min-w-0 bg-[#242e42]/30 rounded-[20px] p-6 flex flex-col justify-between shadow-xl relative min-h-[120px]">
                                             <span className="text-slate-400 text-xs sm:text-sm font-bold uppercase tracking-wider mb-4 drop-shadow-sm">No Último Treino</span>
                                             <div className="flex flex-col mt-auto">
                                                 {lastWorkoutVal === '-' ? (
@@ -1723,7 +1722,7 @@ function ActiveWorkoutContent() {
                                             </div>
                                         </div>
                                         
-                                        <div className="flex-1 bg-[#242e42]/30 rounded-[20px] p-6 flex flex-col justify-between shadow-xl relative min-h-[120px]">
+                                        <div className="w-full min-w-0 bg-[#242e42]/30 rounded-[20px] p-6 flex flex-col justify-between shadow-xl relative min-h-[120px]">
                                             <span className="text-slate-400 text-xs sm:text-sm font-bold uppercase tracking-wider mb-4 drop-shadow-sm">Melhor Marca</span>
                                             <div className="flex flex-col mt-auto">
                                                 {bestMarkVal === '-' ? (
@@ -1757,7 +1756,7 @@ function ActiveWorkoutContent() {
 
                 {/* Footer flutuante: botão ou timer dependendo do estado */}
                 <div className="fixed bottom-[90px] inset-x-0 mx-auto w-full max-w-[1024px] px-4 z-50 pointer-events-none">
-                    {!workoutStarted ? (
+                    {!workoutStarted && (
                         /* Botão Iniciar Treino */
                         <button
                             onClick={handleStartWorkout}
@@ -1766,34 +1765,6 @@ function ActiveWorkoutContent() {
                             <Zap size={18} />
                             Iniciar Treino
                         </button>
-                    ) : (
-                        /* Container do Timer */
-                        <div className="pointer-events-auto bg-[#1a2235]/95 backdrop-blur-xl border border-white/5 rounded-2xl px-5 py-3.5 flex items-center justify-between shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
-                            {/* Exercícios Feitos */}
-                            <div className="flex flex-col flex-1 items-start gap-1">
-                                <span className="text-slate-400 text-[10px] uppercase font-bold tracking-widest leading-none">Exercícios</span>
-                                <span className="text-white font-black text-lg leading-none tabular-nums tracking-tight">{completedIndices.length}/{exercises.length}</span>
-                            </div>
-
-                            <div className="w-[1px] h-8 bg-white/10 mx-2" />
-
-                            {/* Tempo Total */}
-                            <div className="flex flex-col flex-1 items-center gap-1">
-                                <span className="text-slate-400 text-[10px] uppercase font-bold tracking-widest leading-none">Tempo</span>
-                                <span className="text-white font-black text-lg leading-none tabular-nums tracking-tight">{formatTime(elapsedSeconds)}</span>
-                            </div>
-
-                            <div className="w-[1px] h-8 bg-white/10 mx-2" />
-
-                            {/* Calorias Gastas */}
-                            <div className="flex flex-col flex-1 items-end gap-1">
-                                <span className="text-slate-400 text-[10px] uppercase font-bold tracking-widest leading-none">Calorias</span>
-                                <div className="flex items-baseline gap-1 leading-none">
-                                    <span className="text-orange-400 font-black text-lg leading-none tabular-nums tracking-tight">{kcalBurned}</span>
-                                    <span className="text-slate-500 text-[11px] font-bold leading-none">kcal</span>
-                                </div>
-                            </div>
-                        </div>
                     )}
                 </div>
 

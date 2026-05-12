@@ -145,13 +145,18 @@
 .galactic-btn {
   position: relative;
   overflow: hidden;
-  z-index: 0;
   isolation: isolate; /* Cria um novo contexto de empilhamento rigoroso */
   border: none !important;
-  background: #18181b !important; /* Zinc 900 fallback background */
+  background: transparent !important; /* Permite ver os pseudo-elementos negativos */
   animation: galactic-breath 3s infinite ease-in-out;
   transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s ease !important;
   transform: translateZ(0); /* Força o clip do overflow: hidden no Webkit/iOS */
+}
+
+/* Garante que todo o conteúdo interno fique acima da animação */
+.galactic-btn > * {
+  position: relative;
+  z-index: 1;
 }
 
 .galactic-btn::before {
@@ -172,7 +177,7 @@
     transparent 360deg
   );
   animation: galactic-spin 3s linear infinite;
-  z-index: 1;
+  z-index: -2;
   transform: translate(-50%, -50%) translateZ(0); /* Crucial para o WebKit */
 }
 
@@ -182,7 +187,7 @@
   inset: 2px; /* Espessura da borda */
   background: linear-gradient(135deg, #27272a 0%, #09090b 100%); /* Slate/Zinc gradient */
   border-radius: inherit; /* Herda do container diretamente para precisão total */
-  z-index: 2;
+  z-index: -1;
   transform: translateZ(0); /* Força o hoisting igual ao ::before no Safari */
   transition: background 0.3s ease;
 }
