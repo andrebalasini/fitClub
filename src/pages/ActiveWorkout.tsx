@@ -1271,7 +1271,7 @@ function ActiveWorkoutContent() {
     // Removed old chartData slice since component renders it.
 
     return (
-        <div className="min-h-screen bg-[#0f141e] overflow-x-hidden">
+        <div className="min-h-screen bg-[#0f141e]">
             <div className="w-full flex-col flex min-h-screen bg-[#0f141e] font-sans max-w-[1024px] mx-auto relative shadow-2xl shadow-black/50">
                 <TopBar 
                   showBackButton 
