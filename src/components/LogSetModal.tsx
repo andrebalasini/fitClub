@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { X, Loader2, Minus, Plus, RefreshCw, ThumbsUp, ThumbsDown, Target, Clock, Edit2 } from 'lucide-react';
 
 const DEFAULT_IMAGE = 'https://fafisurbnecapdpguudb.supabase.co/storage/v1/object/public/assets/geral/exercise_default_min.png';
 
-interface StepperProps {
+export interface StepperProps {
     label: string;
     value: number;
     onChange: (value: number) => void;
@@ -13,9 +13,10 @@ interface StepperProps {
     fastStep?: number;
     unit?: string;
     icon: React.ReactNode;
+    compact?: boolean;
 }
 
-function Stepper({ label, value, onChange, min = 0, max = 999, step = 1, fastStep, unit, icon }: StepperProps) {
+export function Stepper({ label, value, onChange, min = 0, max = 999, step = 1, fastStep, unit, icon, compact }: StepperProps) {
     const valueRef = useRef(value);
     
     useEffect(() => {
@@ -64,33 +65,72 @@ function Stepper({ label, value, onChange, min = 0, max = 999, step = 1, fastSte
         }
     };
 
-    return (
-        <div className="flex items-center justify-between bg-[#0f141e] rounded-[16px] px-4 py-3 border border-transparent">
-            <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-blue-500/15 flex items-center justify-center text-blue-400">
-                    {icon}
+    if (compact) {
+        return (
+            <div className="flex flex-col gap-1.5 w-full">
+                <div className="flex items-center justify-center gap-1.5 w-full text-center">
+                    <div className="text-blue-500/80 flex items-center justify-center">
+                        {React.cloneElement(icon as React.ReactElement<any>, { size: 14 })}
+                    </div>
+                    <span className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">{label}</span>
                 </div>
-                <span className="text-slate-300 text-[15px] font-medium">{label}</span>
+                <div className="flex items-center justify-center bg-[#0f141e] rounded-xl py-1.5">
+                    <div className="text-center whitespace-nowrap px-1">
+                        <span className="text-white font-black text-2xl">{value}</span>
+                        {unit && <span className="text-slate-500 ml-1 text-[11px] font-bold uppercase tracking-wider">{unit}</span>}
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                        onPointerDown={() => handlePointerDown(false)}
+                        onPointerUp={() => handlePointerUp(false)}
+                        onPointerLeave={stopHold}
+                        className="h-10 rounded-lg bg-slate-700/80 flex items-center justify-center text-slate-300 hover:bg-slate-600 transition-all active:scale-95 select-none touch-manipulation w-full"
+                        style={{ WebkitTouchCallout: 'none', userSelect: 'none' }}
+                    >
+                        <Minus size={18} />
+                    </button>
+                    <button
+                        onPointerDown={() => handlePointerDown(true)}
+                        onPointerUp={() => handlePointerUp(true)}
+                        onPointerLeave={stopHold}
+                        className="h-10 rounded-lg bg-slate-700/80 flex items-center justify-center text-slate-300 hover:bg-slate-600 transition-all active:scale-95 select-none touch-manipulation w-full"
+                        style={{ WebkitTouchCallout: 'none', userSelect: 'none' }}
+                    >
+                        <Plus size={18} />
+                    </button>
+                </div>
             </div>
-            <div className="flex items-center gap-2">
+        );
+    }
+
+    return (
+        <div className="flex items-center justify-between bg-[#0f141e] rounded-[16px] border border-transparent transition-all px-4 py-3">
+            <div className="flex items-center gap-2 min-w-0 shrink">
+                <div className="rounded-lg bg-blue-500/15 flex items-center justify-center text-blue-400 shrink-0 w-9 h-9">
+                    {React.cloneElement(icon as React.ReactElement<any>, { size: 16 })}
+                </div>
+                <span className="text-slate-300 font-medium truncate text-[15px]">{label}</span>
+            </div>
+            <div className="flex items-center shrink-0 gap-1.5 ml-2">
                 <button
                     onPointerDown={() => handlePointerDown(false)}
                     onPointerUp={() => handlePointerUp(false)}
                     onPointerLeave={stopHold}
-                    className="w-10 h-10 rounded-lg bg-slate-700/80 flex items-center justify-center text-slate-300 hover:bg-slate-600 transition-all active:scale-95 select-none touch-manipulation"
+                    className="rounded-lg bg-slate-700/80 flex items-center justify-center text-slate-300 hover:bg-slate-600 transition-all active:scale-95 select-none touch-manipulation w-10 h-10"
                     style={{ WebkitTouchCallout: 'none', userSelect: 'none' }}
                 >
                     <Minus size={20} />
                 </button>
-                <div className="w-16 text-center">
+                <div className="w-16 text-center whitespace-nowrap px-1">
                     <span className="text-white font-bold text-xl">{value}</span>
-                    {unit && <span className="text-slate-500 text-xs ml-0.5">{unit}</span>}
+                    {unit && <span className="text-slate-500 ml-0.5 text-xs">{unit}</span>}
                 </div>
                 <button
                     onPointerDown={() => handlePointerDown(true)}
                     onPointerUp={() => handlePointerUp(true)}
                     onPointerLeave={stopHold}
-                    className="w-10 h-10 rounded-lg bg-slate-700/80 flex items-center justify-center text-slate-300 hover:bg-slate-600 transition-all active:scale-95 select-none touch-manipulation"
+                    className="rounded-lg bg-slate-700/80 flex items-center justify-center text-slate-300 hover:bg-slate-600 transition-all active:scale-95 select-none touch-manipulation w-10 h-10"
                     style={{ WebkitTouchCallout: 'none', userSelect: 'none' }}
                 >
                     <Plus size={20} />
@@ -213,9 +253,6 @@ export function LogSetModal({
 
                     {/* Feedback */}
                     <div className="flex flex-col gap-2 mt-2">
-                        <label className="text-slate-300 text-[15px] font-medium ml-1">
-                            Como foi esta série?
-                        </label>
                         <div className="grid grid-cols-3 gap-2">
                             <button
                                 onClick={() => setFeedback('facil')}

@@ -5,9 +5,9 @@ import { useNavigate } from 'react-router-dom';
 import { TopBar } from '../components/layout/TopBar';
 import { BottomNav } from '../components/layout/BottomNav';
 import { supabase } from '../lib/supabase';
-import { CheckCircle, Clock, Loader2, Layers, RefreshCw, Info, Zap, TrendingUp, AlertTriangle, SkipForward, MessageCircle, Award, Play, Pause, Square, Edit2, ThumbsUp, ThumbsDown, Target } from 'lucide-react';
+import { CheckCircle, Clock, Loader2, Layers, RefreshCw, Info, Zap, TrendingUp, AlertTriangle, SkipForward, Award, Play, Pause, Square, Edit2, Target, Dumbbell, ArrowUp, ArrowDown } from 'lucide-react';
 import { useDragScroll } from '../hooks/useDragScroll';
-import { LogSetModal } from '../components/LogSetModal';
+import { Stepper, LogSetModal } from '../components/LogSetModal';
 import { getCurrentUserId } from '../lib/auth';
 import { useActiveWorkout } from '../contexts/WorkoutContext';
 
@@ -39,6 +39,7 @@ interface DayExercise {
     descanso: number;
     ordem: number;
     grupo?: string;
+    ultimo_feedback?: string;
 }
 
 type ChartPeriod = '1S' | '1M' | '3M' | 'Todos';
@@ -265,7 +266,7 @@ const PerformanceChart = ({
  * - 'ideal' only 1 session → no feedback
  * - All other cases → no feedback
  */
-function getExerciseFeedbackTip(
+export function getExerciseFeedbackTip(
     exerciseId: string,
     targetReps: number,
     history: HistoryRecord[]
@@ -460,7 +461,6 @@ function ActiveWorkoutContent() {
         const val = localStorage.getItem('@fw:workoutStartTime');
         return val ? parseInt(val, 10) : null;
     });
-    const [isLogModalOpen, setIsLogModalOpen] = useState(false);
     const [showExitModal, setShowExitModal] = useState(false);
     const [showSkipConfirm, setShowSkipConfirm] = useState(false);
     
@@ -483,6 +483,10 @@ function ActiveWorkoutContent() {
         exerciseImage?: string;
         totalSets: number;
     } | null>(null);
+
+    const [pendingLogReps, setPendingLogReps] = useState<number>(0);
+    const [pendingLogWeight, setPendingLogWeight] = useState<number>(0);
+    const [pendingLogFeedback, setPendingLogFeedback] = useState<string>('ideal');
 
     useEffect(() => {
         if (showWorkoutCompletedModal) {
@@ -543,6 +547,18 @@ function ActiveWorkoutContent() {
     const exerciseHistoryRef = useRef<HistoryRecord[]>([]);
     const sessionHistoryIdsRef = useRef<string[]>([]);
     const setsLoggedByIndexRef = useRef<Record<number, number>>({});
+    
+    const pendingLogRepsRef = useRef(pendingLogReps);
+    const pendingLogWeightRef = useRef(pendingLogWeight);
+    const pendingLogFeedbackRef = useRef(pendingLogFeedback);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleSaveSetLogRef = useRef<any>(null);
+
+    useEffect(() => {
+        pendingLogRepsRef.current = pendingLogReps;
+        pendingLogWeightRef.current = pendingLogWeight;
+        pendingLogFeedbackRef.current = pendingLogFeedback;
+    }, [pendingLogReps, pendingLogWeight, pendingLogFeedback]);
 
     useEffect(() => {
         localStorage.setItem('@fw:currentIndex', currentIndex.toString());
@@ -630,8 +646,6 @@ function ActiveWorkoutContent() {
                     ordem: row.ordem,
                     grupo: row.tbExercicios?.grupo
                 }));
-                setExercises(mapped as any);
-
                 const expIds = mapped.map((m: any) => m.exercicio_id);
                 if (expIds.length > 0) {
                     const { data: histData } = await supabase
@@ -641,10 +655,26 @@ function ActiveWorkoutContent() {
                         .eq('user_id', getCurrentUserId())
                         .order('created_at', { ascending: true });
                     
-                    if (histData) {
+                    if (histData && histData.length > 0) {
                         setExerciseHistory(histData as HistoryRecord[]);
+
+                        // Atualiza a carga de cada exercício para o valor da última vez que o usuário o fez
+                        const reversedHist = [...histData].reverse();
+                        mapped.forEach((m: any) => {
+                            const lastRecord = reversedHist.find(h => h.exercicio_id === m.exercicio_id);
+                            if (lastRecord) {
+                                if (lastRecord.carga_usada !== undefined && lastRecord.carga_usada !== null) {
+                                    m.carga = lastRecord.carga_usada;
+                                }
+                                if (lastRecord.feedback) {
+                                    m.ultimo_feedback = lastRecord.feedback;
+                                }
+                            }
+                        });
                     }
                 }
+
+                setExercises(mapped as any);
             }
             setIsLoading(false);
         }
@@ -706,6 +736,34 @@ function ActiveWorkoutContent() {
             exerciseImage: currentEx.imagem_url || undefined,
             totalSets: currentEx.series || 1
         });
+    };
+
+    const handleInitiateRestAndLog = () => {
+        const currentExercise = exercises[currentIndex];
+        if (!currentExercise) return;
+
+        setPendingLogReps(currentExercise.repeticoes);
+        setPendingLogWeight(currentExercise.carga);
+        setPendingLogFeedback('ideal');
+
+        const descanso = Number(currentExercise.descanso) || 60;
+        setRestTimeRemaining(descanso);
+        setRestEndTime(Date.now() + descanso * 1000);
+        
+        const isLastSet = currentSetIndex === currentExercise.series - 1;
+        if (isLastSet) {
+            const isLastExercise = exercises.every((_, i) => i === currentIndex || completedIndices.includes(i));
+            const finalMsg = isLastExercise
+                ? 'Última série concluída — bora finalizar! 🏆'
+                : 'Prepare-se para o próximo exercício 🔥💪';
+            setCurrentRestPhrase(finalMsg);
+        } else {
+            const totalSeries = currentExercise.series || 0;
+            const seriesRestantes = totalSeries - currentSetIndex - 1;
+            setCurrentRestPhrase(generateRestPhrase(seriesRestantes));
+        }
+
+        setIsResting(true);
     };
 
     const handleSaveSetLog = async (reps: number, weight: number, feedback: string) => {
@@ -781,14 +839,18 @@ function ActiveWorkoutContent() {
                 created_at: new Date().toISOString()
             }]);
 
-            setIsLogModalOpen(false);
             recordAction();
-            // Atualiza a carga do exercício se feedback for "ideal" ou "facil"
-            if (feedback === 'ideal' || feedback === 'facil') {
-                setExercises(prev => prev.map((ex, i) =>
-                    i === currentIndex ? { ...ex, carga: weight } : ex
-                ));
-            }
+            // Atualiza a carga do exercício e o último feedback localmente
+            setExercises(prev => prev.map((ex, i) => {
+                if (i === currentIndex) {
+                    const newEx = { ...ex, ultimo_feedback: feedback };
+                    if (feedback === 'ideal' || feedback === 'facil') {
+                        newEx.carga = weight;
+                    }
+                    return newEx;
+                }
+                return ex;
+            }));
 
             const isLastSet = currentSetIndex === currentExercise.series - 1;
 
@@ -797,49 +859,32 @@ function ActiveWorkoutContent() {
                 idx === currentIndex || completedIndices.includes(idx)
             );
 
+            setIsResting(false);
+            setRestEndTime(null);
+
             if (wouldFinishAll) {
                 console.log('[DEBUG Timer] Todos concluídos, finalizando treino.');
-                // Todos os exercícios concluídos → finaliza direto, sem descanso
                 const newCompletedIndices = Array.from(new Set([...completedIndices, currentIndex]));
                 setCompletedIndices(newCompletedIndices);
                 handleFinishWorkout();
             } else if (currentExercise.grupo === 'Cardio') {
                 console.log('[DEBUG Timer] Cardio finalizado, avançando.');
-                // Cardio: sem descanso, vai direto pro próximo exercício pendente
                 handleNextExercise();
-            } else if (isLastSet) {
-                console.log('[DEBUG Timer] Disparando Timer (última série do exercício)');
-                // Última série de exercício normal → descanso e avança
-                const descanso = Number(currentExercise.descanso) || 60;
-                setRestTimeRemaining(descanso);
-                setRestEndTime(Date.now() + descanso * 1000);
-                
-                const isLastExercise = exercises.every((_, i) => i === currentIndex || completedIndices.includes(i));
-                const finalMsg = isLastExercise
-                    ? 'Última série concluída — bora finalizar! 🏆'
-                    : 'Prepare-se para o próximo exercício 🔥💪';
-                setCurrentRestPhrase(finalMsg);
-                setIsResting(true);
             } else {
-                console.log('[DEBUG Timer] Disparando Timer (série intermediária)');
-                // Série intermediária → descanso e incrementa série
-                const descanso = Number(currentExercise.descanso) || 60;
-                setRestTimeRemaining(descanso);
-                setRestEndTime(Date.now() + descanso * 1000);
-                
-                const totalSeries = currentExercise.series || 0;
-                const seriesRestantes = totalSeries - currentSetIndex - 1;
-                setCurrentRestPhrase(generateRestPhrase(seriesRestantes));
-                setIsResting(true);
+                console.log('[DEBUG Timer] Set concluído, avançando.');
+                handleNextExercise();
             }
         } catch (stateErr) {
             console.error('[DEBUG Timer] Erro crítico ao atualizar estado após série:', stateErr);
-            alert('Ops! Erro ao carregar o descanso. Clique aqui para tentar novamente.');
+            alert('Ops! Ocorreu um erro. Tente novamente.');
             setIsResting(false);
             setRestEndTime(null);
-            setIsLogModalOpen(false);
         }
     };
+    
+    useEffect(() => {
+        handleSaveSetLogRef.current = handleSaveSetLog;
+    }, [handleSaveSetLog]);
 
     // Called when user clicks STOP or BACK
     const handleEarlyExitRequest = () => {
@@ -1129,10 +1174,12 @@ function ActiveWorkoutContent() {
                 } else {
                     isHandlingRest = true;
                     playAlarmSound();
-                    setIsResting(false);
-                    setRestEndTime(null);
-                    if (!jumpedRef.current && handleNextExerciseRef.current) {
-                        handleNextExerciseRef.current();
+                    if (!jumpedRef.current && handleSaveSetLogRef.current) {
+                        handleSaveSetLogRef.current(pendingLogRepsRef.current, pendingLogWeightRef.current, pendingLogFeedbackRef.current);
+                    } else {
+                        setIsResting(false);
+                        setRestEndTime(null);
+                        if (handleNextExerciseRef.current) handleNextExerciseRef.current();
                     }
                 }
             }
@@ -1146,7 +1193,9 @@ function ActiveWorkoutContent() {
                     setCardioState('idle');
                     setCardioEndTime(null);
                     setCardioRemainingDuration(0);
-                    setIsLogModalOpen(true);
+                    if (handleSaveSetLogRef.current) {
+                        handleSaveSetLogRef.current(pendingLogRepsRef.current, pendingLogWeightRef.current, pendingLogFeedbackRef.current);
+                    }
                 }
             }
         };
@@ -1320,20 +1369,20 @@ function ActiveWorkoutContent() {
                         <div className="notranslate" translate="no">
                             <div
                                 ref={carouselRef}
-                                className="flex gap-4 -mx-4 px-[7.5vw] sm:px-[calc(50%-190px)] pb-8 h-full scrollbar-none overflow-x-auto snap-x"
+                                className="flex gap-4 -mx-4 px-[7.5vw] sm:px-[calc(50%-190px)] pb-8 scrollbar-none overflow-x-auto snap-x"
                                 onScroll={handleCarouselScroll}
                             >
                                 {exercises.map((exercise, idx) => (
                                     <div
                                         key={exercise.id}
-                                        className={`w-[85%] sm:w-[380px] snap-center flex-shrink-0 bg-[#121825] rounded-[24px] shadow-xl shadow-black/40 transition-all duration-300 relative ${
+                                        className={`w-[90%] sm:w-[420px] snap-center flex-shrink-0 bg-[#121825] rounded-[24px] shadow-xl shadow-black/40 transition-all duration-300 relative ${
                                             idx === focusedIndex
                                                 ? ''
                                                 : 'opacity-60'
                                         }`}
                                     >
                                         {/* Timer View */}
-                                        <div className={`absolute inset-0 z-20 flex flex-col items-center justify-center p-6 bg-[#121825] rounded-[24px] transition-all duration-500 ${
+                                        <div className={`absolute inset-0 z-20 flex flex-col items-center justify-center p-4 bg-[#121825] rounded-[24px] transition-all duration-500 ${
                                             idx === currentIndex && isResting ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
                                         }`}>
                                             <TimerErrorBoundary onSkipError={() => { setIsResting(false); setRestEndTime(null); if(handleNextExerciseRef.current) handleNextExerciseRef.current(); }}>
@@ -1351,34 +1400,104 @@ function ActiveWorkoutContent() {
                                                     </div>
                                                 ) : (
                                                     <div className="flex flex-col items-center justify-center h-full w-full">
-                                                        <Clock size={48} className="text-blue-500 mb-6 animate-pulse" />
-                                                        <h3 className="text-slate-400 text-[15px] font-bold uppercase tracking-widest mb-2">Tempo de Descanso</h3>
-                                                        <div className="text-white text-7xl font-black tabular-nums tracking-tighter mb-4 drop-shadow-lg">
-                                                            {formatTime(restTimeRemaining)}
+                                                        <div className="flex flex-col items-center justify-center relative mb-4 mt-0 shrink-0">
+                                                            <div className="flex items-center justify-center gap-2 mb-1 w-full text-center">
+                                                                <Clock size={18} className="text-blue-500" />
+                                                                <span className="text-slate-400 text-[13px] font-bold uppercase tracking-wider">Tempo de Descanso</span>
+                                                            </div>
+                                                            <div className="text-white text-7xl font-black tabular-nums tracking-tighter drop-shadow-lg leading-none py-1 text-center">
+                                                                {formatTime(restTimeRemaining)}
+                                                            </div>
                                                         </div>
-                                                        {/* Mensagem sutil de séries restantes */}
-                                                        {(() => {
-                                                            const phraseToRender = currentRestPhrase || (
-                                                                (exercise.series || 1) === 1
-                                                                ? "É AGORA! O esforço final separa vencedores de amadores. ÚLTIMA!"
-                                                                : `Não negocie com a sua mente. Execute.`
-                                                            );
 
-                                                            return (
-                                                                <p className="text-slate-400/80 text-[13px] font-medium text-center mb-6 px-4 leading-relaxed animate-[fadeIn_600ms_ease-out]">
-                                                                    {phraseToRender}
-                                                                </p>
-                                                            );
-                                                        })()}
+                                                        {/* Divisor */}
+                                                        <div className="w-full border-t border-slate-800/60 mb-4 flex-shrink-0" />
+                                                        
+                                                        <div className="flex flex-col w-full mb-auto overflow-y-auto scrollbar-none">
+
+                                                            <div className="grid grid-cols-2 gap-3 w-full mb-4">
+                                                                <Stepper
+                                                                    label="Repetições"
+                                                                    value={pendingLogReps}
+                                                                    onChange={setPendingLogReps}
+                                                                    min={0}
+                                                                    max={300}
+                                                                    icon={<RefreshCw />}
+                                                                    compact={true}
+                                                                />
+                                                                <Stepper
+                                                                    label="Carga"
+                                                                    value={pendingLogWeight}
+                                                                    onChange={setPendingLogWeight}
+                                                                    min={0}
+                                                                    max={500}
+                                                                    step={1}
+                                                                    fastStep={5}
+                                                                    unit="kg"
+                                                                    icon={<Dumbbell />}
+                                                                    compact={true}
+                                                                />
+                                                            </div>
+                                                            
+                                                            <div className="flex flex-col gap-1.5 mt-1">
+                                                                <div className="grid grid-cols-3 gap-2">
+                                                                    <div className="flex flex-col items-center gap-1.5">
+                                                                        <button
+                                                                            onClick={() => setPendingLogFeedback('facil')}
+                                                                            className={`w-full flex items-center justify-center py-2 rounded-xl transition-all active:scale-95 ${
+                                                                                pendingLogFeedback === 'facil'
+                                                                                    ? 'bg-green-500/20 text-green-400'
+                                                                                    : 'bg-[#0f141e] text-slate-400 hover:text-white'
+                                                                            }`}
+                                                                        >
+                                                                            <ArrowUp size={20} />
+                                                                        </button>
+                                                                        <span className={`text-[10px] font-bold uppercase tracking-wider ${pendingLogFeedback === 'facil' ? 'text-green-400' : 'text-slate-500'}`}>+Carga</span>
+                                                                    </div>
+                                                                    
+                                                                    <div className="flex flex-col items-center gap-1.5">
+                                                                        <button
+                                                                            onClick={() => setPendingLogFeedback('ideal')}
+                                                                            className={`w-full flex items-center justify-center py-2 rounded-xl transition-all active:scale-95 ${
+                                                                                pendingLogFeedback === 'ideal'
+                                                                                    ? 'bg-blue-500 text-white'
+                                                                                    : 'bg-[#0f141e] text-slate-400 hover:text-white'
+                                                                            }`}
+                                                                        >
+                                                                            <Target size={20} />
+                                                                        </button>
+                                                                        <span className={`text-[10px] font-bold uppercase tracking-wider ${pendingLogFeedback === 'ideal' ? 'text-blue-500' : 'text-slate-500'}`}>Manter</span>
+                                                                    </div>
+                                                                    
+                                                                    <div className="flex flex-col items-center gap-1.5">
+                                                                        <button
+                                                                            onClick={() => setPendingLogFeedback('dificil')}
+                                                                            className={`w-full flex items-center justify-center py-2 rounded-xl transition-all active:scale-95 ${
+                                                                                pendingLogFeedback === 'dificil'
+                                                                                    ? 'bg-red-500/20 text-red-400'
+                                                                                    : 'bg-[#0f141e] text-slate-400 hover:text-white'
+                                                                            }`}
+                                                                        >
+                                                                            <ArrowDown size={20} />
+                                                                        </button>
+                                                                        <span className={`text-[10px] font-bold uppercase tracking-wider ${pendingLogFeedback === 'dificil' ? 'text-red-400' : 'text-slate-500'}`}>-Carga</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        
                                                         <button
                                                             onClick={() => {
-                                                                setIsResting(false);
-                                                                setRestEndTime(null);
-                                                                if (handleNextExerciseRef.current) handleNextExerciseRef.current();
+                                                                if (!jumpedRef.current && handleSaveSetLogRef.current) {
+                                                                    handleSaveSetLogRef.current(pendingLogRepsRef.current, pendingLogWeightRef.current, pendingLogFeedbackRef.current);
+                                                                } else {
+                                                                    setIsResting(false);
+                                                                    setRestEndTime(null);
+                                                                }
                                                             }}
-                                                            className="w-full mt-auto py-4 rounded-xl bg-blue-500 text-white font-bold text-base flex items-center justify-center gap-2 hover:bg-blue-600 transition-all active:scale-[0.98] shadow-lg shadow-blue-500/25"
+                                                            className="w-full mt-3 py-3.5 rounded-xl bg-blue-500 text-white font-bold text-[15px] flex items-center justify-center gap-2 hover:bg-blue-600 transition-all active:scale-[0.98] shadow-lg shadow-blue-500/25 flex-shrink-0"
                                                         >
-                                                            Continuar
+                                                            Encerrar descanso
                                                         </button>
                                                     </div>
                                                 )}
@@ -1386,11 +1505,31 @@ function ActiveWorkoutContent() {
                                         </div>
 
                                         {/* Exercise View */}
-                                        <div className={`flex flex-col h-full transition-all duration-500 ${
+                                        <div className={`flex flex-col h-full transition-all duration-500 relative ${
                                             idx === currentIndex && isResting ? 'opacity-0 scale-105 pointer-events-none' : 'opacity-100 scale-100'
                                         }`}>
+                                            {exercise.grupo && (
+                                                <div className="absolute top-3 left-3 z-30 bg-[#0f141e]/90 backdrop-blur-md px-2.5 py-1 rounded-lg text-white text-[10px] font-black uppercase tracking-widest shadow-md border border-white/5">
+                                                    {exercise.grupo}
+                                                </div>
+                                            )}
+                                            {exercise.ultimo_feedback && (
+                                                <div className={`absolute top-3 right-3 z-30 bg-[#0f141e]/90 backdrop-blur-md px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-md border border-white/5 flex items-center gap-1 ${
+                                                    exercise.ultimo_feedback === 'facil' ? 'text-green-400' :
+                                                    exercise.ultimo_feedback === 'ideal' ? 'text-blue-400' :
+                                                    'text-red-400'
+                                                }`}>
+                                                    {exercise.ultimo_feedback === 'facil' ? (
+                                                        <><ArrowUp size={11} className="mb-[1px]" />+CARGA</>
+                                                    ) : exercise.ultimo_feedback === 'ideal' ? (
+                                                        <><Target size={11} className="mb-[1px]" />MANTER</>
+                                                    ) : (
+                                                        <><ArrowDown size={11} className="mb-[1px]" />-CARGA</>
+                                                    )}
+                                                </div>
+                                            )}
                                             {/* Imagem do Exercicio */}
-                                            <div className="w-full h-[150px] bg-white relative overflow-hidden rounded-t-[24px]">
+                                            <div className="w-full h-[170px] shrink-0 bg-white relative overflow-hidden rounded-t-[24px]">
                                             <img
                                                 src={exercise.imagem_url || DEFAULT_EXERCISE_IMAGE}
                                                 alt={exercise.nome}
@@ -1401,40 +1540,38 @@ function ActiveWorkoutContent() {
                                             />
                                             <div className="absolute inset-0 bg-gradient-to-t from-[#121825] via-[#121825]/50 to-transparent" />
 
-                                            {/* Titulo sobre a imagem */}
-                                            <div className="absolute bottom-2.5 left-3.5 right-12">
-                                                <h2 className="text-white text-xl font-black leading-tight drop-shadow-lg truncate">{exercise.nome}</h2>
-                                                {exercise.grupo && (
-                                                    <span className="text-blue-400 text-[11px] font-bold uppercase tracking-wider drop-shadow-md">{exercise.grupo}</span>
-                                                )}
-                                            </div>
                                         </div>
 
                                         {/* Infos do Exercicio */}
-                                        <div className="px-4 pb-4 pt-3 flex flex-col gap-3">
+                                        <div className="px-4 pb-5 pt-2.5 flex flex-col gap-2">
+                                            {/* Header do Exercicio */}
+                                            <div className="flex flex-col mb-1">
+                                                <h2 className="text-white text-xl font-black leading-tight line-clamp-2">{exercise.nome}</h2>
+                                            </div>
+
                                             {/* Grid de Metricas */}
-                                            <div className={`grid gap-2 ${exercise.grupo === 'Cardio' ? 'grid-cols-1' : 'grid-cols-4'}`}>
+                                            <div className={`grid gap-1.5 ${exercise.grupo === 'Cardio' ? 'grid-cols-1' : 'grid-cols-4'}`}>
                                                 {exercise.grupo !== 'Cardio' && (
-                                                <div className="bg-[#0f141e]/80 rounded-xl p-2.5 flex flex-col items-center justify-center shadow-inner">
+                                                <div className="bg-[#0f141e]/80 rounded-xl p-2 flex flex-col items-center justify-center shadow-inner">
                                                     <Layers size={14} className="text-blue-500 mb-1" />
                                                     <span className="text-white font-black text-base leading-none">{exercise.series}</span>
                                                     <span className="text-slate-400 text-[9px] uppercase font-bold mt-1 tracking-wider">Séries</span>
                                                 </div>
                                                 )}
-                                                <div className={`bg-[#0f141e]/80 rounded-xl flex flex-col items-center justify-center shadow-inner ${exercise.grupo === 'Cardio' ? 'py-4' : 'p-2.5'}`}>
+                                                <div className={`bg-[#0f141e]/80 rounded-xl flex flex-col items-center justify-center shadow-inner ${exercise.grupo === 'Cardio' ? 'py-3.5' : 'p-2'}`}>
                                                     {exercise.grupo === 'Cardio' ? <Clock size={18} className="text-blue-500 mb-1.5" /> : <RefreshCw size={14} className="text-blue-500 mb-1" />}
                                                     <span className={`text-white font-black leading-none ${exercise.grupo === 'Cardio' ? 'text-2xl' : 'text-base'}`}>{exercise.repeticoes}{exercise.grupo === 'Cardio' && "'"}</span>
                                                     <span className="text-slate-400 text-[9px] uppercase font-bold mt-1 tracking-wider">{exercise.grupo === 'Cardio' ? 'Duração' : 'Reps'}</span>
                                                 </div>
                                                 {exercise.grupo !== 'Cardio' && (
-                                                <div className="bg-[#0f141e]/80 rounded-xl p-2.5 flex flex-col items-center justify-center shadow-inner">
+                                                <div className="bg-[#0f141e]/80 rounded-xl p-2 flex flex-col items-center justify-center shadow-inner">
                                                     <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 text-blue-500 mb-1"><path d="M20.57 14.86L22 13.43 20.57 12 17 15.57 8.43 7 12 3.43 10.57 2 9.14 3.43 7.71 2 5.57 4.14 4.14 2.71 2.71 4.14l1.43 1.43L2 7.71l1.43 1.43L2 10.57 3.43 12 7 8.43 15.57 17 12 20.57 13.43 22l1.43-1.43L16.29 22l2.14-2.14 1.43 1.43 1.43-1.43-1.43-1.43L22 16.29z" /></svg>
                                                     <span className="text-white font-black text-base leading-none">{exercise.carga}</span>
                                                     <span className="text-slate-400 text-[9px] uppercase font-bold mt-1 tracking-wider">Kg</span>
                                                 </div>
                                                 )}
                                                 {exercise.grupo !== 'Cardio' && (
-                                                <div className="bg-[#0f141e]/80 rounded-xl p-2.5 flex flex-col items-center justify-center shadow-inner">
+                                                <div className="bg-[#0f141e]/80 rounded-xl p-2 flex flex-col items-center justify-center shadow-inner">
                                                     <Clock size={14} className="text-blue-500 mb-1" />
                                                     <span className="text-white font-black text-base leading-none">{exercise.descanso}</span>
                                                     <span className="text-slate-400 text-[9px] uppercase font-bold mt-1 tracking-wider">Seg</span>
@@ -1442,23 +1579,7 @@ function ActiveWorkoutContent() {
                                                 )}
                                             </div>
 
-                                            {/* Feedback Tip */}
-                                            {exercise.grupo !== 'Cardio' && (() => {
-                                                const tip = getExerciseFeedbackTip(exercise.exercicio_id, exercise.repeticoes, exerciseHistory);
-                                                if (!tip) return null;
-                                                const colorMap = {
-                                                    green: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', text: 'text-emerald-400', icon: 'text-emerald-400' },
-                                                    blue:  { bg: 'bg-blue-500/10',    border: 'border-blue-500/20',    text: 'text-blue-300',    icon: 'text-blue-400' },
-                                                    amber: { bg: 'bg-amber-500/10',   border: 'border-amber-500/20',   text: 'text-amber-300',   icon: 'text-amber-400' },
-                                                };
-                                                const c = colorMap[tip.color as keyof typeof colorMap] || colorMap.blue;
-                                                return (
-                                                    <div className={`${c.bg} border ${c.border} rounded-xl px-3 py-2.5 flex items-start gap-2.5`}>
-                                                        <MessageCircle size={16} className={`${c.icon} flex-shrink-0 mt-0.5`} />
-                                                        <span className={`${c.text} text-[13px] font-medium leading-snug`}>{tip.message}</span>
-                                                    </div>
-                                                );
-                                            })()}
+
 
                                             {/* Botões - sempre exibidos para consistência visual */}
                                             <div className="flex flex-col mt-1 gap-1">
@@ -1473,7 +1594,7 @@ function ActiveWorkoutContent() {
                                                                 setCardioEndTime(Date.now() + durationInSeconds * 1000);
                                                                 recordAction();
                                                             }}
-                                                            className="w-full font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all bg-green-500 hover:bg-green-600 text-white active:scale-[0.98] shadow-lg shadow-green-500/25"
+                                                            className="w-full font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all bg-green-500 hover:bg-green-600 text-white active:scale-[0.98] shadow-lg shadow-green-500/25"
                                                         >
                                                             <Play size={18} />
                                                             <span className="text-[15px]">Iniciar Cardio</span>
@@ -1497,14 +1618,14 @@ function ActiveWorkoutContent() {
                                                                         }
                                                                         recordAction();
                                                                     }}
-                                                                    className={`flex-1 font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-lg ${cardioState === 'running' ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/25' : 'bg-green-500 hover:bg-green-600 text-white shadow-green-500/25'}`}
+                                                                    className={`flex-1 font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-lg ${cardioState === 'running' ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/25' : 'bg-green-500 hover:bg-green-600 text-white shadow-green-500/25'}`}
                                                                 >
                                                                     {cardioState === 'running' ? <Pause size={18} /> : <Play size={18} />}
                                                                     <span className="text-[15px]">{cardioState === 'running' ? 'Pausar' : 'Continuar'}</span>
                                                                 </button>
                                                                 <button
                                                                     onClick={(e) => { e.stopPropagation(); setShowStopCardioConfirm(true); }}
-                                                                    className="w-[60px] flex-shrink-0 font-bold py-3.5 rounded-xl flex items-center justify-center transition-all bg-red-500/10 hover:bg-red-500/20 text-red-500 active:scale-[0.98]"
+                                                                    className="w-[60px] flex-shrink-0 font-bold py-3 rounded-xl flex items-center justify-center transition-all bg-red-500/10 hover:bg-red-500/20 text-red-500 active:scale-[0.98]"
                                                                 >
                                                                     <Square size={18} />
                                                                 </button>
@@ -1528,7 +1649,7 @@ function ActiveWorkoutContent() {
                                                         return (
                                                             <button
                                                                 onClick={(e) => { e.stopPropagation(); handleJumpToExercise(idx); }}
-                                                                className="w-full font-bold py-3.5 rounded-xl flex items-center justify-between px-4 transition-all bg-slate-700 hover:bg-slate-600 text-white active:scale-[0.98] shadow-lg shadow-black/20"
+                                                                className="w-full font-bold py-3 rounded-xl flex items-center justify-between px-4 transition-all bg-slate-700 hover:bg-slate-600 text-white active:scale-[0.98] shadow-lg shadow-black/20"
                                                             >
                                                                 <div className="flex items-center gap-2">
                                                                     <SkipForward size={18} />
@@ -1550,9 +1671,9 @@ function ActiveWorkoutContent() {
                                                     </div>
                                                 ) : (
                                                     <button
-                                                        onClick={() => setIsLogModalOpen(true)}
+                                                        onClick={() => handleInitiateRestAndLog()}
                                                         disabled={!workoutStarted || isResting || idx !== currentIndex}
-                                                        className={`w-full font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all ${
+                                                        className={`w-full font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all ${
                                                             workoutStarted && !isResting && idx === currentIndex
                                                                 ? (
                                                                     (exercise.grupo === 'Cardio' ? currentIndex === exercises.length - 1 : (currentIndex === exercises.length - 1 && currentSetIndex === exercise.series - 1))
@@ -1584,13 +1705,13 @@ function ActiveWorkoutContent() {
                                                 {workoutStarted && !isResting && idx === currentIndex && exercise.grupo !== 'Cardio' ? (
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); setShowSkipConfirm(true); }}
-                                                        className="w-full font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all text-slate-400 bg-transparent hover:text-slate-200 hover:bg-white/5 active:scale-[0.95]"
+                                                        className="w-full font-bold py-2 rounded-xl flex items-center justify-center gap-2 transition-all text-slate-400 bg-transparent hover:text-slate-200 hover:bg-white/5 active:scale-[0.95]"
                                                     >
                                                         <SkipForward size={16} />
                                                         <span className="text-[14px]">Não fiz o exercício</span>
                                                     </button>
                                                 ) : exercise.grupo !== 'Cardio' ? (
-                                                    <div className="h-[40px] w-full" />
+                                                    <div className="h-[32px] w-full" />
                                                 ) : null}
                                             </div>
                                         </div>
@@ -1635,19 +1756,19 @@ function ActiveWorkoutContent() {
                                                                             const fb = record.feedback || 'ideal';
                                                                             if (fb === 'facil') {
                                                                                 return (
-                                                                                    <div title="Feedback: Fácil" className="w-[26px] h-[26px] rounded-full bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center transition-all">
-                                                                                        <ThumbsUp size={12} className="text-emerald-400" />
+                                                                                    <div title="Feedback: +Carga" className="w-[26px] h-[26px] rounded-full bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center transition-all">
+                                                                                        <ArrowUp size={14} className="text-emerald-400" />
                                                                                     </div>
                                                                                 );
                                                                             } else if (fb === 'dificil') {
                                                                                 return (
-                                                                                    <div title="Feedback: Difícil" className="w-[26px] h-[26px] rounded-full bg-rose-500/15 border border-rose-500/20 flex items-center justify-center transition-all">
-                                                                                        <ThumbsDown size={12} className="text-rose-400" />
+                                                                                    <div title="Feedback: -Carga" className="w-[26px] h-[26px] rounded-full bg-rose-500/15 border border-rose-500/20 flex items-center justify-center transition-all">
+                                                                                        <ArrowDown size={14} className="text-rose-400" />
                                                                                     </div>
                                                                                 );
                                                                             } else {
                                                                                 return (
-                                                                                    <div title="Feedback: Ideal" className="w-[26px] h-[26px] rounded-full bg-blue-500/15 border border-blue-500/20 flex items-center justify-center transition-all">
+                                                                                    <div title="Feedback: Manter" className="w-[26px] h-[26px] rounded-full bg-blue-500/15 border border-blue-500/20 flex items-center justify-center transition-all">
                                                                                         <Target size={12} className="text-blue-400 animate-pulse" />
                                                                                     </div>
                                                                                 );
@@ -1770,20 +1891,7 @@ function ActiveWorkoutContent() {
 
                 <BottomNav />
 
-                {/* Log Set Modal */}
-                {isLogModalOpen && exercises[currentIndex] && (
-                    <LogSetModal
-                        exerciseName={exercises[currentIndex].nome}
-                        exerciseGroup={exercises[currentIndex].grupo}
-                        exerciseImage={exercises[currentIndex].imagem_url}
-                        setNumber={currentSetIndex + 1}
-                        totalSets={exercises[currentIndex].series}
-                        defaultReps={exercises[currentIndex].repeticoes}
-                        defaultWeight={exercises[currentIndex].carga}
-                        onClose={() => setIsLogModalOpen(false)}
-                        onSave={handleSaveSetLog}
-                    />
-                )}
+
 
                 {/* Edit Log Set Modal */}
                 {editingSet && (
@@ -1813,12 +1921,17 @@ function ActiveWorkoutContent() {
                                 h.id === editingSet.id ? { ...h, carga_usada: weight, repeticoes_feitas: reps, feedback } : h
                             ));
 
-                            // Atualiza a carga do exercício para as próximas séries se feedback for "ideal" ou "facil"
-                            if (feedback === 'ideal' || feedback === 'facil') {
-                                setExercises(prev => prev.map((ex) =>
-                                    ex.exercicio_id === editingSet.exercicio_id ? { ...ex, carga: weight } : ex
-                                ));
-                            }
+                            // Atualiza a carga do exercício e o último feedback localmente
+                            setExercises(prev => prev.map((ex) => {
+                                if (ex.exercicio_id === editingSet.exercicio_id) {
+                                    const newEx = { ...ex, ultimo_feedback: feedback };
+                                    if (feedback === 'ideal' || feedback === 'facil') {
+                                        newEx.carga = weight;
+                                    }
+                                    return newEx;
+                                }
+                                return ex;
+                            }));
 
                             setEditingSet(null);
                         }}
