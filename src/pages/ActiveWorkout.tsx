@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { TopBar } from '../components/layout/TopBar';
 import { BottomNav } from '../components/layout/BottomNav';
 import { supabase } from '../lib/supabase';
-import { CheckCircle, Clock, Loader2, Layers, RefreshCw, Info, Zap, TrendingUp, AlertTriangle, SkipForward, Award, Play, Pause, Square, Edit2, Target, Dumbbell, ArrowUp, ArrowDown } from 'lucide-react';
+import { CheckCircle, Check, Clock, Loader2, Layers, RefreshCw, Info, Zap, TrendingUp, AlertTriangle, SkipForward, Award, Play, Pause, Square, Edit2, Dumbbell, ArrowUp, ArrowDown } from 'lucide-react';
 import { useDragScroll } from '../hooks/useDragScroll';
 import { Stepper, LogSetModal } from '../components/LogSetModal';
 import { getCurrentUserId } from '../lib/auth';
@@ -452,6 +452,7 @@ function ActiveWorkoutContent() {
     const [exerciseHistory, setExerciseHistory] = useState<HistoryRecord[]>([]);
     const [exercises, setExercises] = useState<DayExercise[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [fetchError, setFetchError] = useState<string | null>(null);
     const [currentIndex, setCurrentIndex] = useState(() => parseInt(localStorage.getItem('@fw:currentIndex') || '0', 10));
     const [currentSetIndex, setCurrentSetIndex] = useState(() => parseInt(localStorage.getItem('@fw:currentSetIndex') || '0', 10));
     const [focusedIndex, setFocusedIndex] = useState(() => parseInt(localStorage.getItem('@fw:focusedIndex') || '0', 10));
@@ -611,6 +612,7 @@ function ActiveWorkoutContent() {
 
         async function fetchExercisesAndHistory() {
             setIsLoading(true);
+            setFetchError(null);
             const { data, error } = await supabase
                 .from('tbTreinos')
                 .select(`
@@ -675,6 +677,9 @@ function ActiveWorkoutContent() {
                 }
 
                 setExercises(mapped as any);
+            } else if (error) {
+                console.error("Erro ao carregar exercícios:", error);
+                setFetchError(error.message);
             }
             setIsLoading(false);
         }
@@ -771,8 +776,11 @@ function ActiveWorkoutContent() {
         
         if (!currentExercise) {
             console.error("Exercício atual não encontrado");
+            if (isLoading) {
+                return false; // Permite tentar novamente no próximo tick
+            }
             alert("Erro interno: Exercício não encontrado.");
-            return;
+            return false;
         }
 
         let insertedRow;
@@ -879,7 +887,9 @@ function ActiveWorkoutContent() {
             alert('Ops! Ocorreu um erro. Tente novamente.');
             setIsResting(false);
             setRestEndTime(null);
+            return false;
         }
+        return true;
     };
     
     useEffect(() => {
@@ -944,12 +954,23 @@ function ActiveWorkoutContent() {
     // Discard workout — delete all history records created in this session
     const handleDiscardWorkout = async () => {
         setIsSavingExit(true);
-        if (sessionHistoryIds.length > 0) {
-            try {
-                await supabase.from('tbHistorico').delete().in('id', sessionHistoryIds);
-            } catch (err) {
-                console.error('Erro ao descartar histórico da sessão:', err);
+        try {
+            if (workoutStartTime) {
+                const startDate = new Date(workoutStartTime).toISOString();
+                await supabase.from('tbHistorico')
+                    .delete()
+                    .eq('user_id', getCurrentUserId())
+                    .eq('ficha_id', fichaId)
+                    .eq('dia', dia)
+                    .gte('created_at', startDate);
+            } else if (sessionHistoryIds.length > 0) {
+                const validIds = sessionHistoryIds.filter(id => id.includes('-'));
+                if (validIds.length > 0) {
+                    await supabase.from('tbHistorico').delete().in('id', validIds);
+                }
             }
+        } catch (err) {
+            console.error('Erro ao descartar histórico da sessão:', err);
         }
         setIsSavingExit(false);
         endWorkout();
@@ -1173,9 +1194,11 @@ function ActiveWorkoutContent() {
                     setRestTimeRemaining(remaining);
                 } else {
                     isHandlingRest = true;
-                    playAlarmSound();
                     if (!jumpedRef.current && handleSaveSetLogRef.current) {
-                        handleSaveSetLogRef.current(pendingLogRepsRef.current, pendingLogWeightRef.current, pendingLogFeedbackRef.current);
+                        handleSaveSetLogRef.current(pendingLogRepsRef.current, pendingLogWeightRef.current, pendingLogFeedbackRef.current).then((success: boolean) => {
+                            if (!success) isHandlingRest = false; // Se falhou porque ainda está carregando, tenta de novo
+                            else playAlarmSound(); // Só toca o alarme se conseguiu processar
+                        });
                     } else {
                         setIsResting(false);
                         setRestEndTime(null);
@@ -1189,12 +1212,22 @@ function ActiveWorkoutContent() {
                     setCardioRemainingDuration(remaining);
                 } else {
                     isHandlingCardioEnd = true;
-                    playAlarmSound();
-                    setCardioState('idle');
-                    setCardioEndTime(null);
-                    setCardioRemainingDuration(0);
                     if (handleSaveSetLogRef.current) {
-                        handleSaveSetLogRef.current(pendingLogRepsRef.current, pendingLogWeightRef.current, pendingLogFeedbackRef.current);
+                        handleSaveSetLogRef.current(pendingLogRepsRef.current, pendingLogWeightRef.current, pendingLogFeedbackRef.current).then((success: boolean) => {
+                            if (!success) {
+                                isHandlingCardioEnd = false;
+                            } else {
+                                playAlarmSound();
+                                setCardioState('idle');
+                                setCardioEndTime(null);
+                                setCardioRemainingDuration(0);
+                            }
+                        });
+                    } else {
+                        playAlarmSound();
+                        setCardioState('idle');
+                        setCardioEndTime(null);
+                        setCardioRemainingDuration(0);
                     }
                 }
             }
@@ -1331,7 +1364,7 @@ function ActiveWorkoutContent() {
                 
                 <div className="px-4 w-full pt-2 flex flex-col flex-1">
                     {/* Cabeçalho */}
-                    <div className="w-full mb-4">
+                    <div className="w-full mb-1">
                         <div className="flex items-center justify-between">
                             <h1 className="text-white text-[22px] font-bold uppercase tracking-wide truncate">
                                 {dia && (
@@ -1356,10 +1389,34 @@ function ActiveWorkoutContent() {
                         </div>
                     )}
                     
-                    {!isLoading && exercises.length === 0 && (
-                        <div className="flex-1 flex flex-col items-center justify-center p-6 bg-[#131b2b] rounded-3xl shadow-inner text-center">
-                            <Info size={32} className="text-slate-500 mb-4" />
-                            <p className="text-slate-400 text-sm">Este dia não possui exercícios configurados.</p>
+                    {exercises.length === 0 && !isLoading && (
+                        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#1a2235]/50 backdrop-blur-md rounded-[32px] border border-white/5 mx-4 my-8">
+                            {fetchError ? (
+                                <>
+                                    <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 mb-4">
+                                        <AlertTriangle size={32} />
+                                    </div>
+                                    <h3 className="text-white font-bold text-lg mb-2">Erro de Conexão</h3>
+                                    <p className="text-slate-400 text-sm max-w-[240px] mb-6">
+                                        Não foi possível carregar seu treino. Sua sessão pode ter expirado.
+                                    </p>
+                                    <button 
+                                        onClick={() => window.location.reload()}
+                                        className="px-6 py-2.5 rounded-full bg-blue-500 text-white font-bold text-sm"
+                                    >
+                                        Recarregar Página
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center text-slate-500 mb-4">
+                                        <Info size={32} />
+                                    </div>
+                                    <p className="text-slate-400 text-[15px] font-medium max-w-[200px]">
+                                        Este dia não possui exercícios configurados.
+                                    </p>
+                                </>
+                            )}
                         </div>
                     )}
 
@@ -1375,7 +1432,7 @@ function ActiveWorkoutContent() {
                                 {exercises.map((exercise, idx) => (
                                     <div
                                         key={exercise.id}
-                                        className={`w-[90%] sm:w-[420px] snap-center flex-shrink-0 bg-[#121825] rounded-[24px] shadow-xl shadow-black/40 transition-all duration-300 relative ${
+                                        className={`w-[94%] sm:w-[470px] snap-center flex-shrink-0 bg-[#121825] rounded-[24px] shadow-xl shadow-black/40 transition-all duration-300 relative ${
                                             idx === focusedIndex
                                                 ? ''
                                                 : 'opacity-60'
@@ -1400,20 +1457,43 @@ function ActiveWorkoutContent() {
                                                     </div>
                                                 ) : (
                                                     <div className="flex flex-col items-center justify-center h-full w-full">
-                                                        <div className="flex flex-col items-center justify-center relative mb-4 mt-0 shrink-0">
-                                                            <div className="flex items-center justify-center gap-2 mb-1 w-full text-center">
+                                                        <div className="flex flex-col items-center justify-center relative mb-4 mt-[-2px] shrink-0 gap-2">
+                                                            <div className="flex items-center justify-center gap-2 w-full text-center">
                                                                 <Clock size={18} className="text-blue-500" />
-                                                                <span className="text-slate-400 text-[13px] font-bold uppercase tracking-wider">Tempo de Descanso</span>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <span className="text-slate-400 font-bold uppercase tracking-widest text-[15px]">
+                                                                        Descanso <span className="text-blue-500">{currentSetIndex + 1}</span> <span className="text-slate-500 text-[12px]">de</span> <span className="text-blue-500">{exercise.series}</span>
+                                                                    </span>
+                                                                </div>
                                                             </div>
-                                                            <div className="text-white text-7xl font-black tabular-nums tracking-tighter drop-shadow-lg leading-none py-1 text-center">
+                                                            <div className="text-white text-[76px] font-black tabular-nums tracking-tighter drop-shadow-lg leading-none text-center mt-[-6px]">
                                                                 {formatTime(restTimeRemaining)}
                                                             </div>
+
+                                                            <button
+                                                                onClick={() => {
+                                                                    if (!jumpedRef.current && handleSaveSetLogRef.current) {
+                                                                        handleSaveSetLogRef.current(pendingLogRepsRef.current, pendingLogWeightRef.current, pendingLogFeedbackRef.current);
+                                                                    } else {
+                                                                        setIsResting(false);
+                                                                        setRestEndTime(null);
+                                                                    }
+                                                                }}
+                                                                className="w-auto self-center mt-2.5 py-2 px-5 rounded-xl bg-slate-700/80 text-slate-300 font-bold text-[10px] flex items-center justify-center gap-2 transition-all active:scale-95 flex-shrink-0 tracking-widest uppercase"
+                                                            >
+                                                                FINALIZAR DESCANSO
+                                                                <SkipForward size={14} strokeWidth={2} className="text-blue-500" />
+                                                            </button>
                                                         </div>
 
                                                         {/* Divisor */}
                                                         <div className="w-full border-t border-slate-800/60 mb-4 flex-shrink-0" />
                                                         
-                                                        <div className="flex flex-col w-full mb-auto overflow-y-auto scrollbar-none">
+                                                        <p className="w-full text-left text-slate-500 text-[11px] font-bold uppercase tracking-widest opacity-80 px-1 mb-2">
+                                                            COMO FOI ESSA SÉRIE?
+                                                        </p>
+                                                        
+                                                        <div className="flex flex-col w-full overflow-y-auto scrollbar-none">
 
                                                             <div className="grid grid-cols-2 gap-3 w-full mb-4">
                                                                 <Stepper
@@ -1439,7 +1519,7 @@ function ActiveWorkoutContent() {
                                                                 />
                                                             </div>
                                                             
-                                                            <div className="flex flex-col gap-1.5 mt-1">
+                                                            <div className="flex flex-col gap-1 mt-3">
                                                                 <div className="grid grid-cols-3 gap-2">
                                                                     <div className="flex flex-col items-center gap-1.5">
                                                                         <button
@@ -1447,7 +1527,7 @@ function ActiveWorkoutContent() {
                                                                             className={`w-full flex items-center justify-center py-2 rounded-xl transition-all active:scale-95 ${
                                                                                 pendingLogFeedback === 'facil'
                                                                                     ? 'bg-green-500/20 text-green-400'
-                                                                                    : 'bg-[#0f141e] text-slate-400 hover:text-white'
+                                                                                    : 'bg-slate-700/80 text-slate-300 hover:text-white'
                                                                             }`}
                                                                         >
                                                                             <ArrowUp size={20} />
@@ -1461,10 +1541,10 @@ function ActiveWorkoutContent() {
                                                                             className={`w-full flex items-center justify-center py-2 rounded-xl transition-all active:scale-95 ${
                                                                                 pendingLogFeedback === 'ideal'
                                                                                     ? 'bg-blue-500 text-white'
-                                                                                    : 'bg-[#0f141e] text-slate-400 hover:text-white'
+                                                                                    : 'bg-slate-700/80 text-slate-300 hover:text-white'
                                                                             }`}
                                                                         >
-                                                                            <Target size={20} />
+                                                                            <Check size={20} strokeWidth={3} />
                                                                         </button>
                                                                         <span className={`text-[10px] font-bold uppercase tracking-wider ${pendingLogFeedback === 'ideal' ? 'text-blue-500' : 'text-slate-500'}`}>Manter</span>
                                                                     </div>
@@ -1475,7 +1555,7 @@ function ActiveWorkoutContent() {
                                                                             className={`w-full flex items-center justify-center py-2 rounded-xl transition-all active:scale-95 ${
                                                                                 pendingLogFeedback === 'dificil'
                                                                                     ? 'bg-red-500/20 text-red-400'
-                                                                                    : 'bg-[#0f141e] text-slate-400 hover:text-white'
+                                                                                    : 'bg-slate-700/80 text-slate-300 hover:text-white'
                                                                             }`}
                                                                         >
                                                                             <ArrowDown size={20} />
@@ -1483,22 +1563,11 @@ function ActiveWorkoutContent() {
                                                                         <span className={`text-[10px] font-bold uppercase tracking-wider ${pendingLogFeedback === 'dificil' ? 'text-red-400' : 'text-slate-500'}`}>-Carga</span>
                                                                     </div>
                                                                 </div>
+
                                                             </div>
                                                         </div>
                                                         
-                                                        <button
-                                                            onClick={() => {
-                                                                if (!jumpedRef.current && handleSaveSetLogRef.current) {
-                                                                    handleSaveSetLogRef.current(pendingLogRepsRef.current, pendingLogWeightRef.current, pendingLogFeedbackRef.current);
-                                                                } else {
-                                                                    setIsResting(false);
-                                                                    setRestEndTime(null);
-                                                                }
-                                                            }}
-                                                            className="w-full mt-3 py-3.5 rounded-xl bg-blue-500 text-white font-bold text-[15px] flex items-center justify-center gap-2 hover:bg-blue-600 transition-all active:scale-[0.98] shadow-lg shadow-blue-500/25 flex-shrink-0"
-                                                        >
-                                                            Encerrar descanso
-                                                        </button>
+
                                                     </div>
                                                 )}
                                             </TimerErrorBoundary>
@@ -1522,14 +1591,14 @@ function ActiveWorkoutContent() {
                                                     {exercise.ultimo_feedback === 'facil' ? (
                                                         <><ArrowUp size={11} className="mb-[1px]" />+CARGA</>
                                                     ) : exercise.ultimo_feedback === 'ideal' ? (
-                                                        <><Target size={11} className="mb-[1px]" />MANTER</>
+                                                        <><Check size={11} className="mb-[1px]" />MANTER</>
                                                     ) : (
                                                         <><ArrowDown size={11} className="mb-[1px]" />-CARGA</>
                                                     )}
                                                 </div>
                                             )}
                                             {/* Imagem do Exercicio */}
-                                            <div className="w-full h-[170px] shrink-0 bg-white relative overflow-hidden rounded-t-[24px]">
+                                            <div className="w-full h-[200px] shrink-0 bg-white relative overflow-hidden rounded-t-[24px]">
                                             <img
                                                 src={exercise.imagem_url || DEFAULT_EXERCISE_IMAGE}
                                                 alt={exercise.nome}
@@ -1538,12 +1607,12 @@ function ActiveWorkoutContent() {
                                                     (e.target as HTMLImageElement).src = DEFAULT_EXERCISE_IMAGE;
                                                 }}
                                             />
-                                            <div className="absolute inset-0 bg-gradient-to-t from-[#121825] via-[#121825]/50 to-transparent" />
+                                            <div className="absolute inset-x-0 bottom-0 h-[40%] bg-gradient-to-t from-[#121825] via-[#121825]/30 to-transparent" />
 
                                         </div>
 
                                         {/* Infos do Exercicio */}
-                                        <div className="px-4 pb-5 pt-2.5 flex flex-col gap-2">
+                                        <div className="px-4 pb-6 pt-2 flex flex-col gap-1.5">
                                             {/* Header do Exercicio */}
                                             <div className="flex flex-col mb-1">
                                                 <h2 className="text-white text-xl font-black leading-tight line-clamp-2">{exercise.nome}</h2>
@@ -1769,7 +1838,7 @@ function ActiveWorkoutContent() {
                                                                             } else {
                                                                                 return (
                                                                                     <div title="Feedback: Manter" className="w-[26px] h-[26px] rounded-full bg-blue-500/15 border border-blue-500/20 flex items-center justify-center transition-all">
-                                                                                        <Target size={12} className="text-blue-400 animate-pulse" />
+                                                                                        <Check size={12} className="text-blue-400" />
                                                                                     </div>
                                                                                 );
                                                                             }

@@ -70,14 +70,14 @@ export function Stepper({ label, value, onChange, min = 0, max = 999, step = 1, 
             <div className="flex flex-col gap-1.5 w-full">
                 <div className="flex items-center justify-center gap-1.5 w-full text-center">
                     <div className="text-blue-500/80 flex items-center justify-center">
-                        {React.cloneElement(icon as React.ReactElement<any>, { size: 14 })}
+                        {React.cloneElement(icon as React.ReactElement<any>, { size: 16 })}
                     </div>
-                    <span className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">{label}</span>
+                    <span className="text-slate-400 text-[13px] font-bold uppercase tracking-wider">{label}</span>
                 </div>
-                <div className="flex items-center justify-center bg-[#0f141e] rounded-xl py-1.5">
-                    <div className="text-center whitespace-nowrap px-1">
-                        <span className="text-white font-black text-2xl">{value}</span>
-                        {unit && <span className="text-slate-500 ml-1 text-[11px] font-bold uppercase tracking-wider">{unit}</span>}
+                <div className="flex items-center justify-center bg-[#0f141e] rounded-xl h-[42px]">
+                    <div className="flex items-center justify-center gap-1">
+                        <span className="text-white font-black text-[26px] leading-none">{value}</span>
+                        {unit && <span className="text-slate-500 text-[10px] font-bold uppercase tracking-wider leading-none">{unit}</span>}
                     </div>
                 </div>
                 <div className="grid grid-cols-2 gap-1.5">
@@ -85,7 +85,7 @@ export function Stepper({ label, value, onChange, min = 0, max = 999, step = 1, 
                         onPointerDown={() => handlePointerDown(false)}
                         onPointerUp={() => handlePointerUp(false)}
                         onPointerLeave={stopHold}
-                        className="h-10 rounded-lg bg-slate-700/80 flex items-center justify-center text-slate-300 hover:bg-slate-600 transition-all active:scale-95 select-none touch-manipulation w-full"
+                        className="h-[34px] rounded-lg bg-slate-700/80 flex items-center justify-center text-slate-300 hover:bg-slate-600 transition-all active:scale-95 select-none touch-manipulation w-full"
                         style={{ WebkitTouchCallout: 'none', userSelect: 'none' }}
                     >
                         <Minus size={18} />
@@ -94,7 +94,7 @@ export function Stepper({ label, value, onChange, min = 0, max = 999, step = 1, 
                         onPointerDown={() => handlePointerDown(true)}
                         onPointerUp={() => handlePointerUp(true)}
                         onPointerLeave={stopHold}
-                        className="h-10 rounded-lg bg-slate-700/80 flex items-center justify-center text-slate-300 hover:bg-slate-600 transition-all active:scale-95 select-none touch-manipulation w-full"
+                        className="h-[34px] rounded-lg bg-slate-700/80 flex items-center justify-center text-slate-300 hover:bg-slate-600 transition-all active:scale-95 select-none touch-manipulation w-full"
                         style={{ WebkitTouchCallout: 'none', userSelect: 'none' }}
                     >
                         <Plus size={18} />
