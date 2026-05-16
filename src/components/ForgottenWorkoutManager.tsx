@@ -30,11 +30,23 @@ export function ForgottenWorkoutManager() {
     const handleDiscard = async () => {
         setIsProcessing(true);
         try {
-            if (forgottenData.sessionHistoryIds.length > 0) {
+            if (forgottenData.startTime) {
+                const startDate = new Date(forgottenData.startTime).toISOString();
                 await supabase
                     .from('tbHistorico')
                     .delete()
-                    .in('id', forgottenData.sessionHistoryIds);
+                    .eq('user_id', getCurrentUserId())
+                    .eq('ficha_id', forgottenData.fichaId)
+                    .eq('dia', forgottenData.dia)
+                    .gte('created_at', startDate);
+            } else if (forgottenData.sessionHistoryIds.length > 0) {
+                const validIds = forgottenData.sessionHistoryIds.filter(id => id.includes('-'));
+                if (validIds.length > 0) {
+                    await supabase
+                        .from('tbHistorico')
+                        .delete()
+                        .in('id', validIds);
+                }
             }
         } catch (err) {
             console.error('Failed to discard forgotten history:', err);

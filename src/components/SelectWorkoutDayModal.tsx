@@ -132,20 +132,20 @@ export function SelectWorkoutDayModal({ fichaId, fichaNome, diasTreino, onClose 
                 </button>
 
                 {/* Header */}
-                <div className="flex items-center justify-between mb-6">
-                    <div className="flex flex-col">
-                        <h2 className="text-white font-bold text-xl leading-tight">Iniciar Treino</h2>
-                        <span className="text-slate-400 text-[13px] font-medium mt-0.5 leading-tight">{fichaNome}</span>
+                <div className="flex items-center justify-between mb-6 gap-2">
+                    <div className="flex flex-col min-w-0 pr-2">
+                        <h2 className="text-white font-bold text-lg sm:text-xl leading-tight whitespace-nowrap">Iniciar Treino</h2>
+                        <span className="text-slate-400 text-[13px] font-medium mt-0.5 leading-tight truncate">{fichaNome}</span>
                     </div>
                     
                     {!exportedText && (
                         <button
                             onClick={handleExport}
                             disabled={isExporting}
-                            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-all active:scale-95 disabled:opacity-50"
+                            className="flex items-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2 rounded-xl bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-all active:scale-95 disabled:opacity-50 flex-shrink-0"
                         >
-                            <Share2 size={16} />
-                            <span className="text-sm font-bold">Compartilhe seu treino</span>
+                            <Share2 size={15} />
+                            <span className="text-[13px] sm:text-sm font-bold whitespace-nowrap">Compartilhar treino</span>
                         </button>
                     )}
                 </div>

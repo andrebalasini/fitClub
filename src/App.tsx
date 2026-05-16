@@ -17,6 +17,7 @@ import { PrivacyPolicy } from './pages/PrivacyPolicy';
 import { DataDeletion } from './pages/DataDeletion';
 import { Loader2 } from 'lucide-react';
 import { ForgottenWorkoutManager } from './components/ForgottenWorkoutManager';
+import { VersionChecker } from './components/VersionChecker';
 import type { ReactNode } from 'react';
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -94,6 +95,7 @@ function App() {
     <AuthProvider>
       <WorkoutProvider>
         <Router>
+          <VersionChecker />
           <ToastContainer />
           <AppRoutes />
           <ActiveWorkoutWrapper />

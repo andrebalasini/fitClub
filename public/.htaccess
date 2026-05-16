@@ -9,3 +9,12 @@
   # Rewrite everything else to index.html for React Router
   RewriteRule ^ index.html [L]
 </IfModule>
+
+<IfModule mod_headers.c>
+  # Prevent caching of index.html and version.json to ensure updates propagate
+  <FilesMatch "\.(html|json)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </FilesMatch>
+</IfModule>
