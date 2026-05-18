@@ -1,15 +1,17 @@
-import { useState, useEffect, useRef, useCallback, useMemo, Component } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, Component } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { TopBar } from '../components/layout/TopBar';
 import { BottomNav } from '../components/layout/BottomNav';
 import { supabase } from '../lib/supabase';
-import { CheckCircle, Check, Clock, Loader2, Layers, RefreshCw, Info, Zap, TrendingUp, AlertTriangle, SkipForward, Award, Play, Pause, Square, Edit2, Dumbbell, ArrowUp, ArrowDown } from 'lucide-react';
+import { CheckCircle, Check, Clock, Loader2, Layers, RefreshCw, Info, Zap, TrendingUp, AlertTriangle, SkipForward, Award, Play, Pause, Square, Edit2, Dumbbell, ArrowUp, ArrowDown, Swords } from 'lucide-react';
 import { useDragScroll } from '../hooks/useDragScroll';
 import { Stepper, LogSetModal } from '../components/LogSetModal';
 import { getCurrentUserId } from '../lib/auth';
 import { useActiveWorkout } from '../contexts/WorkoutContext';
+import { useFeedChallenges } from '../hooks/useFeedChallenges';
+import type { FeedChallenge } from '../hooks/useFeedChallenges';
 
 import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 import { FitCheckCamera } from '../components/FitCheckCamera';
@@ -124,6 +126,136 @@ class WorkoutErrorBoundary extends Component<{children: ReactNode}, {hasError: b
         }
         return this.props.children;
     }
+}
+
+// Extracted component to avoid IIFE inside JSX (causes Babel parse error)
+function RestCardContent({
+    exercise, currentIndex, currentSetIndex, completedIndices, exercises,
+    restTimeRemaining, formatTime, jumpedRef, handleSaveSetLogRef,
+    pendingLogRepsRef, pendingLogWeightRef, pendingLogFeedbackRef,
+    setIsResting, setRestEndTime,
+    pendingLogReps, setPendingLogReps,
+    pendingLogWeight, setPendingLogWeight,
+    pendingLogFeedback, setPendingLogFeedback,
+}: {
+    exercise: DayExercise;
+    currentIndex: number;
+    currentSetIndex: number;
+    completedIndices: number[];
+    exercises: DayExercise[];
+    restTimeRemaining: number;
+    formatTime: (s: number) => string;
+    jumpedRef: React.MutableRefObject<boolean>;
+    handleSaveSetLogRef: React.MutableRefObject<((reps: number, weight: number, feedback: string) => void) | null>;
+    pendingLogRepsRef: React.MutableRefObject<number>;
+    pendingLogWeightRef: React.MutableRefObject<number>;
+    pendingLogFeedbackRef: React.MutableRefObject<string>;
+    setIsResting: (v: boolean) => void;
+    setRestEndTime: (v: number | null) => void;
+    pendingLogReps: number;
+    setPendingLogReps: (v: number) => void;
+    pendingLogWeight: number;
+    setPendingLogWeight: (v: number) => void;
+    pendingLogFeedback: string;
+    setPendingLogFeedback: (v: string) => void;
+}) {
+    const isLastExerciseAndLastSet =
+        exercises.every((_, i) => i === currentIndex || completedIndices.includes(i)) &&
+        currentSetIndex === exercise.series - 1;
+
+    return (
+        <div className="flex flex-col h-full w-full">
+            {!isLastExerciseAndLastSet && (
+                <div className="flex flex-col items-center justify-center shrink-0 gap-2 mb-4">
+                    <div className="flex items-center justify-center gap-2 w-full text-center">
+                        <Clock size={18} className="text-blue-500" />
+                        <span className="text-slate-400 font-bold uppercase tracking-widest text-[15px]">
+                            Descanso <span className="text-blue-500">{currentSetIndex + 1}</span>{' '}
+                            <span className="text-slate-500 text-[12px]">de</span>{' '}
+                            <span className="text-blue-500">{exercise.series}</span>
+                        </span>
+                    </div>
+                    <div className="text-white text-[76px] font-black tabular-nums tracking-tighter drop-shadow-lg leading-none text-center mt-[-6px]">
+                        {formatTime(restTimeRemaining)}
+                    </div>
+                    <button
+                        onClick={() => {
+                            if (!jumpedRef.current && handleSaveSetLogRef.current) {
+                                handleSaveSetLogRef.current(pendingLogRepsRef.current, pendingLogWeightRef.current, pendingLogFeedbackRef.current);
+                            } else {
+                                setIsResting(false);
+                                setRestEndTime(null);
+                            }
+                        }}
+                        className="w-auto self-center mt-1 py-2 px-5 rounded-xl bg-slate-700/80 text-slate-300 font-bold text-[10px] flex items-center justify-center gap-2 transition-all active:scale-95 flex-shrink-0 tracking-widest uppercase"
+                    >
+                        FINALIZAR DESCANSO
+                        <SkipForward size={14} strokeWidth={2} className="text-blue-500" />
+                    </button>
+                </div>
+            )}
+
+            {isLastExerciseAndLastSet && (
+                <div className="flex items-center justify-center gap-2 w-full text-center shrink-0 mb-3 pt-2">
+                    <CheckCircle size={16} className="text-blue-500" />
+                    <span className="text-slate-400 font-bold uppercase tracking-widest text-[13px]">
+                        Série <span className="text-blue-500">{currentSetIndex + 1}</span>{' '}
+                        <span className="text-slate-500 text-[11px]">de</span>{' '}
+                        <span className="text-blue-500">{exercise.series}</span>
+                    </span>
+                </div>
+            )}
+
+            <div className="flex-1 flex flex-col justify-center">
+                <div className="w-full border-t border-slate-800/60 mb-4" />
+                <p className="w-full text-left text-slate-500 text-[11px] font-bold uppercase tracking-widest opacity-80 px-1 mb-3">
+                    COMO FOI ESSA SÉRIE?
+                </p>
+                <div className="grid grid-cols-2 gap-3 w-full mb-6">
+                    <Stepper label="Repetições" value={pendingLogReps} onChange={setPendingLogReps} min={0} max={300} icon={<RefreshCw />} compact={true} />
+                    <Stepper label="Carga" value={pendingLogWeight} onChange={setPendingLogWeight} min={0} max={500} step={1} fastStep={5} unit="kg" icon={<Dumbbell />} compact={true} />
+                </div>
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                    <div className="flex flex-col items-center gap-1.5">
+                        <button onClick={() => setPendingLogFeedback('facil')} className={`w-full flex items-center justify-center py-2 rounded-xl transition-all active:scale-95 ${pendingLogFeedback === 'facil' ? 'bg-green-500/20 text-green-400' : 'bg-slate-700/80 text-slate-300 hover:text-white'}`}>
+                            <ArrowUp size={20} />
+                        </button>
+                        <span className={`text-[10px] font-bold uppercase tracking-wider ${pendingLogFeedback === 'facil' ? 'text-green-400' : 'text-slate-500'}`}>+Carga</span>
+                    </div>
+                    <div className="flex flex-col items-center gap-1.5">
+                        <button onClick={() => setPendingLogFeedback('ideal')} className={`w-full flex items-center justify-center py-2 rounded-xl transition-all active:scale-95 ${pendingLogFeedback === 'ideal' ? 'bg-blue-500 text-white' : 'bg-slate-700/80 text-slate-300 hover:text-white'}`}>
+                            <Check size={20} strokeWidth={3} />
+                        </button>
+                        <span className={`text-[10px] font-bold uppercase tracking-wider ${pendingLogFeedback === 'ideal' ? 'text-blue-500' : 'text-slate-500'}`}>Manter</span>
+                    </div>
+                    <div className="flex flex-col items-center gap-1.5">
+                        <button onClick={() => setPendingLogFeedback('dificil')} className={`w-full flex items-center justify-center py-2 rounded-xl transition-all active:scale-95 ${pendingLogFeedback === 'dificil' ? 'bg-red-500/20 text-red-400' : 'bg-slate-700/80 text-slate-300 hover:text-white'}`}>
+                            <ArrowDown size={20} />
+                        </button>
+                        <span className={`text-[10px] font-bold uppercase tracking-wider ${pendingLogFeedback === 'dificil' ? 'text-red-400' : 'text-slate-500'}`}>-Carga</span>
+                    </div>
+                </div>
+                <div className="w-full border-t border-slate-800/60" />
+            </div>
+
+            {/* Button is OUTSIDE the overflow-y-auto div to prevent horizontal glow clipping */}
+            {isLastExerciseAndLastSet && (
+                <button
+                    onClick={() => {
+                        if (handleSaveSetLogRef.current) {
+                            handleSaveSetLogRef.current(pendingLogRepsRef.current, pendingLogWeightRef.current, pendingLogFeedbackRef.current);
+                        }
+                    }}
+                    className="galactic-btn w-[calc(100%-28px)] mx-auto flex-shrink-0 font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] mt-4 mb-1"
+                >
+                    <div className="relative z-10 flex items-center justify-center gap-2">
+                        <CheckCircle size={18} />
+                        <span className="text-[15px] font-black tracking-wide galactic-text-glow uppercase">Finalizar Treino</span>
+                    </div>
+                </button>
+            )}
+        </div>
+    );
 }
 
 const PerformanceChart = ({ 
@@ -464,7 +596,10 @@ function ActiveWorkoutContent() {
     });
     const [showExitModal, setShowExitModal] = useState(false);
     const [showSkipConfirm, setShowSkipConfirm] = useState(false);
-    
+
+    // ── Challenge state ──────────────────────────────────────────────────
+    const { challenges: allChallenges } = useFeedChallenges();
+
     // FitCheck States
     const [showWorkoutCompletedModal, setShowWorkoutCompletedModal] = useState(false);
     const [showFitCheckCamera, setShowFitCheckCamera] = useState(false);
@@ -687,6 +822,18 @@ function ActiveWorkoutContent() {
         fetchExercisesAndHistory();
     }, [fichaId, dia, endWorkout]);
 
+    // ── Filter challenges that match this workout's exercises ───────────
+    const workoutChallenges = useMemo<FeedChallenge[]>(() => {
+        const exercicioIds = new Set(exercises.map(e => e.exercicio_id));
+        return allChallenges.filter(c => exercicioIds.has(c.exercicioId));
+    }, [allChallenges, exercises]);
+
+    // Set of exercicio_ids that have an active challenge (for card styling)
+    const challengeExercicioIds = useMemo(
+        () => new Set(workoutChallenges.map(c => c.exercicioId)),
+        [workoutChallenges]
+    );
+
     const handleStartWorkout = () => {
         setWorkoutStarted(true);
         setWorkoutStartTime(Date.now());
@@ -751,21 +898,27 @@ function ActiveWorkoutContent() {
         setPendingLogWeight(currentExercise.carga);
         setPendingLogFeedback('ideal');
 
-        const descanso = Number(currentExercise.descanso) || 60;
-        setRestTimeRemaining(descanso);
-        setRestEndTime(Date.now() + descanso * 1000);
-        
         const isLastSet = currentSetIndex === currentExercise.series - 1;
-        if (isLastSet) {
-            const isLastExercise = exercises.every((_, i) => i === currentIndex || completedIndices.includes(i));
-            const finalMsg = isLastExercise
-                ? 'Última série concluída — bora finalizar! 🏆'
-                : 'Prepare-se para o próximo exercício 🔥💪';
-            setCurrentRestPhrase(finalMsg);
+        const isLastExercise = exercises.every((_, i) => i === currentIndex || completedIndices.includes(i));
+        const isLastExerciseAndLastSet = isLastSet && isLastExercise;
+
+        if (isLastExerciseAndLastSet) {
+            // No timer for the final set — just open the log panel
+            setRestTimeRemaining(0);
+            setRestEndTime(null);
+            setCurrentRestPhrase('Última série concluída — bora finalizar! 🏆');
         } else {
-            const totalSeries = currentExercise.series || 0;
-            const seriesRestantes = totalSeries - currentSetIndex - 1;
-            setCurrentRestPhrase(generateRestPhrase(seriesRestantes));
+            const descanso = Number(currentExercise.descanso) || 60;
+            setRestTimeRemaining(descanso);
+            setRestEndTime(Date.now() + descanso * 1000);
+
+            if (isLastSet) {
+                setCurrentRestPhrase('Prepare-se para o próximo exercício 🔥💪');
+            } else {
+                const totalSeries = currentExercise.series || 0;
+                const seriesRestantes = totalSeries - currentSetIndex - 1;
+                setCurrentRestPhrase(generateRestPhrase(seriesRestantes));
+            }
         }
 
         setIsResting(true);
@@ -1426,20 +1579,25 @@ function ActiveWorkoutContent() {
                         <div className="notranslate" translate="no">
                             <div
                                 ref={carouselRef}
-                                className="flex gap-4 -mx-4 px-[7.5vw] sm:px-[calc(50%-190px)] pb-8 scrollbar-none overflow-x-auto snap-x"
+                                className="flex gap-4 -mx-4 px-[7.5vw] sm:px-[calc(50%-190px)] pt-4 pb-8 scrollbar-none overflow-x-auto snap-x"
                                 onScroll={handleCarouselScroll}
                             >
-                                {exercises.map((exercise, idx) => (
+                                {exercises.map((exercise, idx) => {
+                                    const hasChallenge = challengeExercicioIds.has(exercise.exercicio_id);
+                                    const challenge = workoutChallenges.find(c => c.exercicioId === exercise.exercicio_id);
+                                    return (
                                     <div
                                         key={exercise.id}
-                                        className={`w-[94%] sm:w-[470px] snap-center flex-shrink-0 bg-[#121825] rounded-[24px] shadow-xl shadow-black/40 transition-all duration-300 relative ${
-                                            idx === focusedIndex
-                                                ? ''
-                                                : 'opacity-60'
+                                        className={`w-[94%] sm:w-[470px] h-[460px] snap-center flex-shrink-0 rounded-[24px] shadow-xl shadow-black/40 transition-all duration-300 relative overflow-hidden ${
+                                            hasChallenge ? 'challenge-card-border' : 'bg-[#121825]'
+                                        } ${
+                                            idx === focusedIndex ? '' : 'opacity-60'
                                         }`}
                                     >
                                         {/* Timer View */}
-                                        <div className={`absolute inset-0 z-20 flex flex-col items-center justify-center p-4 bg-[#121825] rounded-[24px] transition-all duration-500 ${
+                                        <div className={`absolute z-20 flex flex-col items-center justify-center p-4 bg-[#121825] transition-all duration-500 ${
+                                            hasChallenge ? 'inset-[2px] rounded-[22px]' : 'inset-0 rounded-[24px]'
+                                        } ${
                                             idx === currentIndex && isResting ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
                                         }`}>
                                             <TimerErrorBoundary onSkipError={() => { setIsResting(false); setRestEndTime(null); if(handleNextExerciseRef.current) handleNextExerciseRef.current(); }}>
@@ -1456,166 +1614,102 @@ function ActiveWorkoutContent() {
                                                         </button>
                                                     </div>
                                                 ) : (
-                                                    <div className="flex flex-col items-center justify-center h-full w-full">
-                                                        <div className="flex flex-col items-center justify-center relative mb-4 mt-[-2px] shrink-0 gap-2">
-                                                            <div className="flex items-center justify-center gap-2 w-full text-center">
-                                                                <Clock size={18} className="text-blue-500" />
-                                                                <div className="flex items-center gap-1.5">
-                                                                    <span className="text-slate-400 font-bold uppercase tracking-widest text-[15px]">
-                                                                        Descanso <span className="text-blue-500">{currentSetIndex + 1}</span> <span className="text-slate-500 text-[12px]">de</span> <span className="text-blue-500">{exercise.series}</span>
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                            <div className="text-white text-[76px] font-black tabular-nums tracking-tighter drop-shadow-lg leading-none text-center mt-[-6px]">
-                                                                {formatTime(restTimeRemaining)}
-                                                            </div>
-
-                                                            <button
-                                                                onClick={() => {
-                                                                    if (!jumpedRef.current && handleSaveSetLogRef.current) {
-                                                                        handleSaveSetLogRef.current(pendingLogRepsRef.current, pendingLogWeightRef.current, pendingLogFeedbackRef.current);
-                                                                    } else {
-                                                                        setIsResting(false);
-                                                                        setRestEndTime(null);
-                                                                    }
-                                                                }}
-                                                                className="w-auto self-center mt-2.5 py-2 px-5 rounded-xl bg-slate-700/80 text-slate-300 font-bold text-[10px] flex items-center justify-center gap-2 transition-all active:scale-95 flex-shrink-0 tracking-widest uppercase"
-                                                            >
-                                                                FINALIZAR DESCANSO
-                                                                <SkipForward size={14} strokeWidth={2} className="text-blue-500" />
-                                                            </button>
-                                                        </div>
-
-                                                        {/* Divisor */}
-                                                        <div className="w-full border-t border-slate-800/60 mb-4 flex-shrink-0" />
-                                                        
-                                                        <p className="w-full text-left text-slate-500 text-[11px] font-bold uppercase tracking-widest opacity-80 px-1 mb-2">
-                                                            COMO FOI ESSA SÉRIE?
-                                                        </p>
-                                                        
-                                                        <div className="flex flex-col w-full overflow-y-auto scrollbar-none">
-
-                                                            <div className="grid grid-cols-2 gap-3 w-full mb-4">
-                                                                <Stepper
-                                                                    label="Repetições"
-                                                                    value={pendingLogReps}
-                                                                    onChange={setPendingLogReps}
-                                                                    min={0}
-                                                                    max={300}
-                                                                    icon={<RefreshCw />}
-                                                                    compact={true}
-                                                                />
-                                                                <Stepper
-                                                                    label="Carga"
-                                                                    value={pendingLogWeight}
-                                                                    onChange={setPendingLogWeight}
-                                                                    min={0}
-                                                                    max={500}
-                                                                    step={1}
-                                                                    fastStep={5}
-                                                                    unit="kg"
-                                                                    icon={<Dumbbell />}
-                                                                    compact={true}
-                                                                />
-                                                            </div>
-                                                            
-                                                            <div className="flex flex-col gap-1 mt-3">
-                                                                <div className="grid grid-cols-3 gap-2">
-                                                                    <div className="flex flex-col items-center gap-1.5">
-                                                                        <button
-                                                                            onClick={() => setPendingLogFeedback('facil')}
-                                                                            className={`w-full flex items-center justify-center py-2 rounded-xl transition-all active:scale-95 ${
-                                                                                pendingLogFeedback === 'facil'
-                                                                                    ? 'bg-green-500/20 text-green-400'
-                                                                                    : 'bg-slate-700/80 text-slate-300 hover:text-white'
-                                                                            }`}
-                                                                        >
-                                                                            <ArrowUp size={20} />
-                                                                        </button>
-                                                                        <span className={`text-[10px] font-bold uppercase tracking-wider ${pendingLogFeedback === 'facil' ? 'text-green-400' : 'text-slate-500'}`}>+Carga</span>
-                                                                    </div>
-                                                                    
-                                                                    <div className="flex flex-col items-center gap-1.5">
-                                                                        <button
-                                                                            onClick={() => setPendingLogFeedback('ideal')}
-                                                                            className={`w-full flex items-center justify-center py-2 rounded-xl transition-all active:scale-95 ${
-                                                                                pendingLogFeedback === 'ideal'
-                                                                                    ? 'bg-blue-500 text-white'
-                                                                                    : 'bg-slate-700/80 text-slate-300 hover:text-white'
-                                                                            }`}
-                                                                        >
-                                                                            <Check size={20} strokeWidth={3} />
-                                                                        </button>
-                                                                        <span className={`text-[10px] font-bold uppercase tracking-wider ${pendingLogFeedback === 'ideal' ? 'text-blue-500' : 'text-slate-500'}`}>Manter</span>
-                                                                    </div>
-                                                                    
-                                                                    <div className="flex flex-col items-center gap-1.5">
-                                                                        <button
-                                                                            onClick={() => setPendingLogFeedback('dificil')}
-                                                                            className={`w-full flex items-center justify-center py-2 rounded-xl transition-all active:scale-95 ${
-                                                                                pendingLogFeedback === 'dificil'
-                                                                                    ? 'bg-red-500/20 text-red-400'
-                                                                                    : 'bg-slate-700/80 text-slate-300 hover:text-white'
-                                                                            }`}
-                                                                        >
-                                                                            <ArrowDown size={20} />
-                                                                        </button>
-                                                                        <span className={`text-[10px] font-bold uppercase tracking-wider ${pendingLogFeedback === 'dificil' ? 'text-red-400' : 'text-slate-500'}`}>-Carga</span>
-                                                                    </div>
-                                                                </div>
-
-                                                            </div>
-                                                        </div>
-                                                        
-
-                                                    </div>
-                                                )}
+                                                    <RestCardContent
+                                                        exercise={exercise}
+                                                        currentIndex={currentIndex}
+                                                        currentSetIndex={currentSetIndex}
+                                                        completedIndices={completedIndices}
+                                                        exercises={exercises}
+                                                        restTimeRemaining={restTimeRemaining}
+                                                        formatTime={formatTime}
+                                                        jumpedRef={jumpedRef}
+                                                        handleSaveSetLogRef={handleSaveSetLogRef}
+                                                        pendingLogRepsRef={pendingLogRepsRef}
+                                                        pendingLogWeightRef={pendingLogWeightRef}
+                                                        pendingLogFeedbackRef={pendingLogFeedbackRef}
+                                                        setIsResting={setIsResting}
+                                                        setRestEndTime={setRestEndTime}
+                                                        pendingLogReps={pendingLogReps}
+                                                        setPendingLogReps={setPendingLogReps}
+                                                        pendingLogWeight={pendingLogWeight}
+                                                        setPendingLogWeight={setPendingLogWeight}
+                                                        pendingLogFeedback={pendingLogFeedback}
+                                                        setPendingLogFeedback={setPendingLogFeedback}
+                                                    />
+                                                )
+                                                }
                                             </TimerErrorBoundary>
                                         </div>
 
                                         {/* Exercise View */}
-                                        <div className={`flex flex-col h-full transition-all duration-500 relative ${
-                                            idx === currentIndex && isResting ? 'opacity-0 scale-105 pointer-events-none' : 'opacity-100 scale-100'
-                                        }`}>
-                                            {exercise.grupo && (
-                                                <div className="absolute top-3 left-3 z-30 bg-[#0f141e]/90 backdrop-blur-md px-2.5 py-1 rounded-lg text-white text-[10px] font-black uppercase tracking-widest shadow-md border border-white/5">
-                                                    {exercise.grupo}
-                                                </div>
-                                            )}
-                                            {exercise.ultimo_feedback && (
-                                                <div className={`absolute top-3 right-3 z-30 bg-[#0f141e]/90 backdrop-blur-md px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-md border border-white/5 flex items-center gap-1 ${
-                                                    exercise.ultimo_feedback === 'facil' ? 'text-green-400' :
-                                                    exercise.ultimo_feedback === 'ideal' ? 'text-blue-400' :
-                                                    'text-red-400'
-                                                }`}>
-                                                    {exercise.ultimo_feedback === 'facil' ? (
-                                                        <><ArrowUp size={11} className="mb-[1px]" />+CARGA</>
-                                                    ) : exercise.ultimo_feedback === 'ideal' ? (
-                                                        <><Check size={11} className="mb-[1px]" />MANTER</>
-                                                    ) : (
-                                                        <><ArrowDown size={11} className="mb-[1px]" />-CARGA</>
-                                                    )}
-                                                </div>
-                                            )}
-                                            {/* Imagem do Exercicio */}
-                                            <div className="w-full h-[200px] shrink-0 bg-white relative overflow-hidden rounded-t-[24px]">
-                                            <img
-                                                src={exercise.imagem_url || DEFAULT_EXERCISE_IMAGE}
-                                                alt={exercise.nome}
-                                                className="w-full h-full object-contain p-2"
-                                                onError={(e) => {
-                                                    (e.target as HTMLImageElement).src = DEFAULT_EXERCISE_IMAGE;
-                                                }}
-                                            />
-                                            <div className="absolute inset-x-0 bottom-0 h-[40%] bg-gradient-to-t from-[#121825] via-[#121825]/30 to-transparent" />
+                                        <div className={`flex flex-col h-full transition-all duration-500 relative overflow-hidden ${
+                                            hasChallenge ? 'rounded-[22px]' : 'rounded-[24px]'
+                                        } ${ idx === currentIndex && isResting ? 'opacity-0 scale-105 pointer-events-none' : 'opacity-100 scale-100' }`}>
 
-                                        </div>
+                                            {/* ── Desafio header bar ── */}
+                                            {hasChallenge && challenge && (
+                                                <div
+                                                    className="h-[36px] flex items-center justify-between px-4 flex-shrink-0"
+                                                    style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,215,0,0.15)' }}
+                                                >
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Swords size={11} className="text-yellow-400" />
+                                                        <span className="text-slate-200 font-black text-[10px] uppercase tracking-[0.12em]">
+                                                            Desafio
+                                                        </span>
+                                                    </div>
+                                                    <div className="font-black text-[10px] tracking-wider leading-none">
+                                                        <span className="text-yellow-400">+{challenge.gapKg}kg </span>
+                                                        <span className="text-slate-400">para superar </span>
+                                                        <span className="text-slate-300 font-bold">{challenge.rivalName.split(' ')[0]}</span>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Imagem do Exercicio */}
+                                            <div className={`w-full shrink-0 bg-white relative overflow-hidden ${
+                                                hasChallenge ? 'h-[164px] rounded-t-none' : 'h-[200px] rounded-t-[24px]'
+                                            }`}>
+                                                <img
+                                                    src={exercise.imagem_url || DEFAULT_EXERCISE_IMAGE}
+                                                    alt={exercise.nome}
+                                                    className="w-full h-full object-contain p-2"
+                                                    onError={(e) => {
+                                                        (e.target as HTMLImageElement).src = DEFAULT_EXERCISE_IMAGE;
+                                                    }}
+                                                />
+                                                <div className="absolute inset-x-0 bottom-0 h-[40%] bg-gradient-to-t from-[#121825] via-[#121825]/30 to-transparent pointer-events-none" />
+
+                                                {/* Grupo tag (e.g. PEITO) */}
+                                                {exercise.grupo && (
+                                                    <div className="absolute top-3 left-3 z-30 bg-[#0f141e]/90 backdrop-blur-md px-2.5 py-1 rounded-lg text-white text-[10px] font-black uppercase tracking-widest shadow-md border border-white/5">
+                                                        {exercise.grupo}
+                                                    </div>
+                                                )}
+
+                                                {/* Feedback tag (e.g. MANTER) */}
+                                                {exercise.ultimo_feedback && (
+                                                    <div className={`absolute top-3 right-3 z-30 bg-[#0f141e]/90 backdrop-blur-md px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-md border border-white/5 flex items-center gap-1 ${
+                                                        exercise.ultimo_feedback === 'facil' ? 'text-green-400' :
+                                                        exercise.ultimo_feedback === 'ideal' ? 'text-blue-400' :
+                                                        'text-red-400'
+                                                    }`}>
+                                                        {exercise.ultimo_feedback === 'facil' ? (
+                                                            <><ArrowUp size={11} className="mb-[1px]" />+CARGA</>
+                                                        ) : exercise.ultimo_feedback === 'ideal' ? (
+                                                            <><Check size={11} className="mb-[1px]" />MANTER</>
+                                                        ) : (
+                                                            <><ArrowDown size={11} className="mb-[1px]" />-CARGA</>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
 
                                         {/* Infos do Exercicio */}
-                                        <div className="px-4 pb-6 pt-2 flex flex-col gap-1.5">
+                                        <div className="px-4 pb-4 pt-2 flex flex-col gap-1.5 flex-1 min-h-0">
                                             {/* Header do Exercicio */}
                                             <div className="flex flex-col mb-1">
-                                                <h2 className="text-white text-xl font-black leading-tight line-clamp-2">{exercise.nome}</h2>
+                                                <h2 className="text-white text-xl font-black leading-tight line-clamp-1">{exercise.nome}</h2>
                                             </div>
 
                                             {/* Grid de Metricas */}
@@ -1651,7 +1745,7 @@ function ActiveWorkoutContent() {
 
 
                                             {/* Botões - sempre exibidos para consistência visual */}
-                                            <div className="flex flex-col mt-1 gap-1">
+                                            <div className="flex flex-col mt-auto gap-1">
                                                 {workoutStarted && exercise.grupo === 'Cardio' && idx === currentIndex ? (
                                                     cardioState === 'idle' ? (
                                                         <button
@@ -1744,11 +1838,7 @@ function ActiveWorkoutContent() {
                                                         disabled={!workoutStarted || isResting || idx !== currentIndex}
                                                         className={`w-full font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all ${
                                                             workoutStarted && !isResting && idx === currentIndex
-                                                                ? (
-                                                                    (exercise.grupo === 'Cardio' ? currentIndex === exercises.length - 1 : (currentIndex === exercises.length - 1 && currentSetIndex === exercise.series - 1))
-                                                                    ? 'galactic-btn text-white' 
-                                                                    : 'bg-blue-500 hover:bg-blue-600 text-white active:scale-[0.98] shadow-lg shadow-blue-500/25'
-                                                                  )
+                                                                ? 'bg-blue-500 hover:bg-blue-600 text-white active:scale-[0.98] shadow-lg shadow-blue-500/25'
                                                                 : isResting
                                                                 ? 'opacity-0 pointer-events-none'
                                                                 : 'bg-slate-700/50 text-slate-400 cursor-not-allowed'
@@ -1756,14 +1846,12 @@ function ActiveWorkoutContent() {
                                                     >
                                                         <div className="relative z-10 flex items-center justify-center gap-2">
                                                             <CheckCircle size={18} />
-                                                            <span className={`text-[15px] ${(workoutStarted && !isResting && idx === currentIndex && (exercise.grupo === 'Cardio' ? currentIndex === exercises.length - 1 : (currentIndex === exercises.length - 1 && currentSetIndex === exercise.series - 1))) ? 'font-black tracking-wide galactic-text-glow uppercase' : ''}`}>
+                                                            <span className="text-[15px]">
                                                                 {!workoutStarted
                                                                     ? 'Aguarde'
                                                                     : exercise.grupo === 'Cardio'
-                                                                    ? (currentIndex === exercises.length - 1 ? 'Finalizar Treino' : 'Concluir exercício')
-                                                                    : currentIndex === exercises.length - 1 && currentSetIndex === exercise.series - 1
-                                                                    ? 'Finalizar Treino' 
-                                                                    : currentSetIndex === exercise.series - 1 
+                                                                    ? 'Concluir exercício'
+                                                                    : currentSetIndex === exercise.series - 1
                                                                     ? 'Concluir exercício'
                                                                     : `Concluir série (${currentSetIndex + 1}/${exercise.series})`}
                                                             </span>
@@ -1786,7 +1874,8 @@ function ActiveWorkoutContent() {
                                         </div>
                                     </div>
                                 </div>
-                            ))}
+                                    );
+                                })}
                             </div>
                         </div>
 
@@ -2006,6 +2095,8 @@ function ActiveWorkoutContent() {
                         }}
                     />
                 )}
+
+
 
                 {/* ── Exit Workout Modal ── */}
                 {showExitModal && (
