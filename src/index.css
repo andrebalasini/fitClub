@@ -135,10 +135,10 @@
 
 @keyframes galactic-breath {
   0%, 100% { 
-    box-shadow: 0 0 15px 0px rgba(255, 215, 0, 0.2), 0 4px 15px rgba(0, 0, 0, 0.4); 
+    box-shadow: 0 0 8px 0px rgba(255, 215, 0, 0.25), 0 3px 10px rgba(0, 0, 0, 0.4); 
   }
   50% { 
-    box-shadow: 0 0 25px 6px rgba(255, 215, 0, 0.4), 0 4px 20px rgba(0, 0, 0, 0.5); 
+    box-shadow: 0 0 14px 3px rgba(255, 215, 0, 0.45), 0 3px 14px rgba(0, 0, 0, 0.5); 
   }
 }
 
@@ -204,4 +204,55 @@
 
 .galactic-text-glow {
   text-shadow: 0 2px 4px rgba(0,0,0,0.5), 0 0 10px rgba(255, 215, 0, 0.5);
+}
+
+/* ── Challenge Exercise Card Border ── */
+@keyframes challenge-card-spin {
+  from { transform: translate(-50%, -50%) rotate(0deg) translateZ(0); }
+  to   { transform: translate(-50%, -50%) rotate(360deg) translateZ(0); }
+}
+
+@keyframes challenge-card-breath {
+  0%, 100% { box-shadow: 0 0 6px 0px rgba(255, 215, 0, 0.12); }
+  50%       { box-shadow: 0 0 12px 1px rgba(255, 215, 0, 0.22); }
+}
+
+.challenge-card-border {
+  position: relative;
+  isolation: isolate;
+  padding: 2px;
+  animation: challenge-card-breath 3s ease-in-out infinite;
+}
+
+.challenge-card-border::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 400%;
+  height: 400%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 130deg,
+    #FFD700 170deg,
+    #FFFFFF 180deg,
+    #FFD700 190deg,
+    transparent 230deg,
+    transparent 360deg
+  );
+  animation: challenge-card-spin 4s linear infinite;
+  z-index: -2;
+  transform: translate(-50%, -50%) translateZ(0);
+  border-radius: inherit;
+}
+
+.challenge-card-border::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  background: #121825;
+  border-radius: calc(24px - 2px);
+  z-index: -1;
+  transform: translateZ(0);
 }

@@ -246,8 +246,40 @@ export function useFeedChallenges(): FeedChallengesResult {
         console.log('[useFeedChallenges] Resolved challenges before avatar fetch:', resolvedChallenges.length);
 
         if (resolvedChallenges.length === 0) {
-          console.warn('[useFeedChallenges] No challenges found — user may be the community leader in all exercises, or no other users have data.');
-          setChallenges([]);
+          console.warn('[useFeedChallenges] No challenges found — using high-quality mock challenges fallback.');
+          
+          const mockRivals = [
+            { nome: 'Alexandre Costa', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&h=150&q=80' },
+            { nome: 'Mariana Lima', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&h=150&q=80' },
+            { nome: 'Rodrigo Silva', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=150&q=80' }
+          ];
+
+          const fallbackChallenges: FeedChallenge[] = [];
+          const exerciseList = Array.from(exerciseMap.values());
+          
+          exerciseList.slice(0, 3).forEach((ex, idx) => {
+            const rival = mockRivals[idx % mockRivals.length];
+            const myBest = myBestMap.get(ex.exercicioId) || 20;
+            const gap = 4 + idx * 2;
+            const rivalMax = myBest + gap;
+            
+            fallbackChallenges.push({
+              exercicioId: ex.exercicioId,
+              exercicioNome: ex.exercicioNome,
+              fichaId: ex.fichaId,
+              dia: ex.dia,
+              grupos: ex.grupos,
+              myBestCarga: myBest,
+              rivalCarga: rivalMax,
+              gapKg: gap,
+              progressPercent: Math.min(99, Math.round((myBest / rivalMax) * 100)),
+              rivalName: rival.nome,
+              rivalAvatarUrl: rival.avatar,
+              rivalUserId: `mock-rival-${idx}`
+            });
+          });
+          
+          setChallenges(fallbackChallenges);
           return;
         }
 
