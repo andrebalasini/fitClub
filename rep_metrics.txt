@@ -1,0 +1,20 @@
+                                            </div>
+
+                                            {/* Desafio bar below metrics */}
+                                            {hasChallenge && challenge && (
+                                                <div className="flex items-center justify-between px-3.5 py-2.5 bg-black/40 border border-white/5 rounded-xl transition-all">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Swords size={13} className="text-yellow-400" />
+                                                        <span className="text-white font-black text-[10px] uppercase tracking-[0.12em]">
+                                                            Desafio
+                                                        </span>
+                                                    </div>
+                                                    <div className="font-black text-[10px] tracking-wider leading-none text-white">
+                                                        <span className="text-yellow-400">+{challenge.gapKg}kg </span>
+                                                        <span className="text-slate-300 font-medium">para superar </span>
+                                                        <span className="text-white font-black">{challenge.rivalName.split(' ')[0]}</span>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Botões - sempre exibidos para consistência visual */}
