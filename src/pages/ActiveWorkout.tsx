@@ -1646,103 +1646,98 @@ function ActiveWorkoutContent() {
                                             hasChallenge ? 'rounded-[22px]' : 'rounded-[24px]'
                                         } ${ idx === currentIndex && isResting ? 'opacity-0 scale-105 pointer-events-none' : 'opacity-100 scale-100' }`}>
 
-                                            {/* ── Desafio header bar ── */}
-                                            {hasChallenge && challenge && (
-                                                <div
-                                                    className="h-[36px] flex items-center justify-between px-4 flex-shrink-0"
-                                                    style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,215,0,0.15)' }}
-                                                >
-                                                    <div className="flex items-center gap-1.5">
-                                                        <Swords size={11} className="text-yellow-400" />
-                                                        <span className="text-slate-200 font-black text-[10px] uppercase tracking-[0.12em]">
-                                                            Desafio
-                                                        </span>
-                                                    </div>
-                                                    <div className="font-black text-[10px] tracking-wider leading-none">
-                                                        <span className="text-yellow-400">+{challenge.gapKg}kg </span>
-                                                        <span className="text-slate-400">para superar </span>
-                                                        <span className="text-slate-300 font-bold">{challenge.rivalName.split(' ')[0]}</span>
-                                                    </div>
-                                                </div>
-                                            )}
+                                             {/* Imagem do Exercicio */}
+                                             <div className={`w-full shrink-0 bg-white relative overflow-hidden ${
+                                                 hasChallenge ? 'h-[200px] rounded-t-[22px]' : 'h-[200px] rounded-t-[24px]'
+                                             }`}>
+                                                 <img
+                                                     src={exercise.imagem_url || DEFAULT_EXERCISE_IMAGE}
+                                                     alt={exercise.nome}
+                                                     className="w-full h-full object-contain p-2"
+                                                     onError={(e) => {
+                                                         (e.target as HTMLImageElement).src = DEFAULT_EXERCISE_IMAGE;
+                                                     }}
+                                                 />
+                                                 <div className="absolute inset-x-0 bottom-0 h-[40%] bg-gradient-to-t from-[#121825] via-[#121825]/30 to-transparent pointer-events-none" />
 
-                                            {/* Imagem do Exercicio */}
-                                            <div className={`w-full shrink-0 bg-white relative overflow-hidden ${
-                                                hasChallenge ? 'h-[164px] rounded-t-none' : 'h-[200px] rounded-t-[24px]'
-                                            }`}>
-                                                <img
-                                                    src={exercise.imagem_url || DEFAULT_EXERCISE_IMAGE}
-                                                    alt={exercise.nome}
-                                                    className="w-full h-full object-contain p-2"
-                                                    onError={(e) => {
-                                                        (e.target as HTMLImageElement).src = DEFAULT_EXERCISE_IMAGE;
-                                                    }}
-                                                />
-                                                <div className="absolute inset-x-0 bottom-0 h-[40%] bg-gradient-to-t from-[#121825] via-[#121825]/30 to-transparent pointer-events-none" />
+                                                 {/* Grupo tag (e.g. PEITO) */}
+                                                 {exercise.grupo && (
+                                                     <div className="absolute top-3 left-3 z-30 bg-[#0f141e]/90 backdrop-blur-md px-2.5 py-1 rounded-lg text-white text-[10px] font-black uppercase tracking-widest shadow-md border border-white/5">
+                                                         {exercise.grupo}
+                                                     </div>
+                                                 )}
 
-                                                {/* Grupo tag (e.g. PEITO) */}
-                                                {exercise.grupo && (
-                                                    <div className="absolute top-3 left-3 z-30 bg-[#0f141e]/90 backdrop-blur-md px-2.5 py-1 rounded-lg text-white text-[10px] font-black uppercase tracking-widest shadow-md border border-white/5">
-                                                        {exercise.grupo}
-                                                    </div>
-                                                )}
-
-                                                {/* Feedback tag (e.g. MANTER) */}
-                                                {exercise.ultimo_feedback && (
-                                                    <div className={`absolute top-3 right-3 z-30 bg-[#0f141e]/90 backdrop-blur-md px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-md border border-white/5 flex items-center gap-1 ${
-                                                        exercise.ultimo_feedback === 'facil' ? 'text-green-400' :
-                                                        exercise.ultimo_feedback === 'ideal' ? 'text-blue-400' :
-                                                        'text-red-400'
-                                                    }`}>
-                                                        {exercise.ultimo_feedback === 'facil' ? (
-                                                            <><ArrowUp size={11} className="mb-[1px]" />+CARGA</>
-                                                        ) : exercise.ultimo_feedback === 'ideal' ? (
-                                                            <><Check size={11} className="mb-[1px]" />MANTER</>
-                                                        ) : (
-                                                            <><ArrowDown size={11} className="mb-[1px]" />-CARGA</>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
+                                                 {/* Feedback tag (e.g. MANTER) */}
+                                                 {exercise.ultimo_feedback && (
+                                                     <div className={`absolute top-3 right-3 z-30 bg-[#0f141e]/90 backdrop-blur-md px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-md border border-white/5 flex items-center gap-1 ${
+                                                         exercise.ultimo_feedback === 'facil' ? 'text-green-400' :
+                                                         exercise.ultimo_feedback === 'ideal' ? 'text-blue-400' :
+                                                         'text-red-400'
+                                                     }`}>
+                                                         {exercise.ultimo_feedback === 'facil' ? (
+                                                             <><ArrowUp size={11} className="mb-[1px]" />+CARGA</>
+                                                         ) : exercise.ultimo_feedback === 'ideal' ? (
+                                                             <><Check size={11} className="mb-[1px]" />MANTER</>
+                                                         ) : (
+                                                             <><ArrowDown size={11} className="mb-[1px]" />-CARGA</>
+                                                         )}
+                                                     </div>
+                                                 )}
+                                             </div>
 
                                         {/* Infos do Exercicio */}
-                                        <div className="px-4 pb-4 pt-2 flex flex-col gap-1.5 flex-1 min-h-0">
+                                        <div className="px-4 pb-4 pt-1.5 flex flex-col gap-1 flex-1 min-h-0">
                                             {/* Header do Exercicio */}
-                                            <div className="flex flex-col mb-1">
-                                                <h2 className="text-white text-xl font-black leading-tight line-clamp-1">{exercise.nome}</h2>
+                                            <div className="flex flex-col mb-0.5">
+                                                <h2 className="text-white text-lg font-black leading-tight line-clamp-1">{exercise.nome}</h2>
                                             </div>
 
                                             {/* Grid de Metricas */}
-                                            <div className={`grid gap-1.5 ${exercise.grupo === 'Cardio' ? 'grid-cols-1' : 'grid-cols-4'}`}>
+                                            <div className={`grid gap-1 ${exercise.grupo === 'Cardio' ? 'grid-cols-1' : 'grid-cols-4'}`}>
                                                 {exercise.grupo !== 'Cardio' && (
-                                                <div className="bg-[#0f141e]/80 rounded-xl p-2 flex flex-col items-center justify-center shadow-inner">
-                                                    <Layers size={14} className="text-blue-500 mb-1" />
-                                                    <span className="text-white font-black text-base leading-none">{exercise.series}</span>
-                                                    <span className="text-slate-400 text-[9px] uppercase font-bold mt-1 tracking-wider">Séries</span>
+                                                <div className="bg-[#0f141e]/80 rounded-xl py-1.5 px-1 flex flex-col items-center justify-center shadow-inner">
+                                                    <Layers size={12} className="text-blue-500 mb-0.5" />
+                                                    <span className="text-white font-black text-[14px] leading-none">{exercise.series}</span>
+                                                    <span className="text-slate-400 text-[9px] uppercase font-bold mt-0.5 tracking-wider">Séries</span>
                                                 </div>
                                                 )}
-                                                <div className={`bg-[#0f141e]/80 rounded-xl flex flex-col items-center justify-center shadow-inner ${exercise.grupo === 'Cardio' ? 'py-3.5' : 'p-2'}`}>
-                                                    {exercise.grupo === 'Cardio' ? <Clock size={18} className="text-blue-500 mb-1.5" /> : <RefreshCw size={14} className="text-blue-500 mb-1" />}
-                                                    <span className={`text-white font-black leading-none ${exercise.grupo === 'Cardio' ? 'text-2xl' : 'text-base'}`}>{exercise.repeticoes}{exercise.grupo === 'Cardio' && "'"}</span>
-                                                    <span className="text-slate-400 text-[9px] uppercase font-bold mt-1 tracking-wider">{exercise.grupo === 'Cardio' ? 'Duração' : 'Reps'}</span>
+                                                <div className={`bg-[#0f141e]/80 rounded-xl flex flex-col items-center justify-center shadow-inner ${exercise.grupo === 'Cardio' ? 'py-3' : 'py-1.5 px-1'}`}>
+                                                    {exercise.grupo === 'Cardio' ? <Clock size={16} className="text-blue-500 mb-1" /> : <RefreshCw size={12} className="text-blue-500 mb-0.5" />}
+                                                    <span className={`text-white font-black leading-none ${exercise.grupo === 'Cardio' ? 'text-xl' : 'text-[14px]'}`}>{exercise.repeticoes}{exercise.grupo === 'Cardio' && "'"}</span>
+                                                    <span className="text-slate-400 text-[9px] uppercase font-bold mt-0.5 tracking-wider">{exercise.grupo === 'Cardio' ? 'Duração' : 'Reps'}</span>
                                                 </div>
                                                 {exercise.grupo !== 'Cardio' && (
-                                                <div className="bg-[#0f141e]/80 rounded-xl p-2 flex flex-col items-center justify-center shadow-inner">
-                                                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 text-blue-500 mb-1"><path d="M20.57 14.86L22 13.43 20.57 12 17 15.57 8.43 7 12 3.43 10.57 2 9.14 3.43 7.71 2 5.57 4.14 4.14 2.71 2.71 4.14l1.43 1.43L2 7.71l1.43 1.43L2 10.57 3.43 12 7 8.43 15.57 17 12 20.57 13.43 22l1.43-1.43L16.29 22l2.14-2.14 1.43 1.43 1.43-1.43-1.43-1.43L22 16.29z" /></svg>
-                                                    <span className="text-white font-black text-base leading-none">{exercise.carga}</span>
-                                                    <span className="text-slate-400 text-[9px] uppercase font-bold mt-1 tracking-wider">Kg</span>
+                                                <div className="bg-[#0f141e]/80 rounded-xl py-1.5 px-1 flex flex-col items-center justify-center shadow-inner">
+                                                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 text-blue-500 mb-0.5"><path d="M20.57 14.86L22 13.43 20.57 12 17 15.57 8.43 7 12 3.43 10.57 2 9.14 3.43 7.71 2 5.57 4.14 4.14 2.71 2.71 4.14l1.43 1.43L2 7.71l1.43 1.43L2 10.57 3.43 12 7 8.43 15.57 17 12 20.57 13.43 22l1.43-1.43L16.29 22l2.14-2.14 1.43 1.43 1.43-1.43-1.43-1.43L22 16.29z" /></svg>
+                                                    <span className="text-white font-black text-[14px] leading-none">{exercise.carga}</span>
+                                                    <span className="text-slate-400 text-[9px] uppercase font-bold mt-0.5 tracking-wider">Kg</span>
                                                 </div>
                                                 )}
                                                 {exercise.grupo !== 'Cardio' && (
-                                                <div className="bg-[#0f141e]/80 rounded-xl p-2 flex flex-col items-center justify-center shadow-inner">
-                                                    <Clock size={14} className="text-blue-500 mb-1" />
-                                                    <span className="text-white font-black text-base leading-none">{exercise.descanso}</span>
-                                                    <span className="text-slate-400 text-[9px] uppercase font-bold mt-1 tracking-wider">Seg</span>
+                                                <div className="bg-[#0f141e]/80 rounded-xl py-1.5 px-1 flex flex-col items-center justify-center shadow-inner">
+                                                    <Clock size={12} className="text-blue-500 mb-0.5" />
+                                                    <span className="text-white font-black text-[14px] leading-none">{exercise.descanso}</span>
+                                                    <span className="text-slate-400 text-[9px] uppercase font-bold mt-0.5 tracking-wider">Seg</span>
                                                 </div>
                                                 )}
                                             </div>
 
-
+                                            {/* Desafio bar below metrics */}
+                                            {hasChallenge && challenge && (
+                                                <div className="flex items-center justify-between px-3.5 py-2.5 bg-black/40 border border-white/5 rounded-xl transition-all">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Swords size={13} className="text-yellow-400" />
+                                                        <span className="text-white font-black text-[10px] uppercase tracking-[0.12em]">
+                                                            Desafio
+                                                        </span>
+                                                    </div>
+                                                    <div className="font-black text-[10px] tracking-wider leading-none text-white">
+                                                        <span className="text-yellow-400">+{challenge.gapKg}kg </span>
+                                                        <span className="text-slate-300 font-medium">para superar </span>
+                                                        <span className="text-white font-black">{challenge.rivalName.split(' ')[0]}</span>
+                                                    </div>
+                                                </div>
+                                            )}
 
                                             {/* Botões - sempre exibidos para consistência visual */}
                                             <div className="flex flex-col mt-auto gap-1">

@@ -1,0 +1,38 @@
+                                             {/* Imagem do Exercicio */}
+                                             <div className={`w-full shrink-0 bg-white relative overflow-hidden ${
+                                                 hasChallenge ? 'h-[200px] rounded-t-[22px]' : 'h-[200px] rounded-t-[24px]'
+                                             }`}>
+                                                 <img
+                                                     src={exercise.imagem_url || DEFAULT_EXERCISE_IMAGE}
+                                                     alt={exercise.nome}
+                                                     className="w-full h-full object-contain p-2"
+                                                     onError={(e) => {
+                                                         (e.target as HTMLImageElement).src = DEFAULT_EXERCISE_IMAGE;
+                                                     }}
+                                                 />
+                                                 <div className="absolute inset-x-0 bottom-0 h-[40%] bg-gradient-to-t from-[#121825] via-[#121825]/30 to-transparent pointer-events-none" />
+
+                                                 {/* Grupo tag (e.g. PEITO) */}
+                                                 {exercise.grupo && (
+                                                     <div className="absolute top-3 left-3 z-30 bg-[#0f141e]/90 backdrop-blur-md px-2.5 py-1 rounded-lg text-white text-[10px] font-black uppercase tracking-widest shadow-md border border-white/5">
+                                                         {exercise.grupo}
+                                                     </div>
+                                                 )}
+
+                                                 {/* Feedback tag (e.g. MANTER) */}
+                                                 {exercise.ultimo_feedback && (
+                                                     <div className={`absolute top-3 right-3 z-30 bg-[#0f141e]/90 backdrop-blur-md px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-md border border-white/5 flex items-center gap-1 ${
+                                                         exercise.ultimo_feedback === 'facil' ? 'text-green-400' :
+                                                         exercise.ultimo_feedback === 'ideal' ? 'text-blue-400' :
+                                                         'text-red-400'
+                                                     }`}>
+                                                         {exercise.ultimo_feedback === 'facil' ? (
+                                                             <><ArrowUp size={11} className="mb-[1px]" />+CARGA</>
+                                                         ) : exercise.ultimo_feedback === 'ideal' ? (
+                                                             <><Check size={11} className="mb-[1px]" />MANTER</>
+                                                         ) : (
+                                                             <><ArrowDown size={11} className="mb-[1px]" />-CARGA</>
+                                                         )}
+                                                     </div>
+                                                 )}
+                                             </div>
