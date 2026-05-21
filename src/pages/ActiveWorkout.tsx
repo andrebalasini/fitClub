@@ -1588,16 +1588,12 @@ function ActiveWorkoutContent() {
                                     return (
                                     <div
                                         key={exercise.id}
-                                        className={`w-[94%] sm:w-[470px] h-[460px] snap-center flex-shrink-0 rounded-[24px] shadow-xl shadow-black/40 transition-all duration-300 relative overflow-hidden ${
-                                            hasChallenge ? 'challenge-card-border' : 'bg-[#121825]'
-                                        } ${
+                                        className={`w-[94%] sm:w-[470px] h-[460px] snap-center flex-shrink-0 rounded-[24px] shadow-xl shadow-black/40 transition-all duration-300 relative overflow-hidden bg-[#121825] ${
                                             idx === focusedIndex ? '' : 'opacity-60'
                                         }`}
                                     >
                                         {/* Timer View */}
-                                        <div className={`absolute z-20 flex flex-col items-center justify-center p-4 bg-[#121825] transition-all duration-500 ${
-                                            hasChallenge ? 'inset-[2px] rounded-[22px]' : 'inset-0 rounded-[24px]'
-                                        } ${
+                                        <div className={`absolute z-20 flex flex-col items-center justify-center p-4 bg-[#121825] transition-all duration-500 inset-0 rounded-[24px] ${
                                             idx === currentIndex && isResting ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
                                         }`}>
                                             <TimerErrorBoundary onSkipError={() => { setIsResting(false); setRestEndTime(null); if(handleNextExerciseRef.current) handleNextExerciseRef.current(); }}>
@@ -1642,14 +1638,10 @@ function ActiveWorkoutContent() {
                                         </div>
 
                                         {/* Exercise View */}
-                                        <div className={`flex flex-col h-full transition-all duration-500 relative overflow-hidden ${
-                                            hasChallenge ? 'rounded-[22px]' : 'rounded-[24px]'
-                                        } ${ idx === currentIndex && isResting ? 'opacity-0 scale-105 pointer-events-none' : 'opacity-100 scale-100' }`}>
+                                        <div className={`flex flex-col h-full transition-all duration-500 relative overflow-hidden rounded-[24px] ${ idx === currentIndex && isResting ? 'opacity-0 scale-105 pointer-events-none' : 'opacity-100 scale-100' }`}>
 
                                              {/* Imagem do Exercicio */}
-                                             <div className={`w-full shrink-0 bg-white relative overflow-hidden ${
-                                                 hasChallenge ? 'h-[200px] rounded-t-[22px]' : 'h-[200px] rounded-t-[24px]'
-                                             }`}>
+                                             <div className="w-full shrink-0 bg-white relative overflow-hidden h-[200px] rounded-t-[24px]">
                                                  <img
                                                      src={exercise.imagem_url || DEFAULT_EXERCISE_IMAGE}
                                                      alt={exercise.nome}
@@ -1724,7 +1716,7 @@ function ActiveWorkoutContent() {
 
                                             {/* Desafio bar below metrics */}
                                             {hasChallenge && challenge && (
-                                                <div className="flex items-center justify-between px-3.5 py-2.5 bg-black/40 border border-white/5 rounded-xl transition-all">
+                                                <div className="challenge-container-border flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all mt-2.5">
                                                     <div className="flex items-center gap-1.5">
                                                         <Swords size={13} className="text-yellow-400" />
                                                         <span className="text-white font-black text-[10px] uppercase tracking-[0.12em]">
