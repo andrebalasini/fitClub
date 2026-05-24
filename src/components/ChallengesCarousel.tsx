@@ -37,14 +37,13 @@ function ChallengeCard({ challenge, isActive, onAccept, myAvatarUrl }: Challenge
 
   return (
     <div
-      className="shrink-0 snap-center cursor-pointer select-none"
+      className="shrink-0 snap-center select-none"
       style={{
         width: 'calc(85vw)',
         maxWidth: '320px',
         opacity: isActive ? 1 : 0.65,
         transition: 'opacity 0.3s ease',
       }}
-      onClick={() => triggerHaptic('light')}
     >
       <div
         className="w-full rounded-[24px] overflow-hidden flex flex-col shadow-lg"
@@ -356,8 +355,6 @@ export function ChallengesCarousel() {
           />
         ))}
       </div>
-
-
     </div>
   );
 }

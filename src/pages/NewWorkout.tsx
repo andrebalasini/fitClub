@@ -32,6 +32,8 @@ interface DayExercise {
     grupo?: string;
     ordem?: number;
     dia: DayKey;
+    is_pyramid?: boolean;
+    pyramid_series?: { reps: number; kg: number }[] | null;
 }
 
 type DayKey = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G';
@@ -147,6 +149,8 @@ export function NewWorkout() {
                 carga,
                 descanso,
                 ordem,
+                is_pyramid,
+                pyramid_series,
                 tbExercicios (
                     nome,
                     imagem_url,
@@ -175,6 +179,8 @@ export function NewWorkout() {
                     descanso: row.descanso as number,
                     grupo: exercicio?.grupo,
                     ordem: row.ordem as number,
+                    is_pyramid: row.is_pyramid as boolean,
+                    pyramid_series: row.pyramid_series as { reps: number; kg: number }[] | null
                 };
             });
             setAllExercises(mapped);
@@ -208,6 +214,8 @@ export function NewWorkout() {
                     repeticoes: editedData.repeticoes as number,
                     carga: editedData.carga as number,
                     descanso: editedData.descanso as number,
+                    is_pyramid: editedData.is_pyramid as boolean,
+                    pyramid_series: editedData.pyramid_series as { reps: number; kg: number }[] | null
                 };
             }
             return ex;
@@ -391,7 +399,9 @@ export function NewWorkout() {
                 carga: e.carga,
                 descanso: e.descanso,
                 ordem: e.ordem,
-                user_id: getCurrentUserId()
+                user_id: getCurrentUserId(),
+                is_pyramid: e.is_pyramid,
+                pyramid_series: e.pyramid_series
             }));
             await supabase.from('tbTreinos').insert(insertPayload);
         }
@@ -408,7 +418,9 @@ export function NewWorkout() {
                 carga: e.carga,
                 descanso: e.descanso,
                 ordem: e.ordem,
-                user_id: getCurrentUserId()
+                user_id: getCurrentUserId(),
+                is_pyramid: e.is_pyramid,
+                pyramid_series: e.pyramid_series
             }));
             await supabase.from('tbTreinos').upsert(updatePayload);
         }
@@ -752,19 +764,19 @@ export function NewWorkout() {
                                                                 
                                                                 <div className="grid grid-cols-2 gap-y-1.5 gap-x-3 w-full max-w-[210px] place-items-start">
                                                                     {exercise.grupo !== 'Cardio' && (
-                                                                    <div className="flex items-center text-blue-400 gap-1.5">
+                                                                    <div className="flex items-center gap-1.5 text-blue-400">
                                                                         <Layers size={14} className="flex-shrink-0" />
-                                                                        <span className="text-xs font-bold text-white whitespace-nowrap">{exercise.series} séries</span>
+                                                                        <span className={`text-xs font-bold whitespace-nowrap ${exercise.is_pyramid ? 'text-orange-500' : 'text-white'}`}>{exercise.series} séries</span>
                                                                     </div>
                                                                     )}
-                                                                    <div className="flex items-center text-blue-400 gap-1.5">
+                                                                    <div className="flex items-center gap-1.5 text-blue-400">
                                                                         {exercise.grupo === 'Cardio' ? <Clock size={14} className="flex-shrink-0" /> : <RefreshCw size={14} className="flex-shrink-0" />}
-                                                                        <span className="text-xs font-bold text-white whitespace-nowrap">{exercise.repeticoes} {exercise.grupo === 'Cardio' ? "min" : "reps"}</span>
+                                                                        <span className={`text-xs font-bold whitespace-nowrap ${exercise.is_pyramid ? 'text-orange-500' : 'text-white'}`}>{exercise.repeticoes} {exercise.grupo === 'Cardio' ? "min" : "reps"}</span>
                                                                     </div>
                                                                     {exercise.grupo !== 'Cardio' && (
-                                                                    <div className="flex items-center text-blue-400 gap-1.5">
-                                                                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 flex-shrink-0 text-blue-400"><path d="M20.57 14.86L22 13.43 20.57 12 17 15.57 8.43 7 12 3.43 10.57 2 9.14 3.43 7.71 2 5.57 4.14 4.14 2.71 2.71 4.14l1.43 1.43L2 7.71l1.43 1.43L2 10.57 3.43 12 7 8.43 15.57 17 12 20.57 13.43 22l1.43-1.43L16.29 22l2.14-2.14 1.43 1.43 1.43-1.43-1.43-1.43L22 16.29z" /></svg>
-                                                                        <span className="text-xs font-bold text-white whitespace-nowrap">{exercise.carga} kg</span>
+                                                                    <div className="flex items-center gap-1.5 text-blue-400">
+                                                                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 flex-shrink-0"><path d="M20.57 14.86L22 13.43 20.57 12 17 15.57 8.43 7 12 3.43 10.57 2 9.14 3.43 7.71 2 5.57 4.14 4.14 2.71 2.71 4.14l1.43 1.43L2 7.71l1.43 1.43L2 10.57 3.43 12 7 8.43 15.57 17 12 20.57 13.43 22l1.43-1.43L16.29 22l2.14-2.14 1.43 1.43 1.43-1.43-1.43-1.43L22 16.29z" /></svg>
+                                                                        <span className={`text-xs font-bold whitespace-nowrap ${exercise.is_pyramid ? 'text-orange-500' : 'text-white'}`}>{exercise.carga} kg</span>
                                                                     </div>
                                                                     )}
                                                                     {exercise.grupo !== 'Cardio' && (
@@ -875,7 +887,9 @@ export function NewWorkout() {
                         series: editingExercise.series,
                         repeticoes: editingExercise.repeticoes,
                         carga: editingExercise.carga,
-                        descanso: editingExercise.descanso
+                        descanso: editingExercise.descanso,
+                        is_pyramid: editingExercise.is_pyramid,
+                        pyramid_series: editingExercise.pyramid_series ?? undefined
                     }}
                     isEditing={true}
                     onClose={() => setEditingExercise(null)}

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Loader2, Eye, EyeOff, Mail, Lock } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Mail, Lock, Download } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { usePWAInstall } from '../hooks/usePWAInstall';
 import { showToast } from '../components/Toast';
 import { supabase } from '../lib/supabase';
 
@@ -10,6 +11,7 @@ const LOGO_URL = 'https://fafisurbnecapdpguudb.supabase.co/storage/v1/object/pub
 export function AuthLogin() {
   const navigate = useNavigate();
   const { signIn } = useAuth();
+  const { isInstallable, promptInstall } = usePWAInstall();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -190,6 +192,18 @@ export function AuthLogin() {
               {isGoogleLoading ? 'CONECTANDO...' : 'ENTRAR COM GOOGLE'}
             </span>
           </button>
+
+          {/* PWA Install Button */}
+          {isInstallable && (
+            <button
+              type="button"
+              onClick={promptInstall}
+              className="w-full mt-3 py-3.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-white font-bold text-[14px] tracking-wide flex items-center justify-center gap-2 transition-all active:scale-95 border border-zinc-700"
+            >
+              <Download size={18} className="text-zinc-400" />
+              <span>OBTER O APLICATIVO</span>
+            </button>
+          )}
         </div>
       </div>
 

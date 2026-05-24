@@ -21,6 +21,8 @@ interface ExerciseDetailModalProps {
         repeticoes: number;
         carga: number;
         descanso: number;
+        is_pyramid?: boolean;
+        pyramid_series?: { reps: number; kg: number }[];
     };
     isEditing?: boolean;
     onClose: () => void;
@@ -164,12 +166,16 @@ export function ExerciseDetailModal({ exercise, combinedExercises = [], selected
     const [carga, setCarga] = useState(initialValues?.carga ?? 0);
     const [descanso, setDescanso] = useState(initialValues?.descanso ?? 60);
 
-    const [isPyramidMode, setIsPyramidMode] = useState(false);
-    const [pyramidSeries, setPyramidSeries] = useState<{reps: number, kg: number}[]>([
-        {reps: 10, kg: 0},
-        {reps: 10, kg: 0},
-        {reps: 10, kg: 0}
-    ]);
+    const [isPyramidMode, setIsPyramidMode] = useState(initialValues?.is_pyramid ?? false);
+    const [pyramidSeries, setPyramidSeries] = useState<{reps: number, kg: number}[]>(() => {
+        if (initialValues?.pyramid_series && initialValues.pyramid_series.length > 0) {
+            return initialValues.pyramid_series;
+        }
+        return Array.from({ length: initialValues?.series ?? 3 }, () => ({
+            reps: initialValues?.repeticoes ?? 10,
+            kg: initialValues?.carga ?? 0
+        }));
+    });
 
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -249,6 +255,8 @@ export function ExerciseDetailModal({ exercise, combinedExercises = [], selected
             nome,
             imagem_url: exercise.imagem_url,
             grupo: exercise.grupo,
+            is_pyramid: isPyramidMode,
+            pyramid_series: isPyramidMode ? pyramidSeries : null,
             ...(isEditing ? {} : { ordem: currentLength, id: `temp_${Date.now()}_${Math.random()}` })
         };
 
