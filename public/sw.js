@@ -11,7 +11,7 @@
 // O SW antigo será descartado automaticamente na próxima inicialização do app.
 // =============================================================================
 
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = 'v5';
 const CACHE_NAME = `fitclub-cache-${CACHE_VERSION}`;
 
 // Recursos que serão pré-cacheados na instalação do SW (App Shell)

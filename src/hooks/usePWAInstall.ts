@@ -18,7 +18,6 @@ declare global {
 
 export function usePWAInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isInstallable, setIsInstallable] = useState(false);
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: BeforeInstallPromptEvent) => {
@@ -26,7 +25,6 @@ export function usePWAInstall() {
       e.preventDefault();
       // Stash the event so it can be triggered later.
       setDeferredPrompt(e);
-      setIsInstallable(true);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -34,7 +32,6 @@ export function usePWAInstall() {
     // Also listen for successful install
     const handleAppInstalled = () => {
       setDeferredPrompt(null);
-      setIsInstallable(false);
       console.log('PWA was installed');
     };
 
@@ -48,6 +45,13 @@ export function usePWAInstall() {
 
   const promptInstall = async () => {
     if (!deferredPrompt) {
+      // Fallback for iOS or when the prompt is not available
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+      if (isIOS) {
+        alert('Para instalar no iOS: toque no botão de Compartilhar (ícone do quadrado com a seta para cima) na barra do Safari e selecione "Adicionar à Tela de Início".');
+      } else {
+        alert('Seu navegador não suporta instalação automática ou o aplicativo já está instalado. Tente instalar pelo menu de opções do navegador (Adicionar à tela inicial).');
+      }
       return;
     }
     
@@ -59,8 +63,9 @@ export function usePWAInstall() {
     
     // We've used the prompt, and can't use it again, throw it away
     setDeferredPrompt(null);
-    setIsInstallable(false);
   };
 
-  return { isInstallable, promptInstall };
+  // We return isInstallable as true always so the button is always visible
+  // and handles the fallback if the native prompt isn't available.
+  return { isInstallable: true, promptInstall };
 }
