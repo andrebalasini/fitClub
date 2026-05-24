@@ -198,10 +198,10 @@ export function AuthLogin() {
             <button
               type="button"
               onClick={promptInstall}
-              className="w-full mt-3 py-3.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-white font-bold text-[14px] tracking-wide flex items-center justify-center gap-2 transition-all active:scale-95 border border-zinc-700"
+              className="galactic-badge w-full mt-3 py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer hover:brightness-110"
             >
-              <Download size={18} className="text-zinc-400" />
-              <span>OBTER O APLICATIVO</span>
+              <Download size={18} className="text-white font-bold" />
+              <span className="text-white font-bold text-[14px] tracking-wide">OBTER O APLICATIVO</span>
             </button>
           )}
         </div>
