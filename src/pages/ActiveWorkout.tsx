@@ -5,9 +5,10 @@ import { useNavigate } from 'react-router-dom';
 import { TopBar } from '../components/layout/TopBar';
 import { BottomNav } from '../components/layout/BottomNav';
 import { supabase } from '../lib/supabase';
-import { CheckCircle, Check, Clock, Loader2, Layers, RefreshCw, Info, Zap, TrendingUp, AlertTriangle, SkipForward, Award, Play, Pause, Square, Edit2, Dumbbell, ArrowUp, ArrowDown, Swords } from 'lucide-react';
+import { CheckCircle, Check, Clock, Loader2, Layers, RefreshCw, Info, Zap, TrendingUp, AlertTriangle, SkipForward, Award, Play, Pause, Square, Edit2, Dumbbell, ArrowUp, ArrowDown, Video } from 'lucide-react';
 import { useDragScroll } from '../hooks/useDragScroll';
 import { Stepper, LogSetModal } from '../components/LogSetModal';
+import { ChallengeVideoModal } from '../components/ChallengeVideoModal';
 import { getCurrentUserId } from '../lib/auth';
 import { useActiveWorkout } from '../contexts/WorkoutContext';
 import { useFeedChallenges } from '../hooks/useFeedChallenges';
@@ -42,6 +43,8 @@ interface DayExercise {
     ordem: number;
     grupo?: string;
     ultimo_feedback?: string;
+    is_pyramid?: boolean;
+    pyramid_series?: { reps: number; kg: number }[] | null;
 }
 
 type ChartPeriod = '1S' | '1M' | '3M' | 'Todos';
@@ -596,6 +599,8 @@ function ActiveWorkoutContent() {
     });
     const [showExitModal, setShowExitModal] = useState(false);
     const [showSkipConfirm, setShowSkipConfirm] = useState(false);
+    const [recordingExercise, setRecordingExercise] = useState<DayExercise | null>(null);
+    const [showValidationRules, setShowValidationRules] = useState(false);
 
     // ── Challenge state ──────────────────────────────────────────────────
     const { challenges: allChallenges } = useFeedChallenges();
@@ -758,6 +763,8 @@ function ActiveWorkoutContent() {
                     carga,
                     descanso,
                     ordem,
+                    is_pyramid,
+                    pyramid_series,
                     tbExercicios (
                         nome,
                         imagem_url,
@@ -781,7 +788,9 @@ function ActiveWorkoutContent() {
                     carga: row.carga,
                     descanso: row.descanso,
                     ordem: row.ordem,
-                    grupo: row.tbExercicios?.grupo
+                    grupo: row.tbExercicios?.grupo,
+                    is_pyramid: row.is_pyramid,
+                    pyramid_series: row.pyramid_series
                 }));
                 const expIds = mapped.map((m: any) => m.exercicio_id);
                 if (expIds.length > 0) {
@@ -894,8 +903,19 @@ function ActiveWorkoutContent() {
         const currentExercise = exercises[currentIndex];
         if (!currentExercise) return;
 
-        setPendingLogReps(currentExercise.repeticoes);
-        setPendingLogWeight(currentExercise.carga);
+        let defaultReps = currentExercise.repeticoes;
+        let defaultWeight = currentExercise.carga;
+
+        if (currentExercise.is_pyramid && currentExercise.pyramid_series && currentExercise.pyramid_series.length > 0) {
+            const targetSet = currentExercise.pyramid_series[currentSetIndex];
+            if (targetSet) {
+                defaultReps = targetSet.reps;
+                defaultWeight = targetSet.kg;
+            }
+        }
+
+        setPendingLogReps(defaultReps);
+        setPendingLogWeight(defaultWeight);
         setPendingLogFeedback('ideal');
 
         const isLastSet = currentSetIndex === currentExercise.series - 1;
@@ -1585,6 +1605,7 @@ function ActiveWorkoutContent() {
                                 {exercises.map((exercise, idx) => {
                                     const hasChallenge = challengeExercicioIds.has(exercise.exercicio_id);
                                     const challenge = workoutChallenges.find(c => c.exercicioId === exercise.exercicio_id);
+                                    const showActiveBadge = workoutStarted && !isResting && idx === currentIndex && exercise.grupo !== 'Cardio';
                                     return (
                                     <div
                                         key={exercise.id}
@@ -1659,22 +1680,31 @@ function ActiveWorkoutContent() {
                                                      </div>
                                                  )}
 
-                                                 {/* Feedback tag (e.g. MANTER) */}
-                                                 {exercise.ultimo_feedback && (
-                                                     <div className={`absolute top-3 right-3 z-30 bg-[#0f141e]/90 backdrop-blur-md px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-md border border-white/5 flex items-center gap-1 ${
-                                                         exercise.ultimo_feedback === 'facil' ? 'text-green-400' :
-                                                         exercise.ultimo_feedback === 'ideal' ? 'text-blue-400' :
-                                                         'text-red-400'
-                                                     }`}>
-                                                         {exercise.ultimo_feedback === 'facil' ? (
-                                                             <><ArrowUp size={11} className="mb-[1px]" />+CARGA</>
-                                                         ) : exercise.ultimo_feedback === 'ideal' ? (
-                                                             <><Check size={11} className="mb-[1px]" />MANTER</>
-                                                         ) : (
-                                                             <><ArrowDown size={11} className="mb-[1px]" />-CARGA</>
-                                                         )}
-                                                     </div>
-                                                 )}
+                                                 {/* Tags right side */}
+                                                 <div className="absolute top-3 right-3 z-30 flex flex-col gap-1.5 items-end">
+                                                     {/* Feedback tag (e.g. MANTER) */}
+                                                     {exercise.ultimo_feedback && (
+                                                         <div className={`bg-[#0f141e]/90 backdrop-blur-md px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-md border border-white/5 flex items-center gap-1 ${
+                                                             exercise.ultimo_feedback === 'facil' ? 'text-green-400' :
+                                                             exercise.ultimo_feedback === 'ideal' ? 'text-blue-400' :
+                                                             'text-red-400'
+                                                         }`}>
+                                                             {exercise.ultimo_feedback === 'facil' ? (
+                                                                 <><ArrowUp size={11} className="mb-[1px]" />+CARGA</>
+                                                             ) : exercise.ultimo_feedback === 'ideal' ? (
+                                                                 <><Check size={11} className="mb-[1px]" />MANTER</>
+                                                             ) : (
+                                                                 <><ArrowDown size={11} className="mb-[1px]" />-CARGA</>
+                                                             )}
+                                                         </div>
+                                                     )}
+                                                     {/* Pyramid tag */}
+                                                     {exercise.is_pyramid && (
+                                                         <div className="bg-[#0f141e]/90 backdrop-blur-md px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-md border border-white/5 text-orange-500">
+                                                             PIRÂMIDE
+                                                         </div>
+                                                     )}
+                                                 </div>
                                              </div>
 
                                         {/* Infos do Exercicio */}
@@ -1685,51 +1715,84 @@ function ActiveWorkoutContent() {
                                             </div>
 
                                             {/* Grid de Metricas */}
-                                            <div className={`grid gap-1 ${exercise.grupo === 'Cardio' ? 'grid-cols-1' : 'grid-cols-4'}`}>
-                                                {exercise.grupo !== 'Cardio' && (
-                                                <div className="bg-[#0f141e]/80 rounded-xl py-1.5 px-1 flex flex-col items-center justify-center shadow-inner">
-                                                    <Layers size={12} className="text-blue-500 mb-0.5" />
-                                                    <span className="text-white font-black text-[14px] leading-none">{exercise.series}</span>
-                                                    <span className="text-slate-400 text-[9px] uppercase font-bold mt-0.5 tracking-wider">Séries</span>
-                                                </div>
-                                                )}
-                                                <div className={`bg-[#0f141e]/80 rounded-xl flex flex-col items-center justify-center shadow-inner ${exercise.grupo === 'Cardio' ? 'py-3' : 'py-1.5 px-1'}`}>
-                                                    {exercise.grupo === 'Cardio' ? <Clock size={16} className="text-blue-500 mb-1" /> : <RefreshCw size={12} className="text-blue-500 mb-0.5" />}
-                                                    <span className={`text-white font-black leading-none ${exercise.grupo === 'Cardio' ? 'text-xl' : 'text-[14px]'}`}>{exercise.repeticoes}{exercise.grupo === 'Cardio' && "'"}</span>
-                                                    <span className="text-slate-400 text-[9px] uppercase font-bold mt-0.5 tracking-wider">{exercise.grupo === 'Cardio' ? 'Duração' : 'Reps'}</span>
-                                                </div>
-                                                {exercise.grupo !== 'Cardio' && (
-                                                <div className="bg-[#0f141e]/80 rounded-xl py-1.5 px-1 flex flex-col items-center justify-center shadow-inner">
-                                                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 text-blue-500 mb-0.5"><path d="M20.57 14.86L22 13.43 20.57 12 17 15.57 8.43 7 12 3.43 10.57 2 9.14 3.43 7.71 2 5.57 4.14 4.14 2.71 2.71 4.14l1.43 1.43L2 7.71l1.43 1.43L2 10.57 3.43 12 7 8.43 15.57 17 12 20.57 13.43 22l1.43-1.43L16.29 22l2.14-2.14 1.43 1.43 1.43-1.43-1.43-1.43L22 16.29z" /></svg>
-                                                    <span className="text-white font-black text-[14px] leading-none">{exercise.carga}</span>
-                                                    <span className="text-slate-400 text-[9px] uppercase font-bold mt-0.5 tracking-wider">Kg</span>
-                                                </div>
-                                                )}
-                                                {exercise.grupo !== 'Cardio' && (
-                                                <div className="bg-[#0f141e]/80 rounded-xl py-1.5 px-1 flex flex-col items-center justify-center shadow-inner">
-                                                    <Clock size={12} className="text-blue-500 mb-0.5" />
-                                                    <span className="text-white font-black text-[14px] leading-none">{exercise.descanso}</span>
-                                                    <span className="text-slate-400 text-[9px] uppercase font-bold mt-0.5 tracking-wider">Seg</span>
-                                                </div>
-                                                )}
-                                            </div>
+                                            {(() => {
+                                                const isActive = idx === currentIndex;
+                                                const displaySetIndex = isActive ? currentSetIndex : 0;
+                                                const currentSeriesValueText = isActive ? `${displaySetIndex + 1}ª` : exercise.series;
+                                                const currentSeriesLabelText = isActive ? "SÉRIE" : "SÉRIES";
+                                                
+                                                const currentPyramidReps = exercise.is_pyramid && exercise.pyramid_series && exercise.pyramid_series[displaySetIndex] ? exercise.pyramid_series[displaySetIndex].reps : exercise.repeticoes;
+                                                const prevPyramidReps = exercise.is_pyramid && exercise.pyramid_series && displaySetIndex > 0 && exercise.pyramid_series[displaySetIndex - 1] ? exercise.pyramid_series[displaySetIndex - 1].reps : currentPyramidReps;
+                                                
+                                                const currentPyramidCarga = exercise.is_pyramid && exercise.pyramid_series && exercise.pyramid_series[displaySetIndex] ? exercise.pyramid_series[displaySetIndex].kg : exercise.carga;
+                                                const prevPyramidCarga = exercise.is_pyramid && exercise.pyramid_series && displaySetIndex > 0 && exercise.pyramid_series[displaySetIndex - 1] ? exercise.pyramid_series[displaySetIndex - 1].kg : currentPyramidCarga;
+                                                
+                                                return (
+                                                    <div className={`grid gap-1 ${exercise.grupo === 'Cardio' ? 'grid-cols-1' : 'grid-cols-4'}`}>
+                                                        {exercise.grupo !== 'Cardio' && (
+                                                        <div className="bg-[#0f141e]/80 rounded-xl py-1.5 px-1 flex flex-col items-center justify-center shadow-inner overflow-hidden">
+                                                            <Layers size={12} className="text-blue-500 mb-0.5 relative z-10" />
+                                                            <span key={`s-${displaySetIndex}`} className={`font-black text-[14px] leading-none text-white ${isActive ? 'animate-odometer' : ''}`}>{currentSeriesValueText}</span>
+                                                            <span className="text-slate-400 text-[9px] uppercase font-bold mt-0.5 tracking-wider relative z-10">{currentSeriesLabelText}</span>
+                                                        </div>
+                                                        )}
+                                                        <div className={`bg-[#0f141e]/80 rounded-xl flex flex-col items-center justify-center shadow-inner overflow-hidden ${exercise.grupo === 'Cardio' ? 'py-3' : 'py-1.5 px-1'}`}>
+                                                            {exercise.grupo === 'Cardio' ? <Clock size={16} className="text-blue-500 mb-1 relative z-10" /> : <RefreshCw size={12} className="text-blue-500 mb-0.5 relative z-10" />}
+                                                            <div className="flex items-center justify-center gap-0.5">
+                                                                <span key={`r-${displaySetIndex}`} className={`font-black leading-none ${exercise.grupo === 'Cardio' ? 'text-xl text-white' : 'text-[14px] text-white'} ${isActive ? 'animate-odometer' : ''}`}>{currentPyramidReps}{exercise.grupo === 'Cardio' && "'"}</span>
+                                                                {isActive && exercise.is_pyramid && currentPyramidReps > prevPyramidReps && <ArrowUp size={10} strokeWidth={3} className="text-orange-500 relative z-10" />}
+                                                                {isActive && exercise.is_pyramid && currentPyramidReps < prevPyramidReps && <ArrowDown size={10} strokeWidth={3} className="text-orange-500 relative z-10" />}
+                                                            </div>
+                                                            <span className="text-slate-400 text-[9px] uppercase font-bold mt-0.5 tracking-wider relative z-10">{exercise.grupo === 'Cardio' ? 'Duração' : 'Reps'}</span>
+                                                        </div>
+                                                        {exercise.grupo !== 'Cardio' && (
+                                                        <div className="bg-[#0f141e]/80 rounded-xl py-1.5 px-1 flex flex-col items-center justify-center shadow-inner overflow-hidden">
+                                                            <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 mb-0.5 text-blue-500 relative z-10"><path d="M20.57 14.86L22 13.43 20.57 12 17 15.57 8.43 7 12 3.43 10.57 2 9.14 3.43 7.71 2 5.57 4.14 4.14 2.71 2.71 4.14l1.43 1.43L2 7.71l1.43 1.43L2 10.57 3.43 12 7 8.43 15.57 17 12 20.57 13.43 22l1.43-1.43L16.29 22l2.14-2.14 1.43 1.43 1.43-1.43-1.43-1.43L22 16.29z" /></svg>
+                                                            <div className="flex items-center justify-center gap-0.5">
+                                                                <span key={`k-${displaySetIndex}`} className={`font-black text-[14px] leading-none text-white ${isActive ? 'animate-odometer' : ''}`}>{currentPyramidCarga}</span>
+                                                                {isActive && exercise.is_pyramid && currentPyramidCarga > prevPyramidCarga && <ArrowUp size={10} strokeWidth={3} className="text-orange-500 relative z-10" />}
+                                                                {isActive && exercise.is_pyramid && currentPyramidCarga < prevPyramidCarga && <ArrowDown size={10} strokeWidth={3} className="text-orange-500 relative z-10" />}
+                                                            </div>
+                                                            <span className="text-slate-400 text-[9px] uppercase font-bold mt-0.5 tracking-wider relative z-10">Kg</span>
+                                                        </div>
+                                                        )}
+                                                        {exercise.grupo !== 'Cardio' && (
+                                                        <div className="bg-[#0f141e]/80 rounded-xl py-1.5 px-1 flex flex-col items-center justify-center shadow-inner">
+                                                            <Clock size={12} className="text-blue-500 mb-0.5 relative z-10" />
+                                                            <span className="text-white font-black text-[14px] leading-none">{exercise.descanso}</span>
+                                                            <span className="text-slate-400 text-[9px] uppercase font-bold mt-0.5 tracking-wider relative z-10">Seg</span>
+                                                        </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()}
 
-                                            {/* Desafio bar below metrics */}
+                                            {/* Desafio bar abaixo das métricas */}
                                             {hasChallenge && challenge && (
-                                                <div className="challenge-container-border flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all mt-2.5">
-                                                    <div className="flex items-center gap-1.5">
-                                                        <Swords size={13} className="text-yellow-400" />
-                                                        <span className="text-white font-black text-[10px] uppercase tracking-[0.12em]">
-                                                            Desafio
-                                                        </span>
-                                                    </div>
-                                                    <div className="font-black text-[10px] tracking-wider leading-none text-white">
-                                                        <span className="text-yellow-400">+{challenge.gapKg}kg </span>
-                                                        <span className="text-slate-300 font-medium">para superar </span>
-                                                        <span className="text-white font-black">{challenge.rivalName.split(' ')[0]}</span>
-                                                    </div>
-                                                </div>
-                                            )}
+                                                 <button
+                                                     onClick={(e) => { e.stopPropagation(); setShowValidationRules(true); }}
+                                                     className="galactic-badge w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all mt-2.5 cursor-pointer hover:brightness-110 active:scale-95 text-left border-0 outline-none notranslate"
+                                                     translate="no"
+                                                 >
+                                                     <div className="flex items-center z-10">
+                                                         <span className="text-white font-black text-[10px] uppercase tracking-[0.12em] galactic-text-glow">
+                                                             Desafio
+                                                         </span>
+                                                     </div>
+                                                     <div className="flex items-center gap-2 font-black text-[10px] tracking-wider leading-normal text-white galactic-text-glow z-10 flex-1 justify-end min-w-0">
+                                                         <div className="truncate whitespace-nowrap text-right flex-1 min-w-0">
+                                                             <span className="text-yellow-400">+{challenge.gapKg}kg </span>
+                                                             <span className="text-slate-300 font-medium">para superar </span>
+                                                             <span className="text-white font-black">{challenge.rivalName.split(' ')[0]}</span>
+                                                         </div>
+                                                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 transition-all select-none">
+                                                              <circle cx="8" cy="8" r="7" stroke="white" strokeWidth="1.5" />
+                                                              <circle cx="8" cy="4.5" r="0.9" fill="#FFD700" />
+                                                              <rect x="7.2" y="6.3" width="1.6" height="5.2" rx="0.5" fill="#FFD700" />
+                                                          </svg>
+                                                     </div>
+                                                 </button>
+                                             )}
 
                                             {/* Botões - sempre exibidos para consistência visual */}
                                             <div className="flex flex-col mt-auto gap-1">
@@ -1788,7 +1851,7 @@ function ActiveWorkoutContent() {
                                                         
                                                         if (isResting) {
                                                             return (
-                                                                <div className="w-full flex items-center justify-center py-2 h-[52px]">
+                                                                <div className="w-full flex items-center justify-center py-1 h-10">
                                                                     <span className="text-slate-400 font-bold text-[13px] tracking-widest bg-slate-800/60 px-4 py-1.5 rounded-full border border-white/5">
                                                                         {setsDone}/{exercise.series} SÉRIES
                                                                     </span>
@@ -1799,63 +1862,80 @@ function ActiveWorkoutContent() {
                                                         return (
                                                             <button
                                                                 onClick={(e) => { e.stopPropagation(); handleJumpToExercise(idx); }}
-                                                                className="w-full font-bold py-3 rounded-xl flex items-center justify-between px-4 transition-all bg-slate-700 hover:bg-slate-600 text-white active:scale-[0.98] shadow-lg shadow-black/20"
+                                                                className="w-full font-bold h-10 rounded-xl flex items-center relative justify-center gap-2 transition-all border-0 border-transparent outline-none focus:outline-none focus:ring-0 bg-slate-700 hover:bg-slate-600 text-white active:scale-95 shadow-lg shadow-black/20"
                                                             >
-                                                                <div className="flex items-center gap-2">
-                                                                    <SkipForward size={18} />
-                                                                    <span className="text-[15px]">
-                                                                        {setsDone > 0 ? 'Continuar exercício' : 'Fazer este exercício'}
-                                                                    </span>
-                                                                </div>
-                                                                <span className="px-2.5 py-1 rounded-md bg-black/20 text-white/80 text-[12px] font-black tracking-widest">
+                                                                <span className="text-[12px] tracking-widest uppercase relative z-10">
+                                                                    {setsDone > 0 ? 'Continuar exercício' : 'Fazer exercício'}
+                                                                </span>
+                                                                {setsDone === 0 && <Play size={16} className="relative z-10 text-blue-500" />}
+                                                                <span className="absolute right-4 top-1/2 -translate-y-1/2 px-2 py-0.5 rounded bg-black/20 text-white/80 text-[11px] font-black tracking-widest z-10">
                                                                     {setsDone}/{exercise.series}
                                                                 </span>
                                                             </button>
                                                         );
                                                     })()
                                                 ) : completedIndices.includes(idx) ? (
-                                                    <div className="w-full flex items-center justify-center py-2 min-h-[52px]">
-                                                        <div className="w-[60px] h-[60px] rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
-                                                            <CheckCircle size={32} className="text-emerald-500" />
+                                                    <div className="w-full flex items-center justify-center h-10 mt-1">
+                                                        <div className="w-[52px] h-[52px] rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+                                                            <CheckCircle size={28} className="text-emerald-500" />
                                                         </div>
                                                     </div>
                                                 ) : (
                                                     <button
-                                                        onClick={() => handleInitiateRestAndLog()}
+                                                        onClick={(e) => { e.stopPropagation(); handleInitiateRestAndLog(); }}
                                                         disabled={!workoutStarted || isResting || idx !== currentIndex}
-                                                        className={`w-full font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all ${
+                                                        className={`w-full font-bold h-10 rounded-xl flex items-center relative justify-center gap-2 transition-all border-0 border-transparent outline-none focus:outline-none focus:ring-0 ${
                                                             workoutStarted && !isResting && idx === currentIndex
-                                                                ? 'bg-blue-500 hover:bg-blue-600 text-white active:scale-[0.98] shadow-lg shadow-blue-500/25'
+                                                                ? 'bg-blue-600 hover:bg-blue-500 text-white active:scale-95 shadow-lg shadow-black/20'
                                                                 : isResting
                                                                 ? 'opacity-0 pointer-events-none'
                                                                 : 'bg-slate-700/50 text-slate-400 cursor-not-allowed'
                                                         }`}
                                                     >
-                                                        <div className="relative z-10 flex items-center justify-center gap-2">
-                                                            <CheckCircle size={18} />
-                                                            <span className="text-[15px]">
-                                                                {!workoutStarted
-                                                                    ? 'Aguarde'
-                                                                    : exercise.grupo === 'Cardio'
-                                                                    ? 'Concluir exercício'
-                                                                    : currentSetIndex === exercise.series - 1
-                                                                    ? 'Concluir exercício'
-                                                                    : `Concluir série (${currentSetIndex + 1}/${exercise.series})`}
+                                                        <span className="text-[12px] tracking-widest uppercase relative z-10">
+                                                            {!workoutStarted
+                                                                ? 'Aguarde'
+                                                                : exercise.grupo === 'Cardio'
+                                                                ? 'Concluir exercício'
+                                                                : 'Concluir série'}
+                                                        </span>
+                                                        <CheckCircle size={16} className="relative z-10" />
+                                                        {showActiveBadge && (
+                                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 px-2 py-0.5 rounded bg-black/20 text-white/80 text-[11px] font-black tracking-widest z-10">
+                                                                {currentSetIndex + 1}/{exercise.series}
                                                             </span>
-                                                        </div>
+                                                        )}
                                                     </button>
                                                 )}
                                                 
                                                 {workoutStarted && !isResting && idx === currentIndex && exercise.grupo !== 'Cardio' ? (
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); setShowSkipConfirm(true); }}
-                                                        className="w-full font-bold py-2 rounded-xl flex items-center justify-center gap-2 transition-all text-slate-400 bg-transparent hover:text-slate-200 hover:bg-white/5 active:scale-[0.95]"
-                                                    >
-                                                        <SkipForward size={16} />
-                                                        <span className="text-[14px]">Não fiz o exercício</span>
-                                                    </button>
+                                                    <div className="flex gap-2 w-full mt-1">
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); setShowSkipConfirm(true); }}
+                                                            className="flex-1 py-1.5 px-3 rounded-xl bg-slate-700/80 text-slate-300 font-bold text-[10px] flex items-center justify-center gap-2 transition-all active:scale-95 tracking-widest uppercase"
+                                                        >
+                                                            PULAR EXERCÍCIO
+                                                            <SkipForward size={14} strokeWidth={2} className="text-blue-500" />
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); setRecordingExercise(exercise); }}
+                                                            className="flex-1 py-1.5 px-3 rounded-xl bg-slate-700/80 text-slate-300 font-bold text-[10px] flex items-center justify-center gap-2 transition-all active:scale-95 tracking-widest uppercase"
+                                                        >
+                                                            GRAVAR PROVA
+                                                            <Video size={14} strokeWidth={2} className="text-yellow-400" />
+                                                        </button>
+                                                    </div>
                                                 ) : exercise.grupo !== 'Cardio' ? (
-                                                    <div className="h-[32px] w-full" />
+                                                    <div className="flex gap-2 w-full mt-1 opacity-0 pointer-events-none select-none">
+                                                        <div className="flex-1 py-1.5 px-3 rounded-xl bg-slate-700/80 text-slate-300 font-bold text-[10px] flex items-center justify-center gap-2 transition-all tracking-widest uppercase">
+                                                            PULAR EXERCÍCIO
+                                                            <SkipForward size={14} strokeWidth={2} className="text-blue-500" />
+                                                        </div>
+                                                        <div className="flex-1 py-1.5 px-3 rounded-xl bg-slate-700/80 text-slate-300 font-bold text-[10px] flex items-center justify-center gap-2 transition-all tracking-widest uppercase">
+                                                            GRAVAR PROVA
+                                                            <Video size={14} strokeWidth={2} className="text-yellow-400" />
+                                                        </div>
+                                                    </div>
                                                 ) : null}
                                             </div>
                                         </div>
@@ -2147,6 +2227,84 @@ function ActiveWorkoutContent() {
                         icon={SkipForward}
                         variant="warning"
                     />,
+                    document.body
+                )}
+
+                {recordingExercise && createPortal(
+                    <ChallengeVideoModal
+                        challenge={
+                            workoutChallenges.find(c => c.exercicioId === recordingExercise.exercicio_id) || {
+                                exercicioId: recordingExercise.exercicio_id,
+                                exercicioNome: recordingExercise.nome,
+                                fichaId: 'fallback',
+                                dia: 'fallback',
+                                grupos: [],
+                                myBestCarga: recordingExercise.carga || 0,
+                                rivalCarga: 0,
+                                gapKg: 0,
+                                progressPercent: 100,
+                                rivalName: 'a Comunidade',
+                                rivalAvatarUrl: ''
+                            }
+                        }
+                        myName={''}
+                        onClose={() => setRecordingExercise(null)}
+                        onPublished={() => {
+                            setRecordingExercise(null);
+                        }}
+                    />,
+                    document.body
+                )}
+
+                {showValidationRules && createPortal(
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
+                        {/* Backdrop */}
+                        <div
+                            className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-[fadeIn_200ms_ease-out]"
+                            onClick={() => setShowValidationRules(false)}
+                        />
+
+                        {/* Modal */}
+                        <div className="relative w-full max-w-sm bg-[#1a1f2e] rounded-3xl p-6 animate-[slideUp_300ms_ease-out] shadow-2xl shadow-black/50 z-10 flex flex-col items-center text-center">
+                            
+                            <div className="w-14 h-14 rounded-full flex items-center justify-center mb-4 bg-yellow-500/10 text-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.1)]">
+                                <Info size={28} />
+                            </div>
+
+                            <h2 className="text-white font-bold text-xl leading-tight mb-3">
+                                REGRAS DE VALIDAÇÃO
+                            </h2>
+                            
+                            <div className="text-[#8e95a3] text-[14px] font-medium leading-relaxed mb-6 text-left flex flex-col gap-4">
+                                <p className="font-semibold text-slate-200">
+                                    Para garantir seus <span className="font-bold"><span className="text-white notranslate">fit</span><span className="text-[#4d9fff] notranslate">Points</span></span>:
+                                </p>
+                                <div className="flex flex-col gap-3">
+                                    <div className="flex gap-2.5 items-start">
+                                        <span className="text-[15px] shrink-0 mt-0.5">✅</span>
+                                        <p>
+                                            <strong className="text-white">Grave a execução:</strong> Clique em <strong className="text-white">"GRAVAR PROVA"</strong> e filme sua série.
+                                        </p>
+                                    </div>
+                                    <div className="flex gap-2.5 items-start">
+                                        <span className="text-[15px] shrink-0 mt-0.5">🏆</span>
+                                        <p>
+                                            <strong className="text-white">Votação da Comunidade:</strong>{' '}
+                                            Alcance um saldo de 3 votos a favor para liberar seus{' '}
+                                            <strong className="text-yellow-400">+50 <span className="text-white notranslate">fit</span><span className="text-[#4d9fff] notranslate">Points</span></strong>.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={() => setShowValidationRules(false)}
+                                className="w-full py-3.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold text-base transition-all active:scale-95 shadow-md border-0 outline-none focus:outline-none"
+                            >
+                                Entendido
+                            </button>
+                        </div>
+                    </div>,
                     document.body
                 )}
 

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { X, Loader2, Minus, Plus, RefreshCw, ThumbsUp, ThumbsDown, Target, Clock, Edit2 } from 'lucide-react';
+import { X, Loader2, Minus, Plus, RefreshCw, ArrowUp, ArrowDown, Check, Clock, Edit2 } from 'lucide-react';
 
 const DEFAULT_IMAGE = 'https://fafisurbnecapdpguudb.supabase.co/storage/v1/object/public/assets/geral/exercise_default_min.png';
 
@@ -254,39 +254,48 @@ export function LogSetModal({
                     {/* Feedback */}
                     <div className="flex flex-col gap-2 mt-2">
                         <div className="grid grid-cols-3 gap-2">
-                            <button
-                                onClick={() => setFeedback('facil')}
-                                className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-[16px] transition-all border border-transparent active:scale-95 ${
-                                    feedback === 'facil'
-                                        ? 'bg-green-500/20 text-green-400'
-                                        : 'bg-[#0f141e] text-slate-400 hover:text-white'
-                                }`}
-                            >
-                                <ThumbsUp size={18} />
-                                <span className="text-xs font-bold font-sans">Fácil</span>
-                            </button>
-                            <button
-                                onClick={() => setFeedback('ideal')}
-                                className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-[16px] transition-all border border-transparent active:scale-95 ${
-                                    feedback === 'ideal'
-                                        ? 'bg-blue-500 text-white'
-                                        : 'bg-[#0f141e] text-slate-400 hover:text-white'
-                                }`}
-                            >
-                                <Target size={18} />
-                                <span className="text-xs font-bold font-sans">Ideal</span>
-                            </button>
-                            <button
-                                onClick={() => setFeedback('dificil')}
-                                className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-[16px] transition-all border border-transparent active:scale-95 ${
-                                    feedback === 'dificil'
-                                        ? 'bg-red-500/20 text-red-400'
-                                        : 'bg-[#0f141e] text-slate-400 hover:text-white'
-                                }`}
-                            >
-                                <ThumbsDown size={18} />
-                                <span className="text-xs font-bold font-sans">Difícil</span>
-                            </button>
+                            <div className="flex flex-col items-center gap-1.5">
+                                <button
+                                    type="button"
+                                    onClick={() => setFeedback('facil')}
+                                    className={`w-full flex items-center justify-center py-2 rounded-xl transition-all active:scale-95 ${
+                                        feedback === 'facil'
+                                            ? 'bg-green-500/20 text-green-400'
+                                            : 'bg-[#0f141e] text-slate-400 hover:text-white'
+                                    }`}
+                                >
+                                    <ArrowUp size={20} />
+                                </button>
+                                <span className={`text-[10px] font-bold uppercase tracking-wider ${feedback === 'facil' ? 'text-green-400' : 'text-slate-500'}`}>+CARGA</span>
+                            </div>
+                            <div className="flex flex-col items-center gap-1.5">
+                                <button
+                                    type="button"
+                                    onClick={() => setFeedback('ideal')}
+                                    className={`w-full flex items-center justify-center py-2 rounded-xl transition-all active:scale-95 ${
+                                        feedback === 'ideal'
+                                            ? 'bg-blue-500 text-white'
+                                            : 'bg-[#0f141e] text-slate-400 hover:text-white'
+                                    }`}
+                                >
+                                    <Check size={20} strokeWidth={3} />
+                                </button>
+                                <span className={`text-[10px] font-bold uppercase tracking-wider ${feedback === 'ideal' ? 'text-blue-500' : 'text-slate-500'}`}>MANTER</span>
+                            </div>
+                            <div className="flex flex-col items-center gap-1.5">
+                                <button
+                                    type="button"
+                                    onClick={() => setFeedback('dificil')}
+                                    className={`w-full flex items-center justify-center py-2 rounded-xl transition-all active:scale-95 ${
+                                        feedback === 'dificil'
+                                            ? 'bg-red-500/20 text-red-400'
+                                            : 'bg-[#0f141e] text-slate-400 hover:text-white'
+                                    }`}
+                                >
+                                    <ArrowDown size={20} />
+                                </button>
+                                <span className={`text-[10px] font-bold uppercase tracking-wider ${feedback === 'dificil' ? 'text-red-400' : 'text-slate-500'}`}>-CARGA</span>
+                            </div>
                         </div>
                     </div>
 

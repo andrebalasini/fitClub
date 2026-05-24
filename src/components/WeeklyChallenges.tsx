@@ -84,7 +84,7 @@ export function WeeklyChallenges() {
           const isDone = p.concluido || percent >= 100;
 
           return (
-            <div key={desafio.id} className="bg-[#0f141e] border border-white/5 rounded-[14px] p-3.5 flex flex-col gap-2.5 relative overflow-hidden transition-all active:scale-[0.98] cursor-pointer">
+            <div key={desafio.id} className="bg-[#0f141e] border border-white/5 rounded-[14px] p-3.5 flex flex-col gap-2.5 relative overflow-hidden">
                <div className="flex justify-between items-start z-10">
                  <div className="flex items-center gap-2">
                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isDone ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}`}>

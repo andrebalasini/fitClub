@@ -1,4 +1,5 @@
-import { X, User, Settings, Trophy, LogOut, ChevronRight, MessageCircle, Info, CheckCircle2, Trash2 } from 'lucide-react';
+import { X, User, Settings, Trophy, LogOut, ChevronRight, MessageCircle, Info, CheckCircle2, Trash2, Download } from 'lucide-react';
+import { usePWAInstall } from '../../hooks/usePWAInstall';
 import { cn } from '../../lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -17,6 +18,7 @@ type ModalState = 'none' | 'profile';
 export function SideMenu({ isOpen, onClose }: SideMenuProps) {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const { isInstallable, promptInstall } = usePWAInstall();
   
   const [modalState, setModalState] = useState<ModalState>('none');
   const [fitPoints, setFitPoints] = useState(0);
@@ -264,6 +266,9 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
           <div className="flex flex-col gap-2">
             <span className="text-xs font-black text-zinc-500 tracking-wider uppercase ml-2">Aplicativo</span>
             <div className="flex flex-col gap-1">
+              {isInstallable && (
+                <MenuItem icon={Download} label="Download app" onClick={promptInstall} />
+              )}
               <MenuItem icon={Settings} label="Configurações" onClick={() => handleNavigation('/settings')} />
             </div>
           </div>

@@ -27,6 +27,7 @@ interface FeedChallengesResult {
   challenges: FeedChallenge[];
   loading: boolean;
   myAvatarUrl: string;
+  myName: string;
   hasWorkouts: boolean;
 }
 
@@ -45,6 +46,7 @@ export function useFeedChallenges(): FeedChallengesResult {
   const [challenges, setChallenges] = useState<FeedChallenge[]>([]);
   const [loading, setLoading] = useState(true);
   const [myAvatarUrl, setMyAvatarUrl] = useState('');
+  const [myName, setMyName] = useState('');
   const [hasWorkouts, setHasWorkouts] = useState(true); // assume true until proven false
 
   useEffect(() => {
@@ -89,10 +91,15 @@ export function useFeedChallenges(): FeedChallengesResult {
           Array.isArray(lbRaw) ? lbRaw : [];
 
         const lbAvatarMap = new Map<string, string>();
-        leaderboard.forEach((entry) => lbAvatarMap.set(entry.user_id, entry.avatar_url || ''));
+        const lbNameMap = new Map<string, string>();
+        leaderboard.forEach((entry) => {
+          lbAvatarMap.set(entry.user_id, entry.avatar_url || '');
+          lbNameMap.set(entry.user_id, entry.nome || '');
+        });
 
-        // Own avatar from leaderboard
+        // Own avatar + name from leaderboard
         setMyAvatarUrl(lbAvatarMap.get(userId) || '');
+        setMyName(lbNameMap.get(userId) || '');
 
         // ── Step 1: User's ficha IDs ──────────────────────────────────────
         const { data: fichasData, error: fichasError } = await supabase
@@ -310,5 +317,5 @@ export function useFeedChallenges(): FeedChallengesResult {
     fetchChallenges();
   }, [user?.id]);
 
-  return { challenges, loading, myAvatarUrl, hasWorkouts };
+  return { challenges, loading, myAvatarUrl, myName, hasWorkouts };
 }
