@@ -13,7 +13,7 @@
 
   window.addEventListener('load', () => {
     navigator.serviceWorker
-      .register('/sw.js')
+      .register('sw.js')
       .then((registration) => {
         console.log('[PWA] Service Worker registrado com sucesso:', registration.scope);
 
