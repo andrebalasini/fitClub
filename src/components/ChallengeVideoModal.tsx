@@ -208,9 +208,9 @@ export function ChallengeVideoModal({
       const myEntry = leaderboard.find((e) => e.user_id === user.id);
       const challengerName = myEntry?.nome || myName || 'Você';
 
-      // 3. Insert into tbFeedEvents
+      // 3. Insert into tbfeedevents
       const { error: insertError } = await supabase
-        .from('tbFeedEvents')
+        .from('tbfeedevents')
         .insert({
           user_id: user.id,
           event_type: 'challenge_victory',
@@ -381,9 +381,9 @@ export function ChallengeVideoModal({
 
         {/* PHASE: review — show recorded video */}
         {phase === 'review' && recordedUrl && (
-          <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col min-h-0">
             {/* Video preview */}
-            <div className="flex-1 relative bg-black">
+            <div className="flex-1 relative bg-black min-h-0 overflow-hidden">
               <video
                 ref={reviewVideoRef}
                 src={recordedUrl}
@@ -391,7 +391,7 @@ export function ChallengeVideoModal({
                 playsInline
                 loop
                 autoPlay
-                className="w-full h-full object-contain"
+                className="absolute inset-0 w-full h-full object-contain"
               />
               {/* Duration badge */}
               <div

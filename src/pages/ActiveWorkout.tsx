@@ -688,6 +688,10 @@ function ActiveWorkoutContent() {
     const exerciseHistoryRef = useRef<HistoryRecord[]>([]);
     const sessionHistoryIdsRef = useRef<string[]>([]);
     const setsLoggedByIndexRef = useRef<Record<number, number>>({});
+    /** Mutex: prevents handleFinishWorkout from running more than once (timer + button race condition) */
+    const isFinishingWorkoutRef = useRef(false);
+    /** Mirror of workoutStartTime in a ref so closures always read the latest value */
+    const workoutStartTimeRef = useRef<number | null>(null);
     
     const pendingLogRepsRef = useRef(pendingLogReps);
     const pendingLogWeightRef = useRef(pendingLogWeight);
@@ -726,6 +730,7 @@ function ActiveWorkoutContent() {
     useEffect(() => { exerciseHistoryRef.current = exerciseHistory; }, [exerciseHistory]);
     useEffect(() => { sessionHistoryIdsRef.current = sessionHistoryIds; }, [sessionHistoryIds]);
     useEffect(() => { setsLoggedByIndexRef.current = setsLoggedByIndex; }, [setsLoggedByIndex]);
+    useEffect(() => { workoutStartTimeRef.current = workoutStartTime; }, [workoutStartTime]);
 
     const isInitialMount = useRef(true);
     useEffect(() => {
@@ -1081,6 +1086,10 @@ function ActiveWorkoutContent() {
 
     const handleSavePartialWorkout = async () => {
         setIsSavingExit(true);
+        // Capture elapsed seconds immediately before any async operations
+        const finalElapsedSeconds = workoutStartTimeRef.current
+            ? Math.floor((Date.now() - workoutStartTimeRef.current) / 1000)
+            : elapsedSeconds;
         let points = 50;
         try {
             const uid = getCurrentUserId();
@@ -1105,7 +1114,7 @@ function ActiveWorkoutContent() {
                 user_id: uid,
                 ficha_id: fichaId,
                 dia: dia,
-                duracao_segundos: elapsedSeconds
+                duracao_segundos: finalElapsedSeconds
             });
             
             if (points > 0) {
@@ -1151,13 +1160,30 @@ function ActiveWorkoutContent() {
     };
 
     const handleFinishWorkout = async () => {
-        // Garantir limpeza de estado para evitar execuções redundantes no timer
+        // ── Mutex: prevent double-execution from timer + button race condition ──
+        if (isFinishingWorkoutRef.current) {
+            console.log('[handleFinishWorkout] Already finishing, skipping duplicate call.');
+            return;
+        }
+        isFinishingWorkoutRef.current = true;
+
+        // ── Capture elapsed seconds immediately before any async gap ──
+        const finalElapsedSeconds = workoutStartTimeRef.current
+            ? Math.floor((Date.now() - workoutStartTimeRef.current) / 1000)
+            : elapsedSeconds;
+
+        // ── Stop the workout timer and all sub-timers immediately ──
+        setWorkoutStarted(false);
         setIsResting(false);
         setRestEndTime(null);
         setRestTimeRemaining(0);
         setCardioState('idle');
         setCardioEndTime(null);
         setCardioRemainingDuration(0);
+
+        // ── Clear the workout context and localStorage immediately ──
+        // This prevents any re-entry via the forgotten-workout recovery flow
+        endWorkout();
 
         let points = 100;
         try {
@@ -1183,7 +1209,7 @@ function ActiveWorkoutContent() {
                 user_id: uid,
                 ficha_id: fichaId,
                 dia: dia,
-                duracao_segundos: elapsedSeconds
+                duracao_segundos: finalElapsedSeconds
             });
             
             if (points > 0) {
@@ -1204,7 +1230,6 @@ function ActiveWorkoutContent() {
         setTimeout(() => {
             setShowWorkoutCompletedModal(true);
         }, 350);
-        // Do not immediately navigate or clear context; wait for the user to interact with the FitCheck modal
     };
 
     const handleCloseWorkoutCompleted = () => {

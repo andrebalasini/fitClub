@@ -11,14 +11,14 @@
 // O SW antigo será descartado automaticamente na próxima inicialização do app.
 // =============================================================================
 
-const CACHE_VERSION = 'v5';
+const CACHE_VERSION = 'v6';
 const CACHE_NAME = `fitclub-cache-${CACHE_VERSION}`;
 
 // Recursos que serão pré-cacheados na instalação do SW (App Shell)
 const APP_SHELL_URLS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
+  './',
+  'index.html',
+  'manifest.json',
 ];
 
 // ===========================================================================
@@ -78,8 +78,8 @@ self.addEventListener('fetch', (event) => {
 
   // Ignora arquivos que nunca devem ser cacheados para garantir
   // que o usuário sempre receba a versão mais recente.
-  const noCachePatterns = ['/manifest.json', '/version.json'];
-  if (noCachePatterns.some((pattern) => url.pathname === pattern)) return;
+  const noCachePatterns = ['manifest.json', 'version.json'];
+  if (noCachePatterns.some((pattern) => url.pathname.endsWith('/' + pattern))) return;
 
   // ── Stale-While-Revalidate ────────────────────────────────────────────────
   // 1. Retorna imediatamente do cache (se existir) para o usuário.

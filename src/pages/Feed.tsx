@@ -156,9 +156,9 @@ export function Feed() {
           fpCountMap.set(fp.user_id, (fpCountMap.get(fp.user_id) ?? 0) + fp.pontos);
         });
 
-        // 5. Fetch challenge victory events from tbFeedEvents
+        // 5. Fetch challenge victory events from tbfeedevents
         const { data: feedEvents } = await supabase
-          .from('tbFeedEvents')
+          .from('tbfeedevents')
           .select('*')
           .eq('event_type', 'challenge_victory')
           .order('created_at', { ascending: false })
@@ -192,7 +192,7 @@ export function Feed() {
         let myVotesMap: Record<string, 'up' | 'down'> = {};
         if (user && eventIds.length > 0) {
           const { data: myVotesData } = await supabase
-            .from('tbChallengeVotes')
+            .from('tbchallengevotes')
             .select('feed_event_id, vote_type')
             .eq('voter_id', user.id)
             .in('feed_event_id', eventIds);
