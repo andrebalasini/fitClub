@@ -706,6 +706,8 @@ function ActiveWorkoutContent() {
     }, [pendingLogReps, pendingLogWeight, pendingLogFeedback]);
 
     useEffect(() => {
+        if (!workoutConfig) return;
+
         localStorage.setItem('@fw:currentIndex', currentIndex.toString());
         localStorage.setItem('@fw:currentSetIndex', currentSetIndex.toString());
         localStorage.setItem('@fw:focusedIndex', focusedIndex.toString());
@@ -724,7 +726,7 @@ function ActiveWorkoutContent() {
         localStorage.setItem('@fw:completedIndices', JSON.stringify(completedIndices));
         localStorage.setItem('@fw:setsLoggedByIndex', JSON.stringify(setsLoggedByIndex));
         localStorage.setItem('@fw:currentRestPhrase', currentRestPhrase);
-    }, [currentIndex, currentSetIndex, focusedIndex, workoutStarted, workoutStartTime, sessionHistoryIds, isResting, restEndTime, cardioState, cardioEndTime, cardioRemainingDuration, completedIndices, setsLoggedByIndex, currentRestPhrase]);
+    }, [workoutConfig, currentIndex, currentSetIndex, focusedIndex, workoutStarted, workoutStartTime, sessionHistoryIds, isResting, restEndTime, cardioState, cardioEndTime, cardioRemainingDuration, completedIndices, setsLoggedByIndex, currentRestPhrase]);
 
     // Keep refs in sync with state so closures always read fresh values
     useEffect(() => { exerciseHistoryRef.current = exerciseHistory; }, [exerciseHistory]);

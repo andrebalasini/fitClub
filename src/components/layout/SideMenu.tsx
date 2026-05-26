@@ -301,6 +301,12 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
             <LogOut className="w-5 h-5" />
             <span>Sair do app</span>
           </button>
+          
+          <div className="mt-4 text-center">
+            <span className="text-xs font-medium text-zinc-500 select-none">
+              fitClub v{import.meta.env.VITE_APP_VERSION || '3.2'}
+            </span>
+          </div>
         </div>
       </div>
 
