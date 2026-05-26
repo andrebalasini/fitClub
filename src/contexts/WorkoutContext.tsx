@@ -69,6 +69,25 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
     }
   }, [workoutConfig]);
 
+  // Synchronize workout config state across tabs/PWA instances
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === LOCAL_STORAGE_KEY) {
+        try {
+          const newVal = e.newValue ? JSON.parse(e.newValue) : null;
+          setWorkoutConfig(newVal);
+          if (!newVal) {
+            setIsMinimized(false);
+          }
+        } catch {
+          setWorkoutConfig(null);
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   useEffect(() => {
     localStorage.setItem(MINIMIZED_STORAGE_KEY, String(isMinimized));
   }, [isMinimized]);
@@ -92,6 +111,7 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
   };
 
   const recordAction = useCallback(() => {
+    if (!localStorage.getItem(LOCAL_STORAGE_KEY)) return;
     localStorage.setItem('@fw:lastActionTime', Date.now().toString());
   }, []);
 

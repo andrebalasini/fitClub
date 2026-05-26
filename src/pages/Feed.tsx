@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Loader2, ThumbsUp, ThumbsDown, Share2, Trophy, Dumbbell, Clock, Sword, CheckCircle2, MessageSquare } from 'lucide-react';
+import { Loader2, ThumbsUp, ThumbsDown, Share2, Trophy, Dumbbell, Clock, Sword, CheckCircle2, MessageSquare, Send, Trash2 } from 'lucide-react';
 import { ChallengesCarousel } from '../components/ChallengesCarousel';
 import { showToast } from '../components/Toast';
 
@@ -26,6 +26,15 @@ interface TreinoCompleto {
   concluido_em: string;
   duracao_segundos: number;
   musculos: string;
+}
+
+interface FeedComment {
+  id: string;
+  user_id: string;
+  user_name: string;
+  avatar_url: string;
+  content: string;
+  created_at: string;
 }
 
 interface FeedCard {
@@ -54,6 +63,10 @@ interface FeedCard {
   validated?: boolean;
   feedEventId?: string;
   myVote?: 'up' | 'down' | null;
+  // Social interactions
+  likesCount?: number;
+  likedByMe?: boolean;
+  comments?: FeedComment[];
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -79,6 +92,98 @@ function getDiaLabel(diaRaw: string): string {
   return diaRaw.length <= 2 ? `Treino ${val}` : diaRaw;
 }
 
+interface CommentPanelProps {
+  cardId: string;
+  cardType: 'workout' | 'challenge_victory';
+  comments: FeedComment[];
+  currentUserId?: string;
+  onAddComment: (cardId: string, cardType: 'workout' | 'challenge_victory', content: string) => Promise<void>;
+  onDeleteComment: (cardId: string, commentId: string) => Promise<void>;
+}
+
+function CommentPanel({
+  cardId,
+  cardType,
+  comments,
+  currentUserId,
+  onAddComment,
+  onDeleteComment,
+}: CommentPanelProps) {
+  const [text, setText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!text.trim() || submitting) return;
+    setSubmitting(true);
+    try {
+      await onAddComment(cardId, cardType, text);
+      setText('');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 pt-3 border-t border-white/[0.04] flex flex-col gap-3 animate-in fade-in slide-in-from-top-3 duration-200">
+      {/* Comments List */}
+      {comments && comments.length > 0 && (
+        <div className="flex flex-col gap-2.5 max-h-[220px] overflow-y-auto pr-1">
+          {comments.map((comment) => (
+            <div key={comment.id} className="flex gap-2.5 items-start bg-slate-900/30 p-2.5 rounded-xl border border-white/[0.02]">
+              <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 bg-slate-800 border border-white/5">
+                {comment.avatar_url ? (
+                  <img src={comment.avatar_url} alt={comment.user_name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold text-[10px] uppercase">
+                    {comment.user_name.charAt(0)}
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-slate-200 font-bold text-[12px] truncate">{comment.user_name}</span>
+                  <span className="text-slate-500 text-[9px] font-medium ml-2">{formatActivityDate(comment.created_at)}</span>
+                </div>
+                <p className="text-slate-300 text-[12px] font-medium mt-0.5 leading-relaxed break-words">{comment.content}</p>
+              </div>
+              {currentUserId === comment.user_id && (
+                <button
+                  type="button"
+                  onClick={() => onDeleteComment(cardId, comment.id)}
+                  className="p-1 rounded-lg text-slate-500 hover:text-red-400 active:scale-95 transition-all hover:bg-red-500/10 flex-shrink-0"
+                >
+                  <Trash2 size={12} />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Write Comment Form */}
+      <form onSubmit={handleSubmit} className="flex items-center gap-2">
+        <label htmlFor={`comment-input-${cardId}`} className="sr-only">Escreva um comentário</label>
+        <input
+          id={`comment-input-${cardId}`}
+          type="text"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Escreva um comentário..."
+          className="flex-1 bg-slate-950/60 border border-slate-850 focus:border-blue-500/50 rounded-xl px-4 py-2.5 text-[13px] text-white focus:outline-none transition-colors"
+        />
+        <button
+          type="submit"
+          disabled={!text.trim() || submitting}
+          className="w-9 h-9 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:hover:bg-blue-600 text-white flex items-center justify-center transition-all active:scale-95"
+        >
+          {submitting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+        </button>
+      </form>
+    </div>
+  );
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const NET_VOTES_NEEDED = 3;
@@ -93,6 +198,7 @@ export function Feed() {
     fitPoints: number;
     rank: number;
   } | null>(null);
+  const [activeCommentCardId, setActiveCommentCardId] = useState<string | null>(null);
 
   // Load current user stats from leaderboard RPC
   useEffect(() => {
@@ -232,14 +338,67 @@ export function Feed() {
           };
         });
 
-        // 9. Merge and sort by date descending
+        // 9. Fetch likes
+        const { data: likesRaw } = await supabase
+          .from('tbFeedLikes')
+          .select('item_id, user_id');
+        const likes: Array<{ item_id: string; user_id: string }> = likesRaw ?? [];
+
+        // 10. Fetch comments with profiles join
+        const { data: commentsRaw } = await supabase
+          .from('tbFeedComments')
+          .select('id, item_id, user_id, content, created_at, profiles(nome, avatar_url)')
+          .order('created_at', { ascending: true });
+        
+        const comments: Array<{
+          id: string;
+          item_id: string;
+          user_id: string;
+          content: string;
+          created_at: string;
+          profiles: { nome: string; avatar_url: string } | null;
+        }> = (commentsRaw as any) ?? [];
+
+        // Group likes by item_id
+        const likesMap = new Map<string, string[]>();
+        likes.forEach((lk) => {
+          if (!likesMap.has(lk.item_id)) likesMap.set(lk.item_id, []);
+          likesMap.get(lk.item_id)!.push(lk.user_id);
+        });
+
+        // Group comments by item_id
+        const commentsMap = new Map<string, FeedComment[]>();
+        comments.forEach((cm) => {
+          if (!commentsMap.has(cm.item_id)) commentsMap.set(cm.item_id, []);
+          commentsMap.get(cm.item_id)!.push({
+            id: cm.id,
+            user_id: cm.user_id,
+            user_name: cm.profiles?.nome || 'Atleta',
+            avatar_url: cm.profiles?.avatar_url || '',
+            content: cm.content,
+            created_at: cm.created_at,
+          });
+        });
+
+        // 11. Merge and sort by date descending
         const allCards = [...workoutCards, ...challengeCards].sort((a, b) => {
           const dA = a.rawDate ? new Date(a.rawDate).getTime() : 0;
           const dB = b.rawDate ? new Date(b.rawDate).getTime() : 0;
           return dB - dA;
         });
 
-        setFeedCards(allCards);
+        // Enrich cards with likes and comments
+        const enrichedCards = allCards.map((c) => {
+          const lkList = likesMap.get(c.id) ?? [];
+          return {
+            ...c,
+            likesCount: lkList.length,
+            likedByMe: user ? lkList.includes(user.id) : false,
+            comments: commentsMap.get(c.id) ?? [],
+          };
+        });
+
+        setFeedCards(enrichedCards);
       } catch (err) {
         console.error('Error loading feed:', err);
         setFeedCards([]);
@@ -298,6 +457,178 @@ export function Feed() {
       }
     }
   }, [user]);
+
+  // ── Curtir / Descurtir um card do feed ──────────────────────────────────────
+  const handleToggleLike = useCallback(async (cardId: string, cardType: 'workout' | 'challenge_victory') => {
+    if (!user) {
+      showToast('Faça login para curtir.', 'error');
+      return;
+    }
+
+    const card = feedCards.find((c) => c.id === cardId);
+    if (!card) return;
+
+    const wasLiked = !!card.likedByMe;
+    const newLiked = !wasLiked;
+    const newCount = (card.likesCount ?? 0) + (newLiked ? 1 : -1);
+
+    // Optimistic UI update
+    setFeedCards((prev) =>
+      prev.map((c) =>
+        c.id === cardId ? { ...c, likedByMe: newLiked, likesCount: newCount } : c
+      )
+    );
+
+    try {
+      if (wasLiked) {
+        await supabase
+          .from('tbFeedLikes')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('item_id', cardId);
+      } else {
+        await supabase.from('tbFeedLikes').insert({
+          user_id: user.id,
+          item_id: cardId,
+          item_type: cardType,
+        });
+      }
+    } catch (err) {
+      console.error('Error toggling like:', err);
+      // Revert optimistic update
+      setFeedCards((prev) =>
+        prev.map((c) =>
+          c.id === cardId ? { ...c, likedByMe: wasLiked, likesCount: card.likesCount } : c
+        )
+      );
+      showToast('Erro ao processar curtida.', 'error');
+    }
+  }, [user, feedCards]);
+
+  // ── Adicionar um comentário ──────────────────────────────────────────────────
+  const handleAddComment = useCallback(async (cardId: string, cardType: 'workout' | 'challenge_victory', content: string) => {
+    if (!user || !content.trim()) return;
+
+    const tempId = `temp-${Date.now()}-${Math.random()}`;
+    const newComment: FeedComment = {
+      id: tempId,
+      user_id: user.id,
+      user_name: currentUser?.nome || 'Atleta',
+      avatar_url: currentUser?.avatar_url || '',
+      content: content.trim(),
+      created_at: new Date().toISOString(),
+    };
+
+    // Optimistic UI update
+    setFeedCards((prev) =>
+      prev.map((c) =>
+        c.id === cardId ? { ...c, comments: [...(c.comments || []), newComment] } : c
+      )
+    );
+
+    try {
+      const { data, error } = await supabase
+        .from('tbFeedComments')
+        .insert({
+          user_id: user.id,
+          item_id: cardId,
+          item_type: cardType,
+          content: content.trim(),
+        })
+        .select('id')
+        .single();
+
+      if (error) throw error;
+
+      // Update the temp ID with the real ID from Supabase
+      setFeedCards((prev) =>
+        prev.map((c) =>
+          c.id === cardId
+            ? {
+                ...c,
+                comments: (c.comments || []).map((cm) =>
+                  cm.id === tempId ? { ...cm, id: data.id } : cm
+                ),
+              }
+            : c
+        )
+      );
+    } catch (err) {
+      console.error('Error adding comment:', err);
+      // Remove optimistic comment
+      setFeedCards((prev) =>
+        prev.map((c) =>
+          c.id === cardId
+            ? { ...c, comments: (c.comments || []).filter((cm) => cm.id !== tempId) }
+            : c
+        )
+      );
+      showToast('Erro ao enviar comentário.', 'error');
+    }
+  }, [user, currentUser, feedCards]);
+
+  // ── Excluir um comentário ────────────────────────────────────────────────────
+  const handleDeleteComment = useCallback(async (cardId: string, commentId: string) => {
+    if (!user) return;
+
+    const card = feedCards.find((c) => c.id === cardId);
+    if (!card) return;
+    const previousComments = card.comments || [];
+
+    // Optimistic UI update
+    setFeedCards((prev) =>
+      prev.map((c) =>
+        c.id === cardId
+          ? { ...c, comments: (c.comments || []).filter((cm) => cm.id !== commentId) }
+          : c
+      )
+    );
+
+    try {
+      const { error } = await supabase
+        .from('tbFeedComments')
+        .delete()
+        .eq('id', commentId);
+
+      if (error) throw error;
+      showToast('Comentário removido.', 'success');
+    } catch (err) {
+      console.error('Error deleting comment:', err);
+      // Revert optimistic update
+      setFeedCards((prev) =>
+        prev.map((c) =>
+          c.id === cardId ? { ...c, comments: previousComments } : c
+        )
+      );
+      showToast('Erro ao excluir comentário.', 'error');
+    }
+  }, [user, feedCards]);
+
+  // ── Compartilhar treino / vitória ──────────────────────────────────────────
+  const handleShare = useCallback((card: FeedCard) => {
+    let text = '';
+    if (card.cardType === 'challenge_victory') {
+      text = `⚔️ ${card.challengerName} superou ${card.rivalName} no exercício "${card.exerciseName}" no fitClub! 🔥`;
+    } else {
+      text = `🏆 ${card.user_name} concluiu o ${card.workout_day} (${card.musculos}) em ${card.duracao_min} min no fitClub! 💪`;
+    }
+
+    if (navigator.share) {
+      navigator.share({
+        title: 'Desafio fitClub',
+        text: text,
+        url: window.location.origin,
+      }).catch((e) => {
+        if (e.name !== 'AbortError') {
+          navigator.clipboard.writeText(text);
+          showToast('Texto de compartilhamento copiado!', 'success');
+        }
+      });
+    } else {
+      navigator.clipboard.writeText(text);
+      showToast('Link de compartilhamento copiado!', 'success');
+    }
+  }, []);
 
   return (
     <div
@@ -553,16 +884,48 @@ export function Feed() {
                       </div>
 
                       {/* Social row */}
-                      <div className="pt-1 border-t border-white/[0.04] flex items-center justify-between text-slate-500">
-                        <button className="flex items-center gap-1.5 hover:text-blue-400 active:scale-95 transition-all text-[12px] font-bold tracking-tight bg-transparent border-none outline-none">
-                          <MessageSquare size={14} />
-                          <span>Comentar</span>
+                      <div className="pt-2.5 border-t border-white/[0.04] flex items-center justify-between text-slate-500">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleLike(card.id, 'challenge_victory')}
+                          className={`flex items-center gap-1.5 active:scale-95 transition-all text-[12px] font-bold tracking-tight bg-transparent border-none outline-none ${
+                            card.likedByMe ? 'text-blue-400 font-extrabold' : 'hover:text-blue-400'
+                          }`}
+                        >
+                          <ThumbsUp size={14} className={card.likedByMe ? 'fill-blue-400/20' : ''} />
+                          <span>{card.likesCount ?? 0}</span>
                         </button>
-                        <button className="flex items-center gap-1.5 hover:text-yellow-400 active:scale-95 transition-all text-[12px] font-bold tracking-tight bg-transparent border-none outline-none">
+                        <button
+                          type="button"
+                          onClick={() => setActiveCommentCardId(activeCommentCardId === card.id ? null : card.id)}
+                          className={`flex items-center gap-1.5 active:scale-95 transition-all text-[12px] font-bold tracking-tight bg-transparent border-none outline-none ${
+                            activeCommentCardId === card.id ? 'text-emerald-400 font-extrabold' : 'hover:text-emerald-400'
+                          }`}
+                        >
+                          <MessageSquare size={14} />
+                          <span>{(card.comments || []).length}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleShare(card)}
+                          className="flex items-center gap-1.5 hover:text-yellow-400 active:scale-95 transition-all text-[12px] font-bold tracking-tight bg-transparent border-none outline-none"
+                        >
                           <Share2 size={14} />
                           <span>Compartilhar</span>
                         </button>
                       </div>
+
+                      {/* Comments Panel */}
+                      {activeCommentCardId === card.id && (
+                        <CommentPanel
+                          cardId={card.id}
+                          cardType="challenge_victory"
+                          comments={card.comments || []}
+                          currentUserId={user?.id}
+                          onAddComment={handleAddComment}
+                          onDeleteComment={handleDeleteComment}
+                        />
+                      )}
                     </div>
                   );
                 }
@@ -645,19 +1008,47 @@ export function Feed() {
 
                   {/* Social row */}
                   <div className="mt-3.5 pt-3.5 border-t border-white/[0.04] flex items-center justify-between text-slate-500">
-                    <button className="flex items-center gap-1.5 hover:text-blue-400 active:scale-95 transition-all text-[12px] font-bold tracking-tight bg-transparent border-none outline-none">
-                      <ThumbsUp size={14} />
-                      <span>0</span>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleLike(card.id, 'workout')}
+                      className={`flex items-center gap-1.5 active:scale-95 transition-all text-[12px] font-bold tracking-tight bg-transparent border-none outline-none ${
+                        card.likedByMe ? 'text-blue-400 font-extrabold' : 'hover:text-blue-400'
+                      }`}
+                    >
+                      <ThumbsUp size={14} className={card.likedByMe ? 'fill-blue-400/20' : ''} />
+                      <span>{card.likesCount ?? 0}</span>
                     </button>
-                    <button className="flex items-center gap-1.5 hover:text-emerald-400 active:scale-95 transition-all text-[12px] font-bold tracking-tight bg-transparent border-none outline-none">
+                    <button
+                      type="button"
+                      onClick={() => setActiveCommentCardId(activeCommentCardId === card.id ? null : card.id)}
+                      className={`flex items-center gap-1.5 active:scale-95 transition-all text-[12px] font-bold tracking-tight bg-transparent border-none outline-none ${
+                        activeCommentCardId === card.id ? 'text-emerald-400 font-extrabold' : 'hover:text-emerald-400'
+                      }`}
+                    >
                       <MessageSquare size={14} />
-                      <span>0</span>
+                      <span>{(card.comments || []).length}</span>
                     </button>
-                    <button className="flex items-center gap-1.5 hover:text-yellow-400 active:scale-95 transition-all text-[12px] font-bold tracking-tight bg-transparent border-none outline-none">
+                    <button
+                      type="button"
+                      onClick={() => handleShare(card)}
+                      className="flex items-center gap-1.5 hover:text-yellow-400 active:scale-95 transition-all text-[12px] font-bold tracking-tight bg-transparent border-none outline-none"
+                    >
                       <Share2 size={14} />
-                      <span>0</span>
+                      <span>Compartilhar</span>
                     </button>
                   </div>
+
+                  {/* Comments Panel */}
+                  {activeCommentCardId === card.id && (
+                    <CommentPanel
+                      cardId={card.id}
+                      cardType="workout"
+                      comments={card.comments || []}
+                      currentUserId={user?.id}
+                      onAddComment={handleAddComment}
+                      onDeleteComment={handleDeleteComment}
+                    />
+                  )}
                 </div>
                 );
               })}
