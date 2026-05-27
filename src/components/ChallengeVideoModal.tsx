@@ -189,9 +189,12 @@ export function ChallengeVideoModal({
       const fileName = `${user.id}_${Date.now()}.${ext}`;
       const filePath = `challenge-proofs/${fileName}`;
 
+      // Convert Blob to File to ensure compatibility with iOS Safari and other mobile browsers
+      const videoFile = new File([recordedBlob], fileName, { type: recordedBlob.type });
+
       const { error: uploadError } = await supabase.storage
         .from('videos')
-        .upload(filePath, recordedBlob, {
+        .upload(filePath, videoFile, {
           contentType: recordedBlob.type,
           upsert: false,
         });
@@ -202,11 +205,13 @@ export function ChallengeVideoModal({
         .from('videos')
         .getPublicUrl(filePath);
 
-      // 2. Get current user's name from profiles/leaderboard
-      const { data: lbRaw } = await supabase.rpc('leaderboard_temporada' as any);
-      const leaderboard: Array<{ user_id: string; nome: string }> = Array.isArray(lbRaw) ? lbRaw : [];
-      const myEntry = leaderboard.find((e) => e.user_id === user.id);
-      const challengerName = myEntry?.nome || myName || 'Você';
+      // 2. Get current user's name from profiles directly (much faster and more reliable than leaderboard RPC)
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('nome')
+        .eq('id', user.id)
+        .maybeSingle();
+      const challengerName = profileData?.nome || myName || 'Você';
 
       // 3. Insert into tbfeedevents
       const { error: insertError } = await supabase
