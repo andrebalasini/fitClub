@@ -10,7 +10,7 @@ import {
   FlipHorizontal,
   Zap,
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseUrl, supabaseAnonKey } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { showToast } from './Toast';
 import type { FeedChallenge } from '../hooks/useFeedChallenges';
@@ -46,6 +46,7 @@ export function ChallengeVideoModal({
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
 
   const liveVideoRef = useRef<HTMLVideoElement>(null);
   const reviewVideoRef = useRef<HTMLVideoElement>(null);
@@ -182,6 +183,7 @@ export function ChallengeVideoModal({
     if (!recordedBlob || !user) return;
     setPhase('uploading');
     setUploadError(null);
+    setUploadProgress(0);
 
     try {
       // 1. Upload video to Supabase Storage
@@ -192,14 +194,39 @@ export function ChallengeVideoModal({
       // Convert Blob to File to ensure compatibility with iOS Safari and other mobile browsers
       const videoFile = new File([recordedBlob], fileName, { type: recordedBlob.type });
 
-      const { error: uploadError } = await supabase.storage
-        .from('videos')
-        .upload(filePath, videoFile, {
-          contentType: recordedBlob.type,
-          upsert: false,
-        });
+      // Get session for the token
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      
+      if (!token) throw new Error("Usuário não autenticado.");
 
-      if (uploadError) throw uploadError;
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percentComplete = Math.round((event.loaded / event.total) * 100);
+            setUploadProgress(percentComplete);
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve();
+          } else {
+            reject(new Error(xhr.responseText || 'Erro no upload'));
+          }
+        };
+
+        xhr.onerror = () => reject(new Error('Erro de rede durante o upload'));
+
+        xhr.open('POST', `${supabaseUrl}/storage/v1/object/videos/${filePath}`);
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.setRequestHeader('apikey', supabaseAnonKey);
+        // Supabase expects content type
+        xhr.setRequestHeader('Content-Type', videoFile.type);
+        xhr.send(videoFile);
+      });
 
       const { data: { publicUrl } } = supabase.storage
         .from('videos')
@@ -484,10 +511,22 @@ export function ChallengeVideoModal({
                 <Loader2 size={36} className="text-green-400 animate-spin" />
               </div>
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-3 w-full max-w-[280px]">
               <span className="text-white font-black text-[17px]">Publicando sua vitória...</span>
+              
+              <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden border border-white/5 shadow-inner">
+                <div 
+                  className="h-full bg-green-500 transition-all duration-300 relative"
+                  style={{ width: `${uploadProgress}%` }}
+                >
+                  <div className="absolute inset-0 bg-white/20 w-full animate-[shimmer_2s_infinite]" />
+                </div>
+              </div>
+              
               <span className="text-slate-400 text-[13px] font-medium">
-                Enviando vídeo e notificando o clube
+                {uploadProgress < 100 
+                  ? `Enviando vídeo (${uploadProgress}%)`
+                  : 'Finalizando publicação...'}
               </span>
             </div>
           </div>
