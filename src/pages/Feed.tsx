@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Loader2, ThumbsUp, ThumbsDown, Share2, Trophy, Dumbbell, Clock, Sword, CheckCircle2, MessageSquare, Send, Trash2 } from 'lucide-react';
+import { Loader2, ThumbsUp, ThumbsDown, Share2, Dumbbell, Clock, Sword, CheckCircle2, MessageSquare, Send, Trash2, ChevronDown, Flame } from 'lucide-react';
 import { ChallengesCarousel } from '../components/ChallengesCarousel';
 import { showToast } from '../components/Toast';
 
@@ -26,6 +26,7 @@ interface TreinoCompleto {
   concluido_em: string;
   duracao_segundos: number;
   musculos: string;
+  exercicios_count: number;
 }
 
 interface FeedComment {
@@ -47,8 +48,8 @@ interface FeedCard {
   duracao_min: number;
   musculos: string;
   fitPointsEarned: number;
-  ranking_pos: number;
-  total_treinos: number;
+  exercicios_count: number;
+  kcal_burned: number;
   cidade: string;
   // For challenge victory cards
   cardType?: 'workout' | 'challenge_victory';
@@ -199,6 +200,18 @@ export function Feed() {
     rank: number;
   } | null>(null);
   const [activeCommentCardId, setActiveCommentCardId] = useState<string | null>(null);
+  const [showScrollHint, setShowScrollHint] = useState(true);
+
+  // Handle scroll to hide the arrow
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 30) {
+        setShowScrollHint(false);
+      }
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Load current user stats from leaderboard RPC
   useEffect(() => {
@@ -285,8 +298,8 @@ export function Feed() {
             duracao_min: duracaoMin,
             musculos: t.musculos || 'Treino Livre',
             fitPointsEarned: 100,
-            ranking_pos: lb?.rank ?? 99,
-            total_treinos: lb?.total_treinos ?? 0,
+            exercicios_count: t.exercicios_count ?? 0,
+            kcal_burned: Math.round(duracaoMin * 6.5),
             cidade: lb?.cidade ?? '',
             cardType: 'workout',
             rawDate: t.concluido_em,
@@ -321,8 +334,8 @@ export function Feed() {
             duracao_min: 0,
             musculos: '',
             fitPointsEarned: 25,
-            ranking_pos: lb?.rank ?? 99,
-            total_treinos: lb?.total_treinos ?? 0,
+            exercicios_count: 1,
+            kcal_burned: 15,
             cidade: lb?.cidade ?? '',
             cardType: 'challenge_victory',
             challengerName: ev.challenger_name,
@@ -340,13 +353,13 @@ export function Feed() {
 
         // 9. Fetch likes
         const { data: likesRaw } = await supabase
-          .from('tbFeedLikes')
+          .from('tbfeedlikes')
           .select('item_id, user_id');
         const likes: Array<{ item_id: string; user_id: string }> = likesRaw ?? [];
 
         // 10. Fetch comments with profiles join
         const { data: commentsRaw } = await supabase
-          .from('tbFeedComments')
+          .from('tbfeedcomments')
           .select('id, item_id, user_id, content, created_at, profiles(nome, avatar_url)')
           .order('created_at', { ascending: true });
         
@@ -482,12 +495,12 @@ export function Feed() {
     try {
       if (wasLiked) {
         await supabase
-          .from('tbFeedLikes')
+          .from('tbfeedlikes')
           .delete()
           .eq('user_id', user.id)
           .eq('item_id', cardId);
       } else {
-        await supabase.from('tbFeedLikes').insert({
+        await supabase.from('tbfeedlikes').insert({
           user_id: user.id,
           item_id: cardId,
           item_type: cardType,
@@ -528,7 +541,7 @@ export function Feed() {
 
     try {
       const { data, error } = await supabase
-        .from('tbFeedComments')
+        .from('tbfeedcomments')
         .insert({
           user_id: user.id,
           item_id: cardId,
@@ -586,7 +599,7 @@ export function Feed() {
 
     try {
       const { error } = await supabase
-        .from('tbFeedComments')
+        .from('tbfeedcomments')
         .delete()
         .eq('id', commentId);
 
@@ -678,7 +691,7 @@ export function Feed() {
 
         {/* ── Seção 1: Desafios ── */}
         <div className="flex flex-col w-full space-y-2 -mt-5">
-          <h2 className="text-[#f8fafc] font-bold text-[22px] px-1 tracking-[-0.5px]">Desafios</h2>
+          <h2 className="text-[#f8fafc] font-bold text-[22px] px-1 tracking-[-0.5px]">Radar de rivais</h2>
           <ChallengesCarousel />
         </div>
 
@@ -721,9 +734,7 @@ export function Feed() {
                       className="w-full rounded-[24px] p-5 flex flex-col gap-3 shadow-lg overflow-hidden"
                       style={{
                         background: 'linear-gradient(145deg, #0d1f14, #131b2b)',
-                        border: isValidated
-                          ? '1px solid rgba(34,197,94,0.5)'
-                          : '1px solid rgba(34,197,94,0.2)',
+                        border: '1px solid transparent',
                         boxShadow: isValidated
                           ? '0 4px 24px rgba(34,197,94,0.15)'
                           : '0 4px 24px rgba(34,197,94,0.06)',
@@ -982,7 +993,7 @@ export function Feed() {
                   <div className="mt-1.5 pt-3 border-t border-white/[0.04] grid grid-cols-3 gap-2">
                     <div className="flex flex-col">
                       <span className="text-[9.5px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1">
-                        <Clock size={9} /> Duração
+                        <Clock size={9} className="text-[#4d9fff]" /> Duração
                       </span>
                       <span className="text-slate-300 font-bold text-[13px] mt-0.5 leading-none">
                         {card.duracao_min} min
@@ -990,18 +1001,18 @@ export function Feed() {
                     </div>
                     <div className="flex flex-col">
                       <span className="text-[9.5px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1">
-                        <Dumbbell size={9} /> Treinos
+                        <Dumbbell size={9} className="text-[#4d9fff]" /> Exercícios
                       </span>
                       <span className="text-slate-300 font-bold text-[13px] mt-0.5 leading-none">
-                        {card.total_treinos} total
+                        {card.exercicios_count}
                       </span>
                     </div>
                     <div className="flex flex-col">
                       <span className="text-[9.5px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1">
-                        <Trophy size={9} /> Ranking
+                        <Flame size={9} className="text-[#4d9fff]" /> Kcal
                       </span>
                       <span className="text-slate-300 font-bold text-[13px] mt-0.5 leading-none">
-                        {card.ranking_pos}º lugar
+                        {card.kcal_burned}
                       </span>
                     </div>
                   </div>
@@ -1016,7 +1027,7 @@ export function Feed() {
                       }`}
                     >
                       <ThumbsUp size={14} className={card.likedByMe ? 'fill-blue-400/20' : ''} />
-                      <span>{card.likesCount ?? 0}</span>
+                      <span className="text-white">{card.likesCount ?? 0}</span>
                     </button>
                     <button
                       type="button"
@@ -1026,7 +1037,7 @@ export function Feed() {
                       }`}
                     >
                       <MessageSquare size={14} />
-                      <span>{(card.comments || []).length}</span>
+                      <span className="text-white">{(card.comments || []).length}</span>
                     </button>
                     <button
                       type="button"
@@ -1057,6 +1068,17 @@ export function Feed() {
         </div>
 
       </div>
+
+      {/* Scroll Down Hint */}
+      {showScrollHint && !loading && feedCards.length > 0 && (
+        <div className="fixed bottom-[90px] left-0 right-0 flex justify-center z-40 pointer-events-none transition-opacity duration-500">
+          <div className="flex flex-col items-center gap-1 opacity-80 animate-bounce">
+            <span className="text-[9px] uppercase font-bold tracking-widest text-slate-300 drop-shadow-md">Ver mais</span>
+            <ChevronDown size={22} className="text-white drop-shadow-md" />
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
